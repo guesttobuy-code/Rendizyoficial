@@ -119,6 +119,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { projectId, publicAnonKey } = await import('../utils/supabase/info');
       const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/auth/login`;
       
+      console.log('🔐 AuthContext: URL de login:', url);
+      console.log('🔐 AuthContext: Fazendo requisição...');
+      
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -127,6 +130,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
         body: JSON.stringify({ username, password })
       });
+      
+      console.log('🔐 AuthContext: Response status:', response.status, response.statusText);
 
       if (!response.ok) {
         let errorData;
@@ -140,13 +145,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       let data;
       try {
-        data = await response.json();
+        const responseText = await response.text();
+        console.log('🔐 AuthContext: Response text:', responseText.substring(0, 200));
+        data = JSON.parse(responseText);
+        console.log('🔐 AuthContext: Response data:', data);
       } catch (e) {
         console.error('❌ AuthContext: Erro ao fazer parse da resposta:', e);
         throw new Error('Resposta inválida do servidor');
       }
       
       if (!data || !data.success) {
+        console.error('❌ AuthContext: Login falhou:', data);
         throw new Error(data?.error || 'Erro ao fazer login');
       }
 
