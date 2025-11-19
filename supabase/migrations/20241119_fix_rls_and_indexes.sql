@@ -36,13 +36,13 @@ FOR ALL
 USING (
   -- Permitir se for service role (Edge Functions)
   auth.role() = 'service_role' OR
-  -- OU se organization_id corresponder ao tenant atual
-  organization_id = current_setting('app.current_organization_id', true)::text
+  -- OU se organization_id corresponder ao tenant atual (convertendo texto para UUID)
+  organization_id = current_setting('app.current_organization_id', true)::uuid
 )
 WITH CHECK (
   -- Mesmo check para INSERT/UPDATE
   auth.role() = 'service_role' OR
-  organization_id = current_setting('app.current_organization_id', true)::text
+  organization_id = current_setting('app.current_organization_id', true)::uuid
 );
 
 -- Comentário
