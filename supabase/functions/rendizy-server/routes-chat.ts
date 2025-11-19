@@ -1212,6 +1212,12 @@ chat.patch('/channels/config', async (c) => {
     }
     
     console.log('💾 [PATCH /channels/config] Dados para salvar no banco:', JSON.stringify(dbData, null, 2));
+    console.log('🔍 [PATCH /channels/config] Verificando valores específicos:', {
+      whatsapp_api_url: dbData.whatsapp_api_url,
+      whatsapp_instance_name: dbData.whatsapp_instance_name,
+      whatsapp_api_key: dbData.whatsapp_api_key ? `${dbData.whatsapp_api_key.substring(0, 10)}...` : 'VAZIO',
+      whatsapp_instance_token: dbData.whatsapp_instance_token ? `${dbData.whatsapp_instance_token.substring(0, 10)}...` : 'VAZIO'
+    });
     
     // Salvar no Supabase Database usando safeUpsert
     const { data: savedData, error } = await safeUpsert(
@@ -1226,6 +1232,14 @@ chat.patch('/channels/config', async (c) => {
       console.error('❌ [PATCH /channels/config] Erro ao salvar no banco:', error);
       return c.json(errorResponse(`Erro ao salvar configurações: ${error.message}`), 500);
     }
+    
+    console.log('📥 [PATCH /channels/config] Dados retornados do banco:', JSON.stringify(savedData, null, 2));
+    console.log('🔍 [PATCH /channels/config] Verificando valores salvos:', {
+      whatsapp_api_url: savedData?.whatsapp_api_url,
+      whatsapp_instance_name: savedData?.whatsapp_instance_name,
+      whatsapp_api_key: savedData?.whatsapp_api_key ? `${savedData.whatsapp_api_key.substring(0, 10)}...` : 'VAZIO',
+      whatsapp_instance_token: savedData?.whatsapp_instance_token ? `${savedData.whatsapp_instance_token.substring(0, 10)}...` : 'VAZIO'
+    });
     
     // Converter formato do banco para API (igual ao GET)
     const config = {
