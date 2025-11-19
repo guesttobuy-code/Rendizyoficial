@@ -122,12 +122,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('🔐 AuthContext: URL de login:', url);
       console.log('🔐 AuthContext: Fazendo requisição...');
       
-      // ✅ JWT desabilitado - remover Authorization header para permitir acesso direto
+      // ✅ JWT verificação desabilitada na Edge Function, mas header Authorization ainda é requerido pelo Supabase
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
-          // ✅ REMOVIDO: 'Authorization': `Bearer ${publicAnonKey}` - JWT desabilitado
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}` // Header requerido pelo Supabase, mas JWT não é validado pela Edge Function
         },
         body: JSON.stringify({ username, password })
       });
