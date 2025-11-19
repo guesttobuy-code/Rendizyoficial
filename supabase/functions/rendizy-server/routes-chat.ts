@@ -1294,6 +1294,7 @@ chat.patch('/channels/config', async (c) => {
 
 /**
  * Carrega configuração de canais do banco de dados
+ * ✅ FIX v1.0.103.950 - Filtra soft-deleted automaticamente
  */
 async function loadChannelConfigFromDB(organizationId: string): Promise<OrganizationChannelConfig | null> {
   try {
@@ -1303,6 +1304,7 @@ async function loadChannelConfigFromDB(organizationId: string): Promise<Organiza
       .from('organization_channel_config')
       .select('*')
       .eq('organization_id', organizationId)
+      .is('deleted_at', null) // ✅ Filtrar soft-deleted
       .maybeSingle();
     
     if (error) {
