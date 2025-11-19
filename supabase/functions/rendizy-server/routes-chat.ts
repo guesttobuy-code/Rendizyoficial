@@ -2,7 +2,7 @@ import { Hono } from 'npm:hono';
 import * as kv from './kv_store.tsx';
 import { ensureOrganizationId } from './utils-organization.ts';
 import { successResponse, errorResponse } from './utils-response.ts';
-import { safeUpsert } from './utils-db-safe.ts';
+import { safeUpsert, sanitizeDbData } from './utils-db-safe.ts';
 import { getSupabaseClient } from './kv_store.tsx';
 // ✅ REFATORADO v1.0.103.500 - Helper híbrido para organization_id (UUID)
 import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
@@ -1228,15 +1228,34 @@ chat.patch('/channels/config', async (c) => {
     
     console.log('🔍 [PATCH /channels/config] Registro existente:', existingRecord ? `ID: ${existingRecord.id}, created_at: ${existingRecord.created_at}` : 'NENHUM');
     
-    // Salvar no Supabase Database usando safeUpsert
-    // Usar ignoreDuplicates: false para garantir que atualize se já existir
-    const { data: savedData, error } = await safeUpsert(
-      client,
-      'organization_channel_config',
-      dbData,
-      { onConflict: 'organization_id', ignoreDuplicates: false },
-      'organization_id, whatsapp_enabled, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, whatsapp_connected, whatsapp_phone_number, whatsapp_qr_code, whatsapp_connection_status, whatsapp_last_connected_at, whatsapp_error_message, sms_enabled, sms_account_sid, sms_auth_token, sms_phone_number, sms_credits_used, sms_last_recharged_at, automation_reservation_confirmation, automation_checkin_reminder, automation_checkout_review, automation_payment_reminder, created_at'
-    );
+    let savedData: any;
+    let error: any;
+    
+    // Fazer UPDATE se existir, INSERT se não existir
+    if (existingRecord) {
+      console.log('🔄 [PATCH /channels/config] Atualizando registro existente...');
+      // UPDATE
+      const { data: updatedData, error: updateError } = await client
+        .from('organization_channel_config')
+        .update(sanitizeDbData(dbData, ['updated_at']))
+        .eq('organization_id', dbData.organization_id)
+        .select('organization_id, whatsapp_enabled, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, whatsapp_connected, whatsapp_phone_number, whatsapp_qr_code, whatsapp_connection_status, whatsapp_last_connected_at, whatsapp_error_message, sms_enabled, sms_account_sid, sms_auth_token, sms_phone_number, sms_credits_used, sms_last_recharged_at, automation_reservation_confirmation, automation_checkin_reminder, automation_checkout_review, automation_payment_reminder, created_at')
+        .single();
+      
+      savedData = updatedData;
+      error = updateError;
+    } else {
+      console.log('➕ [PATCH /channels/config] Criando novo registro...');
+      // INSERT
+      const { data: insertedData, error: insertError } = await client
+        .from('organization_channel_config')
+        .insert(sanitizeDbData(dbData, ['updated_at']))
+        .select('organization_id, whatsapp_enabled, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, whatsapp_connected, whatsapp_phone_number, whatsapp_qr_code, whatsapp_connection_status, whatsapp_last_connected_at, whatsapp_error_message, sms_enabled, sms_account_sid, sms_auth_token, sms_phone_number, sms_credits_used, sms_last_recharged_at, automation_reservation_confirmation, automation_checkin_reminder, automation_checkout_review, automation_payment_reminder, created_at')
+        .single();
+      
+      savedData = insertedData;
+      error = insertError;
+    }
     
     if (error) {
       console.error('❌ [PATCH /channels/config] Erro ao salvar no banco:', error);
