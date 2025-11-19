@@ -43,14 +43,14 @@ export async function safeUpsert(
   let payload = sanitizeDbData(data, ["updated_at"]);
 
   // ✅ Fazer upsert com select explícito (sem updated_at)
-  // Primeiro tentar com .single(), se falhar tentar com .maybeSingle()
+  // Primeiro tentar com .single(), se falhar tentar buscar manualmente
   let { data: result, error } = await client
     .from(table)
     .upsert(payload, options)
     .select(selectFields)
     .single();
   
-  // Se .single() falhar (por exemplo, se não houver registro ainda), tentar buscar manualmente
+  // Se .single() falhar (pode acontecer em alguns casos), tentar buscar manualmente
   if (error) {
     console.warn('⚠️ [safeUpsert] .single() falhou, tentando buscar registro:', error?.message);
     
@@ -59,18 +59,18 @@ export async function safeUpsert(
     const conflictValue = payload[conflictField];
     
     if (conflictValue) {
-      const { data: fetched, error: fetchError } = await client
+      const fetchResult = await client
         .from(table)
         .select(selectFields)
         .eq(conflictField, conflictValue)
         .maybeSingle();
       
-      if (!fetchError && fetched) {
-        result = fetched;
+      if (!fetchResult.error && fetchResult.data) {
+        result = fetchResult.data;
         error = null;
-        console.log('✅ [safeUpsert] Registro encontrado após upsert');
+        console.log('✅ [safeUpsert] Registro encontrado após upsert via busca manual');
       } else {
-        console.error('❌ [safeUpsert] Erro ao buscar registro após upsert:', fetchError);
+        console.error('❌ [safeUpsert] Erro ao buscar registro após upsert:', fetchResult.error);
       }
     }
   }
