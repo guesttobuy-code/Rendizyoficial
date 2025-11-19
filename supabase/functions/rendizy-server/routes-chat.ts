@@ -1393,6 +1393,171 @@ chat.patch('/channels/config', async (c) => {
 // 🆕 WHATSAPP (Evolution API) - v1.0.102 ✅
 // ============================================
 
+// ============================================================================
+// HELPER FUNCTIONS - Channel Config (Database)
+// ============================================================================
+
+/**
+ * Carrega configuração de canais do banco de dados
+ */
+async function loadChannelConfigFromDB(organizationId: string): Promise<OrganizationChannelConfig | null> {
+  try {
+    const client = getSupabaseClient();
+    
+    const { data, error } = await client
+      .from('organization_channel_config')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('❌ [loadChannelConfigFromDB] Erro ao carregar:', error);
+      return null;
+    }
+    
+    if (!data) {
+      console.log('⚠️ [loadChannelConfigFromDB] Nenhuma configuração encontrada para:', organizationId);
+      return null;
+    }
+    
+    // Converter formato do banco para formato da interface
+    const config: OrganizationChannelConfig = {
+      organization_id: data.organization_id,
+      whatsapp: {
+        enabled: data.whatsapp_enabled || false,
+        api_url: data.whatsapp_api_url || '',
+        instance_name: data.whatsapp_instance_name || '',
+        api_key: data.whatsapp_api_key || '',
+        instance_token: data.whatsapp_instance_token || '',
+        connected: data.whatsapp_connected || false,
+        phone_number: data.whatsapp_phone_number || undefined,
+        qr_code: data.whatsapp_qr_code || undefined,
+        connection_status: data.whatsapp_connection_status || 'disconnected',
+        last_connected_at: data.whatsapp_last_connected_at || undefined,
+        error_message: data.whatsapp_error_message || undefined,
+      },
+      sms: {
+        enabled: data.sms_enabled || false,
+        account_sid: data.sms_account_sid || '',
+        auth_token: data.sms_auth_token || '',
+        phone_number: data.sms_phone_number || '',
+        credits_used: data.sms_credits_used || 0,
+        last_recharged_at: data.sms_last_recharged_at || undefined,
+      },
+      automations: {
+        reservation_confirmation: data.automation_reservation_confirmation || false,
+        checkin_reminder: data.automation_checkin_reminder || false,
+        checkout_review: data.automation_checkout_review || false,
+        payment_reminder: data.automation_payment_reminder || false,
+      },
+      created_at: data.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    
+    console.log('✅ [loadChannelConfigFromDB] Configuração carregada do banco para:', organizationId);
+    return config;
+  } catch (error) {
+    console.error('❌ [loadChannelConfigFromDB] Erro:', error);
+    return null;
+  }
+}
+
+/**
+ * Salva configuração de canais no banco de dados
+ */
+async function saveChannelConfigToDB(organizationId: string, config: Partial<OrganizationChannelConfig>): Promise<{ success: boolean; error?: string }> {
+  try {
+    const client = getSupabaseClient();
+    
+    const dbData: any = {
+      organization_id: organizationId,
+    };
+    
+    // WhatsApp config
+    if (config.whatsapp !== undefined) {
+      if (typeof config.whatsapp === 'object') {
+        dbData.whatsapp_enabled = config.whatsapp.enabled ?? false;
+        dbData.whatsapp_api_url = config.whatsapp.api_url || '';
+        dbData.whatsapp_instance_name = config.whatsapp.instance_name || '';
+        dbData.whatsapp_api_key = config.whatsapp.api_key || '';
+        dbData.whatsapp_instance_token = config.whatsapp.instance_token || '';
+        dbData.whatsapp_connected = config.whatsapp.connected ?? false;
+        dbData.whatsapp_phone_number = config.whatsapp.phone_number || null;
+        dbData.whatsapp_qr_code = config.whatsapp.qr_code || null;
+        dbData.whatsapp_connection_status = config.whatsapp.connection_status || 'disconnected';
+        dbData.whatsapp_last_connected_at = config.whatsapp.last_connected_at || null;
+        dbData.whatsapp_error_message = config.whatsapp.error_message || null;
+      }
+    }
+    
+    // SMS config
+    if (config.sms !== undefined) {
+      if (typeof config.sms === 'object') {
+        dbData.sms_enabled = config.sms.enabled ?? false;
+        dbData.sms_account_sid = config.sms.account_sid || '';
+        dbData.sms_auth_token = config.sms.auth_token || '';
+        dbData.sms_phone_number = config.sms.phone_number || '';
+        dbData.sms_credits_used = config.sms.credits_used || 0;
+        dbData.sms_last_recharged_at = config.sms.last_recharged_at || null;
+      }
+    }
+    
+    // Automations config
+    if (config.automations !== undefined) {
+      if (typeof config.automations === 'object') {
+        dbData.automation_reservation_confirmation = config.automations.reservation_confirmation ?? false;
+        dbData.automation_checkin_reminder = config.automations.checkin_reminder ?? false;
+        dbData.automation_checkout_review = config.automations.checkout_review ?? false;
+        dbData.automation_payment_reminder = config.automations.payment_reminder ?? false;
+      }
+    }
+    
+    // Verificar se já existe
+    const { data: existing, error: checkError } = await client
+      .from('organization_channel_config')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('❌ [saveChannelConfigToDB] Erro ao verificar:', checkError);
+      return { success: false, error: checkError.message };
+    }
+    
+    if (existing) {
+      // UPDATE
+      const { error: updateError } = await client
+        .from('organization_channel_config')
+        .update(sanitizeDbData(dbData, ['updated_at']))
+        .eq('organization_id', organizationId);
+      
+      if (updateError) {
+        console.error('❌ [saveChannelConfigToDB] Erro ao atualizar:', updateError);
+        return { success: false, error: updateError.message };
+      }
+      
+      console.log('✅ [saveChannelConfigToDB] Configuração atualizada no banco');
+    } else {
+      // INSERT
+      const { error: insertError } = await client
+        .from('organization_channel_config')
+        .insert(dbData);
+      
+      if (insertError) {
+        console.error('❌ [saveChannelConfigToDB] Erro ao inserir:', insertError);
+        return { success: false, error: insertError.message };
+      }
+      
+      console.log('✅ [saveChannelConfigToDB] Configuração criada no banco');
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('❌ [saveChannelConfigToDB] Erro:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
 // Helper: Create Evolution API client
 function createEvolutionClient(config: EvolutionAPIConfig) {
   return {
@@ -1965,6 +2130,7 @@ chat.post('/channels/whatsapp/connect', async (c) => {
 });
 
 // Get WhatsApp connection status
+// ✅ REFATORADO v1.0.103.900 - Usa banco de dados ao invés de KV Store
 chat.post('/channels/whatsapp/status', async (c) => {
   try {
     const body = await c.req.json();
@@ -1974,9 +2140,8 @@ chat.post('/channels/whatsapp/status', async (c) => {
       return c.json({ success: false, error: 'organization_id is required' }, 400);
     }
 
-    // Get config from KV
-    const key = `chat:channels:config:${organization_id}`;
-    const config = await kv.get<OrganizationChannelConfig>(key);
+    // ✅ Carregar config do banco de dados
+    const config = await loadChannelConfigFromDB(organization_id);
     
     if (!config?.whatsapp || !config.whatsapp.enabled) {
       return c.json({ 
@@ -2000,12 +2165,19 @@ chat.post('/channels/whatsapp/status', async (c) => {
 
       // Update config if status changed
       if (isConnected !== config.whatsapp.connected) {
-        config.whatsapp.connected = isConnected;
-        config.whatsapp.connection_status = isConnected ? 'connected' : 'disconnected';
-        config.whatsapp.phone_number = phoneNumber;
-        config.whatsapp.last_connected_at = isConnected ? new Date().toISOString() : config.whatsapp.last_connected_at;
-        config.updated_at = new Date().toISOString();
-        await kv.set(key, config);
+        const updateResult = await saveChannelConfigToDB(organization_id, {
+          whatsapp: {
+            ...config.whatsapp,
+            connected: isConnected,
+            connection_status: isConnected ? 'connected' : 'disconnected',
+            phone_number: phoneNumber,
+            last_connected_at: isConnected ? new Date().toISOString() : config.whatsapp.last_connected_at,
+          }
+        });
+        
+        if (!updateResult.success) {
+          console.error('❌ [WhatsApp Status] Erro ao salvar status atualizado:', updateResult.error);
+        }
       }
 
       return c.json({ 
@@ -2013,14 +2185,14 @@ chat.post('/channels/whatsapp/status', async (c) => {
         data: {
           connected: isConnected,
           phone_number: phoneNumber,
-          connection_status: config.whatsapp.connection_status,
+          connection_status: isConnected ? 'connected' : (config.whatsapp.connection_status || 'disconnected'),
           profile_name: instanceInfo.profileName
         }
       });
     } catch (error) {
       console.error('❌ Error checking Evolution API status:', error);
       
-      // Return cached status
+      // Return cached status from database
       return c.json({ 
         success: true, 
         data: {
@@ -2041,6 +2213,7 @@ chat.post('/channels/whatsapp/status', async (c) => {
 });
 
 // Disconnect WhatsApp
+// ✅ REFATORADO v1.0.103.900 - Usa banco de dados ao invés de KV Store
 chat.post('/channels/whatsapp/disconnect', async (c) => {
   try {
     const body = await c.req.json();
@@ -2050,8 +2223,8 @@ chat.post('/channels/whatsapp/disconnect', async (c) => {
       return c.json({ success: false, error: 'organization_id is required' }, 400);
     }
 
-    const key = `chat:channels:config:${organization_id}`;
-    const config = await kv.get<OrganizationChannelConfig>(key);
+    // ✅ Carregar config do banco de dados
+    const config = await loadChannelConfigFromDB(organization_id);
     
     if (!config?.whatsapp) {
       return c.json({ success: false, error: 'WhatsApp not configured' }, 400);
@@ -2071,14 +2244,24 @@ chat.post('/channels/whatsapp/disconnect', async (c) => {
       // Continue anyway to update local state
     }
 
-    // Update local config
-    config.whatsapp.connected = false;
-    config.whatsapp.connection_status = 'disconnected';
-    config.whatsapp.phone_number = undefined;
-    config.whatsapp.qr_code = undefined;
-    config.updated_at = new Date().toISOString();
+    // ✅ Atualizar config no banco de dados
+    const updateResult = await saveChannelConfigToDB(organization_id, {
+      whatsapp: {
+        ...config.whatsapp,
+        connected: false,
+        connection_status: 'disconnected',
+        phone_number: undefined,
+        qr_code: undefined,
+      }
+    });
     
-    await kv.set(key, config);
+    if (!updateResult.success) {
+      console.error('❌ [WhatsApp Disconnect] Erro ao salvar desconexão:', updateResult.error);
+      return c.json({ 
+        success: false, 
+        error: `Erro ao salvar desconexão: ${updateResult.error}` 
+      }, 500);
+    }
 
     return c.json({ success: true, data: { connected: false } });
   } catch (error) {
@@ -2091,6 +2274,7 @@ chat.post('/channels/whatsapp/disconnect', async (c) => {
 });
 
 // Send WhatsApp message
+// ✅ REFATORADO v1.0.103.900 - Usa banco de dados ao invés de KV Store
 chat.post('/channels/whatsapp/send', async (c) => {
   try {
     const body = await c.req.json();
@@ -2103,9 +2287,8 @@ chat.post('/channels/whatsapp/send', async (c) => {
       }, 400);
     }
 
-    // Get WhatsApp config
-    const configKey = `chat:channels:config:${organization_id}`;
-    const config = await kv.get<OrganizationChannelConfig>(configKey);
+    // ✅ Carregar config do banco de dados
+    const config = await loadChannelConfigFromDB(organization_id);
     
     if (!config?.whatsapp || !config.whatsapp.enabled) {
       return c.json({ success: false, error: 'WhatsApp not configured' }, 400);
@@ -2264,17 +2447,50 @@ chat.post('/channels/whatsapp/webhook', async (c) => {
       return c.json({ success: true, message: 'No text found' });
     }
 
-    // Find organization by instance name
+    // ✅ Find organization by instance name - Buscar do banco de dados
     const instanceName = payload.instance;
-    const prefix = 'chat:channels:config:';
-    const allConfigs = await kv.getByPrefix<OrganizationChannelConfig>(prefix);
+    const client = getSupabaseClient();
     
-    const orgConfig = allConfigs.find(cfg => 
-      cfg.whatsapp?.instance_name === instanceName
-    );
-
+    // Buscar todas as configurações que têm WhatsApp habilitado
+    const { data: allConfigs, error: fetchError } = await client
+      .from('organization_channel_config')
+      .select('*')
+      .eq('whatsapp_enabled', true)
+      .not('whatsapp_instance_name', 'is', null);
+    
+    if (fetchError) {
+      console.error('❌ [Webhook] Erro ao buscar configurações:', fetchError);
+      return c.json({ success: false, error: 'Erro ao buscar configurações' }, 500);
+    }
+    
+    // Converter para formato da interface e encontrar por instance_name
+    const orgConfig = allConfigs
+      ?.map(data => {
+        try {
+          return {
+            organization_id: data.organization_id,
+            whatsapp: {
+              enabled: data.whatsapp_enabled || false,
+              api_url: data.whatsapp_api_url || '',
+              instance_name: data.whatsapp_instance_name || '',
+              api_key: data.whatsapp_api_key || '',
+              instance_token: data.whatsapp_instance_token || '',
+              connected: data.whatsapp_connected || false,
+              phone_number: data.whatsapp_phone_number || undefined,
+              qr_code: data.whatsapp_qr_code || undefined,
+              connection_status: data.whatsapp_connection_status || 'disconnected',
+              last_connected_at: data.whatsapp_last_connected_at || undefined,
+              error_message: data.whatsapp_error_message || undefined,
+            },
+          } as OrganizationChannelConfig;
+        } catch {
+          return null;
+        }
+      })
+      .find(cfg => cfg?.whatsapp?.instance_name === instanceName) || null;
+    
     if (!orgConfig) {
-      console.error('❌ Organization not found for instance:', instanceName);
+      console.error('❌ [Webhook] Organization not found for instance:', instanceName);
       return c.json({ success: false, error: 'Organization not found' }, 404);
     }
 
