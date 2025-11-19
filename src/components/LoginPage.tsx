@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Lock, User, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Lock, User, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from './ui/alert';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { Logo } from './Logo';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -78,16 +79,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       <div className="w-full max-w-md space-y-4">
         {/* Logo e Título */}
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-4 rounded-2xl shadow-lg">
-              <Building2 className="h-12 w-12 text-white" />
-            </div>
+            <Logo size="lg" orientation="vertical" className="justify-center" />
           </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            RENDIZY
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
             Sistema de Gestão de Imóveis de Temporada
           </p>
         </div>

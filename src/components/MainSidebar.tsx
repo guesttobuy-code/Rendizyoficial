@@ -71,6 +71,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import rendizyLogo from 'figma:asset/57eefd69a2e74079e948ce1356622b7f42644fd5.png';
+import { Logo, LogoIcon, LogoText } from './Logo';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1082,12 +1083,16 @@ export function MainSidebar({
         <div className="flex items-center gap-3">
           {!collapsed ? (
             <div className="flex items-center justify-between w-full">
-              <img 
-                src={customLogo || rendizyLogo} 
-                alt="Rendizy" 
-                className="w-auto object-contain"
-                style={{ height: `${logoSize * 0.25}rem` }}
-              />
+              {customLogo || rendizyLogo ? (
+                <img 
+                  src={customLogo || rendizyLogo} 
+                  alt="Rendizy" 
+                  className="w-auto object-contain"
+                  style={{ height: `${logoSize * 0.25}rem` }}
+                />
+              ) : (
+                <Logo size="md" className="justify-start" />
+              )}
               {onToggleCollapse && (
                 <Button
                   variant="ghost"
