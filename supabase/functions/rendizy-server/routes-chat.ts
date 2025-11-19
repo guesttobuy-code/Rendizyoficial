@@ -1172,26 +1172,30 @@ chat.patch('/channels/config', async (c) => {
       organization_id: orgId,
     };
     
-    // WhatsApp config
+    // WhatsApp config - ✅ GARANTIR que TODOS os campos são incluídos, mesmo strings vazias
     if (body.whatsapp) {
+      // Sempre incluir campos obrigatórios (mesmo se vazios, para garantir que sejam salvos)
       dbData.whatsapp_enabled = body.whatsapp.enabled ?? false;
-      dbData.whatsapp_api_url = body.whatsapp.api_url || '';
-      dbData.whatsapp_instance_name = body.whatsapp.instance_name || '';
-      dbData.whatsapp_api_key = body.whatsapp.api_key || '';
-      dbData.whatsapp_instance_token = body.whatsapp.instance_token || '';
+      
+      // ✅ CRÍTICO: Usar operador ?? para diferenciar undefined de string vazia
+      // Se o campo for undefined, usar string vazia. Se for string vazia, manter string vazia.
+      dbData.whatsapp_api_url = body.whatsapp.api_url !== undefined ? (body.whatsapp.api_url || '') : '';
+      dbData.whatsapp_instance_name = body.whatsapp.instance_name !== undefined ? (body.whatsapp.instance_name || '') : '';
+      dbData.whatsapp_api_key = body.whatsapp.api_key !== undefined ? (body.whatsapp.api_key || '') : '';
+      dbData.whatsapp_instance_token = body.whatsapp.instance_token !== undefined ? (body.whatsapp.instance_token || '') : '';
       
       // Campos opcionais (preservar se já existirem)
       if (body.whatsapp.connected !== undefined) {
         dbData.whatsapp_connected = body.whatsapp.connected;
       }
-      if (body.whatsapp.connection_status) {
-        dbData.whatsapp_connection_status = body.whatsapp.connection_status;
+      if (body.whatsapp.connection_status !== undefined) {
+        dbData.whatsapp_connection_status = body.whatsapp.connection_status || 'disconnected';
       }
-      if (body.whatsapp.phone_number) {
-        dbData.whatsapp_phone_number = body.whatsapp.phone_number;
+      if (body.whatsapp.phone_number !== undefined) {
+        dbData.whatsapp_phone_number = body.whatsapp.phone_number || null;
       }
-      if (body.whatsapp.qr_code) {
-        dbData.whatsapp_qr_code = body.whatsapp.qr_code;
+      if (body.whatsapp.qr_code !== undefined) {
+        dbData.whatsapp_qr_code = body.whatsapp.qr_code || null;
       }
     }
     
@@ -1996,6 +2000,7 @@ chat.post('/channels/whatsapp/connect', async (c) => {
     // ✅ Step 3: Save configuration to Supabase Database
     console.log('💾 Salvando configuração e QR Code no banco...');
     
+    // ✅ FIX v1.0.103.960 - Usar Repository para garantir que organização existe
     const dbData: any = {
       organization_id: orgId,
       whatsapp_enabled: true,
@@ -2005,7 +2010,6 @@ chat.post('/channels/whatsapp/connect', async (c) => {
       whatsapp_connected: false,
       whatsapp_connection_status: 'connecting',
       whatsapp_qr_code: qrCodeBase64,
-      updated_at: new Date().toISOString(),
     };
     
     // Salvar instance_token se fornecido
@@ -2013,17 +2017,27 @@ chat.post('/channels/whatsapp/connect', async (c) => {
       dbData.whatsapp_instance_token = instance_token.trim();
     }
     
-    const { error: upsertError } = await safeUpsert(
-      client,
-      'organization_channel_config',
-      dbData,
-      'organization_id'
-    );
+    console.log('📤 [POST /channels/whatsapp/connect] Salvando via Repository para org:', orgId);
     
-    if (upsertError) {
-      console.error('❌ Erro ao salvar configuração no banco:', upsertError);
-      throw new Error(`Erro ao salvar configuração: ${upsertError.message}`);
+    // ✅ Usar Repository que garante que organização existe antes de salvar
+    const result = await channelConfigRepository.upsert(dbData);
+    
+    if (!result.success) {
+      console.error('❌ [POST /channels/whatsapp/connect] Erro ao salvar via Repository:', result.error);
+      throw new Error(`Erro ao salvar configuração: ${result.error}`);
     }
+    
+    if (!result.data) {
+      console.error('❌ [POST /channels/whatsapp/connect] Repository retornou success mas sem dados');
+      throw new Error('Erro ao salvar configuração: Dados não retornados');
+    }
+    
+    console.log('✅✅ [POST /channels/whatsapp/connect] Configuração e QR Code salvos via Repository:', {
+      organization_id: result.data.organization_id,
+      whatsapp_api_url: result.data.whatsapp_api_url || 'VAZIO',
+      whatsapp_instance_name: result.data.whatsapp_instance_name || 'VAZIO',
+      whatsapp_qr_code: result.data.whatsapp_qr_code ? `${result.data.whatsapp_qr_code.substring(0, 30)}...` : 'VAZIO',
+    });
 
     console.log('✅ WhatsApp connection initiated successfully');
     console.log('✅ QR Code saved to database');
