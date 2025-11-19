@@ -1219,12 +1219,22 @@ chat.patch('/channels/config', async (c) => {
       whatsapp_instance_token: dbData.whatsapp_instance_token ? `${dbData.whatsapp_instance_token.substring(0, 10)}...` : 'VAZIO'
     });
     
+    // Verificar se já existe um registro com este organization_id
+    const { data: existingRecord, error: checkError } = await client
+      .from('organization_channel_config')
+      .select('id, organization_id, created_at')
+      .eq('organization_id', dbData.organization_id)
+      .maybeSingle();
+    
+    console.log('🔍 [PATCH /channels/config] Registro existente:', existingRecord ? `ID: ${existingRecord.id}, created_at: ${existingRecord.created_at}` : 'NENHUM');
+    
     // Salvar no Supabase Database usando safeUpsert
+    // Usar ignoreDuplicates: false para garantir que atualize se já existir
     const { data: savedData, error } = await safeUpsert(
       client,
       'organization_channel_config',
       dbData,
-      { onConflict: 'organization_id' },
+      { onConflict: 'organization_id', ignoreDuplicates: false },
       'organization_id, whatsapp_enabled, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, whatsapp_connected, whatsapp_phone_number, whatsapp_qr_code, whatsapp_connection_status, whatsapp_last_connected_at, whatsapp_error_message, sms_enabled, sms_account_sid, sms_auth_token, sms_phone_number, sms_credits_used, sms_last_recharged_at, automation_reservation_confirmation, automation_checkin_reminder, automation_checkout_review, automation_payment_reminder, created_at'
     );
     
