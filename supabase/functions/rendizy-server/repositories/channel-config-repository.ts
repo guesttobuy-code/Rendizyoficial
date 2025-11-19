@@ -9,6 +9,7 @@
  * - Garante consistência de dados
  * - Usa UPSERT para garantir atomicidade
  * - Valida tipos antes de salvar
+ * - Filtra soft-deleted automaticamente
  * 
  * @version 1.0.103.950
  * @updated 2025-11-19 - Arquitetura limpa e assertiva
@@ -55,6 +56,7 @@ interface ChannelConfigDB {
   // Metadata
   created_at?: string;
   updated_at?: string;
+  deleted_at?: string | null; // ✅ Soft delete
 }
 
 interface UpsertResult {
@@ -73,6 +75,7 @@ export class ChannelConfigRepository {
 
   /**
    * Busca configuração por organization_id
+   * ✅ Filtra soft-deleted automaticamente
    */
   async findByOrganizationId(organizationId: string): Promise<ChannelConfigDB | null> {
     try {
@@ -86,6 +89,7 @@ export class ChannelConfigRepository {
         .from(this.tableName)
         .select('*')
         .eq('organization_id', organizationId)
+        .is('deleted_at', null) // ✅ Filtrar soft-deleted
         .maybeSingle();
 
       if (error) {
@@ -108,7 +112,9 @@ export class ChannelConfigRepository {
 
   /**
    * Salva ou atualiza configuração (UPSERT)
-   * Usa UPSERT para garantir atomicidade e evitar race conditions
+   * ✅ Usa UPSERT para garantir atomicidade e evitar race conditions
+   * ✅ Valida tipos antes de salvar
+   * ✅ Verifica persistência após salvar
    */
   async upsert(config: ChannelConfigDB): Promise<UpsertResult> {
     try {
@@ -140,6 +146,8 @@ export class ChannelConfigRepository {
         automation_checkout_review: config.automation_checkout_review ?? false,
         automation_payment_reminder: config.automation_payment_reminder ?? false,
         whatsapp_connected: config.whatsapp_connected ?? false,
+        // Soft delete - garantir null (não deletado)
+        deleted_at: null,
       };
 
       // Sanitizar (remover updated_at para deixar trigger fazer o trabalho)
@@ -213,9 +221,41 @@ export class ChannelConfigRepository {
   }
 
   /**
-   * Deleta configuração por organization_id
+   * Soft delete: marca como deletado ao invés de deletar
+   * ✅ Preserva dados para auditoria e recovery
    */
   async deleteByOrganizationId(organizationId: string): Promise<boolean> {
+    try {
+      if (!organizationId || typeof organizationId !== 'string') {
+        console.error('❌ [ChannelConfigRepository] organizationId inválido:', organizationId);
+        return false;
+      }
+
+      // Soft delete: atualizar deleted_at ao invés de deletar
+      const { error } = await this.client
+        .from(this.tableName)
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('organization_id', organizationId)
+        .is('deleted_at', null); // Só atualizar se ainda não estiver deletado
+
+      if (error) {
+        console.error('❌ [ChannelConfigRepository] Erro ao fazer soft delete:', error);
+        return false;
+      }
+
+      console.log(`✅ [ChannelConfigRepository] Soft delete realizado para org: ${organizationId}`);
+      return true;
+    } catch (error) {
+      console.error('❌ [ChannelConfigRepository] Erro ao fazer soft delete:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Hard delete: deleta permanentemente (use com cuidado!)
+   * ⚠️ APENAS para admin ou cleanup
+   */
+  async hardDeleteByOrganizationId(organizationId: string): Promise<boolean> {
     try {
       if (!organizationId || typeof organizationId !== 'string') {
         console.error('❌ [ChannelConfigRepository] organizationId inválido:', organizationId);
@@ -228,14 +268,14 @@ export class ChannelConfigRepository {
         .eq('organization_id', organizationId);
 
       if (error) {
-        console.error('❌ [ChannelConfigRepository] Erro ao deletar:', error);
+        console.error('❌ [ChannelConfigRepository] Erro ao fazer hard delete:', error);
         return false;
       }
 
-      console.log(`✅ [ChannelConfigRepository] Configuração deletada para org: ${organizationId}`);
+      console.log(`⚠️ [ChannelConfigRepository] Hard delete realizado para org: ${organizationId}`);
       return true;
     } catch (error) {
-      console.error('❌ [ChannelConfigRepository] Erro ao deletar:', error);
+      console.error('❌ [ChannelConfigRepository] Erro ao fazer hard delete:', error);
       return false;
     }
   }
@@ -243,4 +283,3 @@ export class ChannelConfigRepository {
 
 // Singleton instance
 export const channelConfigRepository = new ChannelConfigRepository();
-
