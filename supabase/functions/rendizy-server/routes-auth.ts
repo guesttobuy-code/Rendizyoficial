@@ -77,7 +77,7 @@ async function initializeSuperAdmin() {
         username: 'rppt',
         passwordHash: hashPassword('root'),
         name: 'Super Administrador',
-        email: 'admin@rendizy.com',
+        email: 'suacasarendemais@gmail.com', // ✅ Atualizado para email real
         type: 'superadmin' as const,
         status: 'active' as const,
         createdAt: new Date().toISOString()
@@ -95,6 +95,7 @@ async function initializeSuperAdmin() {
     ];
 
     let initialized = 0;
+    let updated = 0;
 
     for (const superAdmin of superAdmins) {
       const existing = await kv.get(`superadmin:${superAdmin.username}`);
@@ -103,13 +104,25 @@ async function initializeSuperAdmin() {
         await kv.set(`superadmin:${superAdmin.username}`, superAdmin);
         console.log(`✅ SuperAdmin inicializado: ${superAdmin.username} / root`);
         initialized++;
+      } else {
+        // ✅ Atualizar email se mudou (permite atualizar email do SuperAdmin existente)
+        if (existing.email !== superAdmin.email) {
+          existing.email = superAdmin.email;
+          await kv.set(`superadmin:${superAdmin.username}`, existing);
+          console.log(`🔄 SuperAdmin atualizado: ${superAdmin.username} - Email: ${superAdmin.email}`);
+          updated++;
+        }
       }
     }
 
     if (initialized > 0) {
       console.log(`✅ ${initialized} SuperAdmin(s) inicializado(s) com sucesso`);
-    } else {
-      console.log('ℹ️ SuperAdmins já existem, nenhuma inicialização necessária');
+    }
+    if (updated > 0) {
+      console.log(`🔄 ${updated} SuperAdmin(s) atualizado(s) com sucesso`);
+    }
+    if (initialized === 0 && updated === 0) {
+      console.log('ℹ️ SuperAdmins já existem e estão atualizados, nenhuma ação necessária');
     }
     
     return superAdmins[0];
