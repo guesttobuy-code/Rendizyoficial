@@ -2367,12 +2367,13 @@ chat.post('/channels/whatsapp/webhook', async (c) => {
     const instanceName = payload.instance;
     const client = getSupabaseClient();
     
-    // Buscar todas as configurações que têm WhatsApp habilitado
+    // ✅ Buscar todas as configurações que têm WhatsApp habilitado (filtra soft-deleted)
     const { data: allConfigs, error: fetchError } = await client
       .from('organization_channel_config')
       .select('*')
       .eq('whatsapp_enabled', true)
-      .not('whatsapp_instance_name', 'is', null);
+      .not('whatsapp_instance_name', 'is', null)
+      .is('deleted_at', null); // ✅ Filtrar soft-deleted
     
     if (fetchError) {
       console.error('❌ [Webhook] Erro ao buscar configurações:', fetchError);
@@ -2542,6 +2543,7 @@ chat.get('/channels/config', async (c) => {
           const { data: configData, error: configError } = await client
             .from('organization_channel_config')
             .select('organization_id')
+            .is('deleted_at', null) // ✅ Filtrar soft-deleted
             .limit(1)
             .maybeSingle()
             .catch(() => ({ data: null, error: null }));
@@ -2665,6 +2667,7 @@ chat.get('/channels/config', async (c) => {
       .from('organization_channel_config')
       .select('organization_id, created_at, whatsapp_enabled, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, whatsapp_connected, whatsapp_phone_number, whatsapp_qr_code, whatsapp_connection_status, whatsapp_last_connected_at, whatsapp_error_message, sms_enabled, sms_account_sid, sms_auth_token, sms_phone_number, sms_credits_used, sms_last_recharged_at, automation_reservation_confirmation, automation_checkin_reminder, automation_checkout_review, automation_payment_reminder')
       .eq('organization_id', organizationId)
+      .is('deleted_at', null) // ✅ Filtrar soft-deleted
       .maybeSingle();
 
     if (error && error.code !== 'PGRST116') { // PGRST116 = no rows
