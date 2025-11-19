@@ -40,7 +40,7 @@ export function Logo({
   className = '',
   useCustom = false
 }: LogoProps) {
-  // Tamanhos predefinidos
+  // Tamanhos predefinidos - proporção ajustada para melhor harmonia visual
   const sizeClasses = {
     sm: {
       icon: 'h-8 w-8',
@@ -53,13 +53,13 @@ export function Logo({
       gap: 'gap-3'
     },
     lg: {
-      icon: 'h-16 w-16',
-      text: 'text-3xl',
+      icon: 'h-14 w-14', // Reduzido de h-16 para h-14 (56px)
+      text: 'text-4xl',  // Aumentado de text-3xl para text-4xl (36px)
       gap: 'gap-4'
     },
     xl: {
       icon: 'h-20 w-20',
-      text: 'text-4xl',
+      text: 'text-5xl',  // Aumentado de text-4xl para text-5xl
       gap: 'gap-5'
     }
   };
