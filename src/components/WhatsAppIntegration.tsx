@@ -560,10 +560,21 @@ export default function WhatsAppIntegration() {
         console.log('📥 Resultado:', result);
         
         if (result.success) {
-          setConfig(result.data);
-          setWhatsappForm(prev => ({ ...prev, api_url: cleanUrl }));
           console.log('✅ Configurações salvas no backend!');
           toast.success('✅ Configurações salvas no servidor!');
+          
+          // Recarregar configurações do backend para garantir sincronização
+          await loadConfig();
+          
+          // Atualizar formulário com dados salvos
+          if (result.data?.whatsapp) {
+            setWhatsappForm({
+              api_url: result.data.whatsapp.api_url || cleanUrl,
+              instance_name: result.data.whatsapp.instance_name || whatsappForm.instance_name,
+              api_key: result.data.whatsapp.api_key || whatsappForm.api_key,
+              instance_token: result.data.whatsapp.instance_token || whatsappForm.instance_token
+            });
+          }
         } else {
           throw new Error(result.error || 'Backend returned error');
         }
