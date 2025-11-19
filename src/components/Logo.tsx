@@ -108,43 +108,76 @@ export function Logo({
       {/* Ícone - Casa */}
       {!textOnly && (
         <div className={`${currentSize.icon} flex-shrink-0`}>
-          {/* SVG do ícone de casa - Logo oficial RENDIZY (azul escuro) */}
+          {/* SVG do ícone de casa - Logo oficial RENDIZY (minimalista, azul escuro) */}
           <svg
             viewBox="0 0 100 100"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             className="w-full h-full"
           >
-            {/* Casa - Base retangular */}
-            <rect
-              x="20"
-              y="55"
-              width="60"
-              height="25"
-              fill="none"
+            {/* Parede esquerda (vertical) */}
+            <line
+              x1="20"
+              y1="55"
+              x2="20"
+              y2="80"
               stroke="#1e3a8a"
               strokeWidth="6"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            {/* Telhado triangular */}
-            <path
-              d="M50 30 L15 55 L85 55 Z"
-              fill="none"
+            {/* Telhado - lado esquerdo (inclinado até o pico) */}
+            <line
+              x1="20"
+              y1="55"
+              x2="50"
+              y2="30"
               stroke="#1e3a8a"
               strokeWidth="6"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            {/* Janela quadrada no centro */}
-            <rect
-              x="40"
-              y="60"
-              width="20"
-              height="20"
-              fill="none"
+            {/* Telhado - lado direito (inclinado do pico até a parede direita) */}
+            <line
+              x1="50"
+              y1="30"
+              x2="80"
+              y2="55"
               stroke="#1e3a8a"
-              strokeWidth="5"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Parede direita (vertical) */}
+            <line
+              x1="80"
+              y1="55"
+              x2="80"
+              y2="80"
+              stroke="#1e3a8a"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Base esquerda (horizontal curta - gap no meio) */}
+            <line
+              x1="20"
+              y1="80"
+              x2="35"
+              y2="80"
+              stroke="#1e3a8a"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Base direita (horizontal curta - gap no meio) */}
+            <line
+              x1="65"
+              y1="80"
+              x2="80"
+              y2="80"
+              stroke="#1e3a8a"
+              strokeWidth="6"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -156,6 +189,7 @@ export function Logo({
       {!iconOnly && (
         <span 
           className={`font-bold uppercase tracking-tight text-blue-900 dark:text-blue-300 ${currentSize.text}`}
+          style={{ color: '#1e3a8a' }}
         >
           RENDIZY
         </span>
