@@ -20,9 +20,14 @@ const client = () => createClient(
 // Set stores a key-value pair in the database.
 export const set = async (key: string, value: any): Promise<void> => {
   const supabase = client()
+  const now = new Date().toISOString();
   const { error } = await supabase.from("kv_store_67caf26a").upsert({
     key,
-    value
+    value,
+    updated_at: now
+    // created_at será definido automaticamente pelo DEFAULT NOW() se não existir
+  }, {
+    onConflict: 'key'
   });
   if (error) {
     throw new Error(error.message);
@@ -51,7 +56,18 @@ export const del = async (key: string): Promise<void> => {
 // Sets multiple key-value pairs in the database.
 export const mset = async (keys: string[], values: any[]): Promise<void> => {
   const supabase = client()
-  const { error } = await supabase.from("kv_store_67caf26a").upsert(keys.map((k, i) => ({ key: k, value: values[i] })));
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("kv_store_67caf26a").upsert(
+    keys.map((k, i) => ({ 
+      key: k, 
+      value: values[i],
+      updated_at: now
+      // created_at será definido automaticamente pelo DEFAULT NOW() se não existir
+    })),
+    {
+      onConflict: 'key'
+    }
+  );
   if (error) {
     throw new Error(error.message);
   }

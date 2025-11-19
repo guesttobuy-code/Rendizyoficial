@@ -1034,6 +1034,7 @@ chat.patch('/channels/config', async (c) => {
             // Tabela existe mas não encontrou - tentar criar
             console.log('⚠️ [PATCH /channels/config] Organização não encontrada, tentando criar...');
             try {
+              const now = new Date().toISOString();
               const { data: newOrg, error: createError } = await client
                 .from('organizations')
                 .insert({
@@ -1042,7 +1043,9 @@ chat.patch('/channels/config', async (c) => {
                   email: 'admin@rendizy.com',
                   legacy_imobiliaria_id: bodyOrgId,
                   plan: 'free',
-                  status: 'active'
+                  status: 'active',
+                  created_at: now,
+                  updated_at: now // ✅ FIX: Adicionar updated_at para evitar erro de trigger
                 })
                 .select('id')
                 .single();
@@ -2596,6 +2599,7 @@ chat.get('/channels/config', async (c) => {
                 console.log('✅ [GET /channels/config] Usando primeira organização disponível:', organizationId);
               } else {
                 // Última opção: Criar organização padrão
+                const now = new Date().toISOString();
                 const { data: newOrg } = await client
                   .from('organizations')
                   .insert({
@@ -2603,7 +2607,9 @@ chat.get('/channels/config', async (c) => {
                     slug: `org-${Date.now()}`,
                     email: 'admin@rendizy.com',
                     plan: 'free',
-                    status: 'active'
+                    status: 'active',
+                    created_at: now,
+                    updated_at: now // ✅ FIX: Adicionar updated_at para evitar erro de trigger
                   })
                   .select('id')
                   .single()
@@ -2639,6 +2645,7 @@ chat.get('/channels/config', async (c) => {
         
         // Fallback final: usar UUID fixo para org_default (mesma lógica do PATCH)
         try {
+          const now = new Date().toISOString();
           const { data: newOrg } = await client
             .from('organizations')
             .insert({
@@ -2646,7 +2653,9 @@ chat.get('/channels/config', async (c) => {
               slug: `org-${Date.now()}`,
               email: 'admin@rendizy.com',
               plan: 'free',
-              status: 'active'
+              status: 'active',
+              created_at: now,
+              updated_at: now // ✅ FIX: Adicionar updated_at para evitar erro de trigger
             })
             .select('id')
             .single()

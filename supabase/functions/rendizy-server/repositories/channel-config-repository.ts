@@ -150,21 +150,13 @@ export class ChannelConfigRepository {
         return true;
       }
 
-      // Organização não existe - criar uma padrão
-      console.log(`⚠️ [ChannelConfigRepository] Organização não encontrada, criando padrão: ${organizationId}`);
-      
-      const { data: newOrg, error: createError } = await this.client
-        .from('organizations')
-        .insert({
-          id: organizationId, // Usar o ID fornecido (UUID)
-          name: 'Organização Padrão',
-          slug: `org-default-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-          email: `admin-${Date.now()}@rendizy.com`,
-          plan: 'free',
-          status: 'active'
-        })
-        .select('id')
-        .single();
+      // Organização não existe - NÃO criar automaticamente durante login
+      // ✅ FIX v1.0.103.970: Não criar organização durante login para evitar erro de trigger
+      // A organização deve ser criada manualmente ou via migração
+      console.log(`⚠️ [ChannelConfigRepository] Organização não encontrada: ${organizationId}`);
+      console.log(`⚠️ [ChannelConfigRepository] NÃO criando organização automaticamente - usar migração ou criar manualmente`);
+      console.warn('⚠️ [ChannelConfigRepository] Se a organização não existir, o foreign key constraint vai falhar com mensagem clara');
+      return false; // Retornar false para permitir que o erro de foreign key seja claro
 
       if (createError) {
         // Se erro for de duplicação, significa que a organização foi criada entre a verificação e o insert
@@ -190,6 +182,34 @@ export class ChannelConfigRepository {
           // Retornar true para permitir que o upsert tente mesmo assim
           // Se houver foreign key constraint, o erro será claro
           return true;
+        }
+        
+        // ✅ FIX v1.0.103.970: Se erro for sobre "updated_at", pode ser trigger no banco
+        // Tentar novamente com UPSERT usando ON CONFLICT DO UPDATE
+        if (createError.message?.includes('updated_at') || createError.message?.includes('record "new"')) {
+          console.warn('⚠️ [ChannelConfigRepository] Erro de trigger (updated_at), tentando UPSERT alternativo...');
+          // Tentar UPSERT ao invés de INSERT
+          const { data: upserted, error: upsertError } = await this.client
+            .from('organizations')
+            .upsert({
+              id: organizationId,
+              name: 'Organização Padrão',
+              slug: `org-default-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+              email: `admin-${Date.now()}@rendizy.com`,
+              plan: 'free',
+              status: 'active',
+              created_at: now,
+              updated_at: now
+            }, {
+              onConflict: 'id'
+            })
+            .select('id')
+            .single();
+          
+          if (!upsertError && upserted?.id) {
+            console.log(`✅ [ChannelConfigRepository] Organização criada via UPSERT: ${upserted.id}`);
+            return true;
+          }
         }
         
         // Para outros erros, retornar false mas tentar mesmo assim no upsert

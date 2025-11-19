@@ -132,26 +132,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       
       console.log('🔐 AuthContext: Response status:', response.status, response.statusText);
+      console.log('🔐 AuthContext: Response headers:', Object.fromEntries(response.headers.entries()));
+
+      // Ler resposta como texto primeiro para ver o conteúdo (só pode ler uma vez)
+      const responseText = await response.text();
+      console.log('🔐 AuthContext: Response text (primeiros 500 chars):', responseText.substring(0, 500));
 
       if (!response.ok) {
         let errorData;
         try {
-          errorData = await response.json();
+          errorData = JSON.parse(responseText);
+          console.log('🔐 AuthContext: Error data (JSON):', errorData);
         } catch (e) {
-          errorData = { error: `Erro HTTP ${response.status}: ${response.statusText}` };
+          // Se não for JSON, pode ser HTML de erro do Supabase
+          console.error('❌ AuthContext: Resposta de erro não é JSON:', {
+            status: response.status,
+            statusText: response.statusText,
+            contentType: response.headers.get('content-type'),
+            responseText: responseText.substring(0, 500)
+          });
+          
+          // Tentar extrair mensagem de erro do HTML ou usar mensagem padrão
+          let errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
+          
+          if (responseText.includes('record "new" has no field "updated_at"')) {
+            errorMessage = 'Erro no banco de dados: campo updated_at ausente. Verifique as migrations.';
+          } else if (responseText.includes('Internal Server Error')) {
+            errorMessage = 'Erro interno do servidor. Verifique os logs do Supabase.';
+          } else if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>')) {
+            errorMessage = 'Servidor retornou HTML em vez de JSON. Verifique se a Edge Function está funcionando.';
+          }
+          
+          throw new Error(errorMessage);
         }
-        throw new Error(errorData.error || 'Erro ao fazer login');
+        throw new Error(errorData.error || errorData.message || 'Erro ao fazer login');
       }
 
       let data;
       try {
-        const responseText = await response.text();
-        console.log('🔐 AuthContext: Response text:', responseText.substring(0, 200));
         data = JSON.parse(responseText);
         console.log('🔐 AuthContext: Response data:', data);
       } catch (e) {
-        console.error('❌ AuthContext: Erro ao fazer parse da resposta:', e);
-        throw new Error('Resposta inválida do servidor');
+        console.error('❌ AuthContext: Erro ao fazer parse da resposta JSON:', {
+          error: e,
+          responseText: responseText.substring(0, 500),
+          contentType: response.headers.get('content-type')
+        });
+        throw new Error(`Resposta inválida do servidor (não é JSON): ${responseText.substring(0, 100)}`);
       }
       
       if (!data || !data.success) {

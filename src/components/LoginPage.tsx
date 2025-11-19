@@ -164,8 +164,22 @@ export default function LoginPage() {
               {/* Botão de Login */}
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                className="w-full text-white transition-all"
+                style={{ 
+                  backgroundColor: '#363E46',
+                  borderColor: '#363E46'
+                }}
                 disabled={loading}
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = '#2d3438';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = '#363E46';
+                  }
+                }}
               >
                 {loading ? (
                   <>
