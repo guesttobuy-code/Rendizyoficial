@@ -1525,18 +1525,36 @@ async function saveChannelConfigToDB(organizationId: string, config: Partial<Org
     }
     
     if (existing) {
-      // UPDATE
-      const { error: updateError } = await client
+      // UPDATE - importante: usar .select() para verificar se realmente atualizou
+      const sanitizedPayload = sanitizeDbData(dbData, ['updated_at']);
+      console.log('📝 [saveChannelConfigToDB] Payload de UPDATE:', {
+        organization_id: sanitizedPayload.organization_id,
+        whatsapp_api_url: sanitizedPayload.whatsapp_api_url || 'VAZIO',
+        whatsapp_instance_name: sanitizedPayload.whatsapp_instance_name || 'VAZIO'
+      });
+      
+      const { data: updatedData, error: updateError } = await client
         .from('organization_channel_config')
-        .update(sanitizeDbData(dbData, ['updated_at']))
-        .eq('organization_id', organizationId);
+        .update(sanitizedPayload)
+        .eq('organization_id', organizationId)
+        .select('organization_id, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, created_at')
+        .single();
       
       if (updateError) {
         console.error('❌ [saveChannelConfigToDB] Erro ao atualizar:', updateError);
         return { success: false, error: updateError.message };
       }
       
-      console.log('✅ [saveChannelConfigToDB] Configuração atualizada no banco');
+      if (!updatedData || !updatedData.organization_id) {
+        console.error('❌ [saveChannelConfigToDB] UPDATE não retornou dados - nenhuma linha afetada!');
+        return { success: false, error: 'UPDATE não afetou nenhuma linha - possivelmente bloqueado por RLS' };
+      }
+      
+      console.log('✅ [saveChannelConfigToDB] Configuração atualizada no banco:', {
+        whatsapp_api_url: updatedData.whatsapp_api_url || 'VAZIO',
+        whatsapp_instance_name: updatedData.whatsapp_instance_name || 'VAZIO',
+        created_at: updatedData.created_at
+      });
     } else {
       // INSERT
       const { error: insertError } = await client
