@@ -108,56 +108,45 @@ export function Logo({
       {/* Ícone - Casa */}
       {!textOnly && (
         <div className={`${currentSize.icon} flex-shrink-0`}>
-          {/* SVG do ícone de casa (baseado na descrição: casa com telhado inclinado e porta retangular) */}
+          {/* SVG do ícone de casa - Logo oficial RENDIZY (azul escuro) */}
           <svg
             viewBox="0 0 100 100"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             className="w-full h-full"
           >
-            {/* Casa - Base (retângulo com porta) */}
-            <path
-              d="M20 60 L20 80 L80 80 L80 60 L50 35 L20 60 Z"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-gray-900 dark:text-gray-100"
-            />
-            {/* Telhado - Esquerda */}
-            <path
-              d="M50 35 L15 55 L20 60"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-gray-900 dark:text-gray-100"
-            />
-            {/* Telhado - Direita */}
-            <path
-              d="M50 35 L85 55 L80 60"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-gray-900 dark:text-gray-100"
-            />
-            {/* Porta retangular aberta (vazia no meio) */}
+            {/* Casa - Base retangular */}
             <rect
-              x="42"
-              y="65"
-              width="16"
-              height="15"
-              rx="1"
+              x="20"
+              y="55"
+              width="60"
+              height="25"
               fill="none"
-              stroke="currentColor"
-              strokeWidth="3.5"
+              stroke="#1e3a8a"
+              strokeWidth="6"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="text-gray-900 dark:text-gray-100"
+            />
+            {/* Telhado triangular */}
+            <path
+              d="M50 30 L15 55 L85 55 Z"
+              fill="none"
+              stroke="#1e3a8a"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Janela quadrada no centro */}
+            <rect
+              x="40"
+              y="60"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="#1e3a8a"
+              strokeWidth="5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
           </svg>
         </div>
@@ -166,7 +155,7 @@ export function Logo({
       {/* Texto - RENDIZY */}
       {!iconOnly && (
         <span 
-          className={`font-bold uppercase tracking-tight text-gray-900 dark:text-gray-100 ${currentSize.text}`}
+          className={`font-bold uppercase tracking-tight text-blue-900 dark:text-blue-300 ${currentSize.text}`}
         >
           RENDIZY
         </span>
