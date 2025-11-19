@@ -43,16 +43,26 @@ export async function safeUpsert(
   let payload = sanitizeDbData(data, ["updated_at"]);
 
   // ✅ Fazer upsert com select explícito (sem updated_at)
-  // Primeiro tentar com .single(), se falhar tentar buscar manualmente
+  // Usar .maybeSingle() primeiro e tentar .single() apenas se necessário
+  // O Supabase pode retornar array ou single dependendo da situação
   let { data: result, error } = await client
     .from(table)
     .upsert(payload, options)
-    .select(selectFields)
-    .single();
+    .select(selectFields);
   
-  // Se .single() falhar (pode acontecer em alguns casos), tentar buscar manualmente
-  if (error) {
-    console.warn('⚠️ [safeUpsert] .single() falhou, tentando buscar registro:', error?.message);
+  // Se retornou array, pegar o primeiro item
+  if (!error && Array.isArray(result)) {
+    if (result.length > 0) {
+      result = result[0];
+    } else {
+      // Array vazio - tentar buscar manualmente
+      error = { message: 'Upsert retornou array vazio' };
+    }
+  }
+  
+  // Se ainda não temos resultado, tentar buscar manualmente
+  if (error || !result) {
+    console.warn('⚠️ [safeUpsert] Upsert falhou ou retornou vazio, tentando buscar registro:', error?.message);
     
     // Tentar buscar o registro que acabou de ser criado/atualizado
     const conflictField = options?.onConflict || 'id';
@@ -71,6 +81,10 @@ export async function safeUpsert(
         console.log('✅ [safeUpsert] Registro encontrado após upsert via busca manual');
       } else {
         console.error('❌ [safeUpsert] Erro ao buscar registro após upsert:', fetchResult.error);
+        // Manter o erro original se a busca também falhar
+        if (!error) {
+          error = fetchResult.error || { message: 'Registro não encontrado após upsert' };
+        }
       }
     }
   }
