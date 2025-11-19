@@ -174,8 +174,28 @@ export class ChannelConfigRepository {
           return true;
         }
         
-        console.error('❌ [ChannelConfigRepository] Erro ao criar organização:', createError);
-        return false;
+        // ✅ CRÍTICO: Logar TODOS os detalhes do erro para debug
+        console.error('❌ [ChannelConfigRepository] Erro ao criar organização:', {
+          code: createError.code,
+          message: createError.message,
+          details: createError.details,
+          hint: createError.hint,
+          organizationId
+        });
+        
+        // Se a tabela organizations não existe ou tem schema diferente, continuar mesmo assim
+        // O foreign key constraint vai falhar com mensagem clara se necessário
+        if (createError.code === '42P01' || createError.message?.includes('does not exist')) {
+          console.warn('⚠️ [ChannelConfigRepository] Tabela organizations não existe ou schema diferente, continuando sem criar organização');
+          // Retornar true para permitir que o upsert tente mesmo assim
+          // Se houver foreign key constraint, o erro será claro
+          return true;
+        }
+        
+        // Para outros erros, retornar false mas tentar mesmo assim no upsert
+        // O erro de foreign key será mais claro que "não foi possível criar organização"
+        console.warn('⚠️ [ChannelConfigRepository] Erro ao criar organização, mas continuando - foreign key constraint vai falhar com mensagem clara se necessário');
+        return true; // ✅ MUDANÇA: Retornar true para permitir tentar o upsert
       }
 
       if (newOrg?.id) {
@@ -207,11 +227,12 @@ export class ChannelConfigRepository {
       }
 
       // ✅ FIX v1.0.103.960 - Garantir que organização existe antes de salvar
+      // Se não conseguir criar/verificar, tentar mesmo assim - foreign key constraint vai falhar com mensagem clara
       const orgExists = await this.ensureOrganizationExists(config.organization_id);
       if (!orgExists) {
-        const error = `Não foi possível garantir que a organização ${config.organization_id} existe`;
-        console.error(`❌ [ChannelConfigRepository] ${error}`);
-        return { success: false, error };
+        console.warn(`⚠️ [ChannelConfigRepository] Não foi possível garantir que organização ${config.organization_id} existe, mas tentando upsert mesmo assim - se houver foreign key constraint, o erro será claro`);
+        // ✅ MUDANÇA: Não abortar - deixar o upsert tentar e o foreign key constraint falhar com mensagem clara
+        // Isso é melhor que falhar silenciosamente
       }
 
       // Normalizar dados antes de salvar
