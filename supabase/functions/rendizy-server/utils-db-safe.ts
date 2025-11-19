@@ -43,11 +43,12 @@ export async function safeUpsert(
   let payload = sanitizeDbData(data, ["updated_at"]);
 
   // ✅ Fazer upsert com select explícito (sem updated_at)
+  // Usar .single() ao invés de .maybeSingle() porque após upsert sempre deve retornar dados
   let { data: result, error } = await client
     .from(table)
     .upsert(payload, options)
     .select(selectFields)
-    .maybeSingle();
+    .single();
 
   return { data: result, error };
 }
