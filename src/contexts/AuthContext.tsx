@@ -122,11 +122,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('🔐 AuthContext: URL de login:', url);
       console.log('🔐 AuthContext: Fazendo requisição...');
       
+      // ✅ JWT desabilitado - remover Authorization header para permitir acesso direto
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Content-Type': 'application/json'
+          // ✅ REMOVIDO: 'Authorization': `Bearer ${publicAnonKey}` - JWT desabilitado
         },
         body: JSON.stringify({ username, password })
       });
