@@ -30,19 +30,20 @@ DROP POLICY IF EXISTS "Allow all operations on channel_config" ON organization_c
 -- Criar policy correta que isola por organization_id
 -- IMPORTANTE: Edge Functions usam Service Role Key, então RLS é bypassado
 -- MAS esta policy protege acesso direto ao banco (ex: via Supabase Dashboard)
+-- NOTA: organization_id pode ser TEXT ou UUID no banco, então convertemos ambos para TEXT
 CREATE POLICY "tenant_isolation_channel_config" 
 ON organization_channel_config 
 FOR ALL 
 USING (
   -- Permitir se for service role (Edge Functions)
   auth.role() = 'service_role' OR
-  -- OU se organization_id corresponder ao tenant atual (convertendo texto para UUID)
-  organization_id = current_setting('app.current_organization_id', true)::uuid
+  -- OU se organization_id corresponder ao tenant atual (converte ambos para TEXT para compatibilidade)
+  organization_id::text = COALESCE(current_setting('app.current_organization_id', true), '')::text
 )
 WITH CHECK (
   -- Mesmo check para INSERT/UPDATE
   auth.role() = 'service_role' OR
-  organization_id = current_setting('app.current_organization_id', true)::uuid
+  organization_id::text = COALESCE(current_setting('app.current_organization_id', true), '')::text
 );
 
 -- Comentário
