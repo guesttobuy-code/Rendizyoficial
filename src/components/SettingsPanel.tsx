@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, RotateCcw, Eye, Check, AlertCircle, Image as ImageIcon, Save, Settings as SettingsIcon, Zap, Building2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { GlobalSettingsManager } from './GlobalSettingsManager';
+import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Label } from './ui/label';
 import { Slider } from './ui/slider';
@@ -440,7 +441,7 @@ export function SettingsPanel({ onLogoChange }: SettingsPanelProps) {
         </TabsContent>
 
         <TabsContent value="policies" className="mt-6">
-          <GlobalSettingsManager organizationId="org-default" />
+          <GlobalSettingsManager organizationId={organizationId} />
         </TabsContent>
 
         <TabsContent value="integrations" className="space-y-6 mt-6">

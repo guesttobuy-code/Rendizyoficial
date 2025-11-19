@@ -55,6 +55,7 @@ import { toast } from 'sonner@2.0.3';
 import { channelsApi, OrganizationChannelConfig } from '../utils/chatApi';
 import { isOfflineMode } from '../utils/offlineConfig';
 import { evolutionService, SessionStatus } from '../utils/services/evolutionService';
+import { useAuth } from '../contexts/AuthContext';
 
 // ============================================================================
 // TYPES
@@ -76,7 +77,10 @@ interface WhatsAppConfig {
 // ============================================================================
 
 export default function WhatsAppIntegration() {
-  const organizationId = 'org_default'; // TODO: Get from context/props
+  const { organization } = useAuth();
+  
+  // Obter organizationId do contexto, com fallback seguro
+  const organizationId = organization?.id || '00000000-0000-0000-0000-000000000001';
   
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<OrganizationChannelConfig | null>(null);
