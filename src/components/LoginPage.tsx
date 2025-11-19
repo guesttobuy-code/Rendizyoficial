@@ -36,6 +36,11 @@ export default function LoginPage() {
       
       const result = await login(username, password);
       
+      // ✅ Verificar se result existe e tem success
+      if (!result) {
+        throw new Error('Resposta inválida do servidor');
+      }
+      
       if (result.success) {
         toast.success('✅ Login realizado com sucesso!', {
           description: `Bem-vindo, ${result.user?.name || username}!`
