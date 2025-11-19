@@ -129,14 +129,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { error: `Erro HTTP ${response.status}: ${response.statusText}` };
+        }
         throw new Error(errorData.error || 'Erro ao fazer login');
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error('❌ AuthContext: Erro ao fazer parse da resposta:', e);
+        throw new Error('Resposta inválida do servidor');
+      }
       
-      if (!data.success) {
-        throw new Error(data.error || 'Erro ao fazer login');
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'Erro ao fazer login');
       }
 
       console.log('✅ Login bem-sucedido:', data.user);
