@@ -180,17 +180,7 @@ async function getOrganizationIdFromSupabaseAuth(token: string): Promise<string 
  */
 export async function getOrganizationIdOrThrow(c: Context): Promise<string> {
   try {
-    // 0. PRIORIDADE 0: Verificar se organization_id foi passado explicitamente no body ou query
-    try {
-      const body = await c.req.json().catch(() => ({}));
-      if (body.organization_id && typeof body.organization_id === 'string') {
-        console.log(`✅ [getOrganizationIdOrThrow] organization_id encontrado no body: ${body.organization_id}`);
-        return body.organization_id;
-      }
-    } catch {
-      // Body vazio ou não-JSON, continuar
-    }
-    
+    // 0. PRIORIDADE 0: Verificar se organization_id foi passado explicitamente no query (não consome body)
     try {
       const orgIdFromQuery = c.req.query('organization_id');
       if (orgIdFromQuery && typeof orgIdFromQuery === 'string') {
@@ -199,6 +189,18 @@ export async function getOrganizationIdOrThrow(c: Context): Promise<string> {
       }
     } catch {
       // Query vazia, continuar
+    }
+    
+    // 0.1. PRIORIDADE 0.1: Verificar se organization_id foi passado no body (só tenta se query não encontrou)
+    // Nota: Isso pode consumir o body, então só tentamos se não encontramos no query
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      if (body && typeof body === 'object' && body.organization_id && typeof body.organization_id === 'string') {
+        console.log(`✅ [getOrganizationIdOrThrow] organization_id encontrado no body: ${body.organization_id}`);
+        return body.organization_id;
+      }
+    } catch {
+      // Body vazio, não-JSON ou já foi consumido, continuar
     }
     
     // 1. Extrair token do header Authorization
