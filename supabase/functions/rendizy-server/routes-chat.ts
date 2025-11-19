@@ -1222,39 +1222,115 @@ chat.patch('/channels/config', async (c) => {
     // Verificar se já existe um registro com este organization_id
     const { data: existingRecord, error: checkError } = await client
       .from('organization_channel_config')
-      .select('id, organization_id, created_at')
+      .select('id, organization_id, created_at, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token')
       .eq('organization_id', dbData.organization_id)
       .maybeSingle();
     
-    console.log('🔍 [PATCH /channels/config] Registro existente:', existingRecord ? `ID: ${existingRecord.id}, created_at: ${existingRecord.created_at}` : 'NENHUM');
+    console.log('🔍 [PATCH /channels/config] Registro existente:', existingRecord ? {
+      id: existingRecord.id,
+      created_at: existingRecord.created_at,
+      whatsapp_api_url: existingRecord.whatsapp_api_url || 'VAZIO',
+      whatsapp_instance_name: existingRecord.whatsapp_instance_name || 'VAZIO'
+    } : 'NENHUM');
     
     let savedData: any;
     let error: any;
     
+    // Preparar dados sanitizados (remover apenas updated_at, NÃO remover campos vazios)
+    const sanitizedData = sanitizeDbData(dbData, ['updated_at']);
+    console.log('🧹 [PATCH /channels/config] Dados sanitizados (removido updated_at):', {
+      organization_id: sanitizedData.organization_id,
+      whatsapp_api_url: sanitizedData.whatsapp_api_url || 'VAZIO',
+      whatsapp_instance_name: sanitizedData.whatsapp_instance_name || 'VAZIO',
+      whatsapp_api_key: sanitizedData.whatsapp_api_key ? `${sanitizedData.whatsapp_api_key.substring(0, 10)}...` : 'VAZIO',
+      whatsapp_instance_token: sanitizedData.whatsapp_instance_token ? `${sanitizedData.whatsapp_instance_token.substring(0, 10)}...` : 'VAZIO'
+    });
+    
     // Fazer UPDATE se existir, INSERT se não existir
     if (existingRecord) {
-      console.log('🔄 [PATCH /channels/config] Atualizando registro existente...');
-      // UPDATE
-      const { data: updatedData, error: updateError } = await client
-        .from('organization_channel_config')
-        .update(sanitizeDbData(dbData, ['updated_at']))
-        .eq('organization_id', dbData.organization_id)
-        .select('organization_id, whatsapp_enabled, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, whatsapp_connected, whatsapp_phone_number, whatsapp_qr_code, whatsapp_connection_status, whatsapp_last_connected_at, whatsapp_error_message, sms_enabled, sms_account_sid, sms_auth_token, sms_phone_number, sms_credits_used, sms_last_recharged_at, automation_reservation_confirmation, automation_checkin_reminder, automation_checkout_review, automation_payment_reminder, created_at')
-        .single();
+      console.log('🔄 [PATCH /channels/config] Atualizando registro existente ID:', existingRecord.id);
+      // UPDATE - importante: garantir que campos vazios sejam definidos como string vazia, não undefined
+      const updatePayload = { ...sanitizedData };
+      // Garantir que campos vazios sejam strings vazias, não undefined/null
+      if (!updatePayload.whatsapp_api_url) updatePayload.whatsapp_api_url = '';
+      if (!updatePayload.whatsapp_instance_name) updatePayload.whatsapp_instance_name = '';
+      if (!updatePayload.whatsapp_api_key) updatePayload.whatsapp_api_key = '';
+      if (!updatePayload.whatsapp_instance_token) updatePayload.whatsapp_instance_token = '';
       
-      savedData = updatedData;
-      error = updateError;
+      console.log('📝 [PATCH /channels/config] Payload de UPDATE:', {
+        organization_id: updatePayload.organization_id,
+        whatsapp_api_url: updatePayload.whatsapp_api_url || 'VAZIO',
+        whatsapp_instance_name: updatePayload.whatsapp_instance_name || 'VAZIO'
+      });
+      
+      const { data: updatedData, error: updateError, count } = await client
+        .from('organization_channel_config')
+        .update(updatePayload)
+        .eq('organization_id', dbData.organization_id)
+        .select('organization_id, whatsapp_enabled, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, whatsapp_connected, whatsapp_phone_number, whatsapp_qr_code, whatsapp_connection_status, whatsapp_last_connected_at, whatsapp_error_message, sms_enabled, sms_account_sid, sms_auth_token, sms_phone_number, sms_credits_used, sms_last_recharged_at, automation_reservation_confirmation, automation_checkin_reminder, automation_checkout_review, automation_payment_reminder, created_at');
+      
+      console.log('📊 [PATCH /channels/config] Resultado do UPDATE:', {
+        linhasAfetadas: updatedData?.length || 0,
+        erro: updateError?.message || 'NENHUM',
+        dadosRetornados: updatedData ? {
+          whatsapp_api_url: updatedData[0]?.whatsapp_api_url || 'VAZIO',
+          whatsapp_instance_name: updatedData[0]?.whatsapp_instance_name || 'VAZIO'
+        } : 'NENHUM'
+      });
+      
+      if (updateError) {
+        console.error('❌ [PATCH /channels/config] Erro no UPDATE:', updateError);
+        error = updateError;
+      } else if (!updatedData || updatedData.length === 0) {
+        console.error('❌ [PATCH /channels/config] UPDATE não afetou nenhuma linha!');
+        error = { message: 'UPDATE não afetou nenhuma linha - registro não encontrado ou RLS bloqueou' };
+      } else {
+        savedData = updatedData[0]; // Pegar primeiro resultado
+        console.log('✅ [PATCH /channels/config] UPDATE bem-sucedido! Dados atualizados:', {
+          whatsapp_api_url: savedData.whatsapp_api_url || 'VAZIO',
+          whatsapp_instance_name: savedData.whatsapp_instance_name || 'VAZIO'
+        });
+        
+        // Verificar imediatamente após UPDATE se os dados foram salvos
+        const { data: verifyData, error: verifyError } = await client
+          .from('organization_channel_config')
+          .select('whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, created_at')
+          .eq('organization_id', dbData.organization_id)
+          .maybeSingle();
+        
+        console.log('🔍 [PATCH /channels/config] Verificação pós-UPDATE:', verifyData ? {
+          whatsapp_api_url: verifyData.whatsapp_api_url || 'VAZIO',
+          whatsapp_instance_name: verifyData.whatsapp_instance_name || 'VAZIO',
+          created_at: verifyData.created_at
+        } : 'REGISTRO NÃO ENCONTRADO!');
+      }
     } else {
       console.log('➕ [PATCH /channels/config] Criando novo registro...');
       // INSERT
+      const insertPayload = { ...sanitizedData };
+      // Garantir que campos vazios sejam strings vazias
+      if (!insertPayload.whatsapp_api_url) insertPayload.whatsapp_api_url = '';
+      if (!insertPayload.whatsapp_instance_name) insertPayload.whatsapp_instance_name = '';
+      if (!insertPayload.whatsapp_api_key) insertPayload.whatsapp_api_key = '';
+      if (!insertPayload.whatsapp_instance_token) insertPayload.whatsapp_instance_token = '';
+      
       const { data: insertedData, error: insertError } = await client
         .from('organization_channel_config')
-        .insert(sanitizeDbData(dbData, ['updated_at']))
+        .insert(insertPayload)
         .select('organization_id, whatsapp_enabled, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, whatsapp_connected, whatsapp_phone_number, whatsapp_qr_code, whatsapp_connection_status, whatsapp_last_connected_at, whatsapp_error_message, sms_enabled, sms_account_sid, sms_auth_token, sms_phone_number, sms_credits_used, sms_last_recharged_at, automation_reservation_confirmation, automation_checkin_reminder, automation_checkout_review, automation_payment_reminder, created_at')
         .single();
       
-      savedData = insertedData;
-      error = insertError;
+      if (insertError) {
+        console.error('❌ [PATCH /channels/config] Erro no INSERT:', insertError);
+        error = insertError;
+      } else {
+        savedData = insertedData;
+        console.log('✅ [PATCH /channels/config] INSERT bem-sucedido! Dados criados:', {
+          whatsapp_api_url: savedData.whatsapp_api_url || 'VAZIO',
+          whatsapp_instance_name: savedData.whatsapp_instance_name || 'VAZIO',
+          created_at: savedData.created_at
+        });
+      }
     }
     
     if (error) {
