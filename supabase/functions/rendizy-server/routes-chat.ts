@@ -1409,11 +1409,12 @@ async function saveChannelConfigToDB(organizationId: string, config: Partial<Org
       }
     }
     
-    // Verificar se já existe
+    // Verificar se já existe (filtra soft-deleted)
     const { data: existing, error: checkError } = await client
       .from('organization_channel_config')
       .select('id')
       .eq('organization_id', organizationId)
+      .is('deleted_at', null) // ✅ Filtrar soft-deleted
       .maybeSingle();
     
     if (checkError && checkError.code !== 'PGRST116') {
