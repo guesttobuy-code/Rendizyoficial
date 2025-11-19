@@ -117,67 +117,67 @@ export function Logo({
           >
             {/* Parede esquerda (vertical) */}
             <line
-              x1="20"
-              y1="55"
-              x2="20"
-              y2="80"
+              x1="25"
+              y1="50"
+              x2="25"
+              y2="75"
               stroke="#1e3a8a"
-              strokeWidth="6"
+              strokeWidth="8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
             {/* Telhado - lado esquerdo (inclinado até o pico) */}
             <line
-              x1="20"
-              y1="55"
+              x1="25"
+              y1="50"
               x2="50"
-              y2="30"
+              y2="25"
               stroke="#1e3a8a"
-              strokeWidth="6"
+              strokeWidth="8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
             {/* Telhado - lado direito (inclinado do pico até a parede direita) */}
             <line
               x1="50"
-              y1="30"
-              x2="80"
-              y2="55"
+              y1="25"
+              x2="75"
+              y2="50"
               stroke="#1e3a8a"
-              strokeWidth="6"
+              strokeWidth="8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
             {/* Parede direita (vertical) */}
             <line
-              x1="80"
-              y1="55"
-              x2="80"
-              y2="80"
+              x1="75"
+              y1="50"
+              x2="75"
+              y2="75"
               stroke="#1e3a8a"
-              strokeWidth="6"
+              strokeWidth="8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
             {/* Base esquerda (horizontal curta - gap no meio) */}
             <line
-              x1="20"
-              y1="80"
-              x2="35"
-              y2="80"
+              x1="25"
+              y1="75"
+              x2="38"
+              y2="75"
               stroke="#1e3a8a"
-              strokeWidth="6"
+              strokeWidth="8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
             {/* Base direita (horizontal curta - gap no meio) */}
             <line
-              x1="65"
-              y1="80"
-              x2="80"
-              y2="80"
+              x1="62"
+              y1="75"
+              x2="75"
+              y2="75"
               stroke="#1e3a8a"
-              strokeWidth="6"
+              strokeWidth="8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -188,7 +188,7 @@ export function Logo({
       {/* Texto - RENDIZY */}
       {!iconOnly && (
         <span 
-          className={`font-bold uppercase tracking-tight text-blue-900 dark:text-blue-300 ${currentSize.text}`}
+          className={`font-bold uppercase tracking-tight ${currentSize.text} ${className}`}
           style={{ color: '#1e3a8a' }}
         >
           RENDIZY
@@ -211,4 +211,3 @@ export function LogoIcon({ size = 'md', className = '' }: { size?: 'sm' | 'md' |
 export function LogoText({ size = 'md', className = '' }: { size?: 'sm' | 'md' | 'lg' | 'xl'; className?: string }) {
   return <Logo textOnly size={size} className={className} />;
 }
-
