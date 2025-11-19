@@ -53,14 +53,14 @@ export function Logo({
       gap: 'gap-3'
     },
     lg: {
-      icon: 'h-14 w-14', // Reduzido de h-16 para h-14 (56px)
-      text: 'text-4xl',  // Aumentado de text-3xl para text-4xl (36px)
-      gap: 'gap-4'
+      icon: 'h-12 w-12', // Reduzido para h-12 (48px) - proporção mais harmoniosa
+      text: 'text-5xl',  // Aumentado para text-5xl (48px) - mesmo tamanho visual que o ícone
+      gap: 'gap-3'       // Gap reduzido para aproximar ícone e texto
     },
     xl: {
-      icon: 'h-20 w-20',
-      text: 'text-5xl',  // Aumentado de text-4xl para text-5xl
-      gap: 'gap-5'
+      icon: 'h-16 w-16',
+      text: 'text-6xl',  // Proporção mantida para xl
+      gap: 'gap-4'
     }
   };
 
