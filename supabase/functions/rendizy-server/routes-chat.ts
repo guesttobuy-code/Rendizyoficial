@@ -6,6 +6,8 @@ import { safeUpsert, sanitizeDbData } from './utils-db-safe.ts';
 import { getSupabaseClient } from './kv_store.tsx';
 // ✅ REFATORADO v1.0.103.500 - Helper híbrido para organization_id (UUID)
 import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
+// ✅ FIX v1.0.103.950 - Repository Pattern para garantir persistência
+import { channelConfigRepository } from './repositories/channel-config-repository.ts';
 
 const chat = new Hono();
 
