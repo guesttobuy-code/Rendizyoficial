@@ -101,7 +101,7 @@ const AVAILABLE_EVENTS = [
   { name: 'PRESENCE_UPDATE', label: 'Presença', description: 'Status de presença' },
   { name: 'CONNECTION_UPDATE', label: 'Conexão', description: 'Status de conexão' },
   { name: 'GROUPS_UPSERT', label: 'Grupos (Novo)', description: 'Novo grupo' },
-  { name: 'GROUPS_UPDATE', label: 'Grupos (Update)', description: 'Grupo atualizado' },
+  { name: 'GROUP_UPDATE', label: 'Grupos (Update)', description: 'Grupo atualizado' },
   { name: 'GROUP_PARTICIPANTS_UPDATE', label: 'Participantes', description: 'Membros do grupo' },
   { name: 'CALL', label: 'Chamadas', description: 'Chamadas recebidas' },
 ];
