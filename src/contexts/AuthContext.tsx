@@ -132,60 +132,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ username, password })
       });
       
+      // ✅ ARQUITETURA CORRETA: Ler body apenas UMA vez
       console.log('🔐 AuthContext: Response status:', response.status, response.statusText);
-      console.log('🔐 AuthContext: Response headers:', Object.fromEntries(response.headers.entries()));
 
-      // Ler resposta como texto primeiro para ver o conteúdo (só pode ler uma vez)
+      // Ler resposta como texto primeiro (para poder fazer JSON.parse depois se necessário)
       const responseText = await response.text();
       console.log('🔐 AuthContext: Response text (primeiros 500 chars):', responseText.substring(0, 500));
 
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = JSON.parse(responseText);
-          console.log('🔐 AuthContext: Error data (JSON):', errorData);
-        } catch (e) {
-          // Se não for JSON, pode ser HTML de erro do Supabase
-          console.error('❌ AuthContext: Resposta de erro não é JSON:', {
-            status: response.status,
-            statusText: response.statusText,
-            contentType: response.headers.get('content-type'),
-            responseText: responseText.substring(0, 500)
-          });
-          
-          // Tentar extrair mensagem de erro do HTML ou usar mensagem padrão
-          let errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
-          
-          if (responseText.includes('record "new" has no field "updated_at"')) {
-            errorMessage = 'Erro no banco de dados: campo updated_at ausente. Verifique as migrations.';
-          } else if (responseText.includes('Internal Server Error')) {
-            errorMessage = 'Erro interno do servidor. Verifique os logs do Supabase.';
-          } else if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>')) {
-            errorMessage = 'Servidor retornou HTML em vez de JSON. Verifique se a Edge Function está funcionando.';
-          }
-          
-          throw new Error(errorMessage);
-        }
-        throw new Error(errorData.error || errorData.message || 'Erro ao fazer login');
-      }
-
+      // Tentar parsear como JSON
       let data;
       try {
         data = JSON.parse(responseText);
-        console.log('🔐 AuthContext: Response data:', data);
-      } catch (e) {
-        console.error('❌ AuthContext: Erro ao fazer parse da resposta JSON:', {
-          error: e,
-          responseText: responseText.substring(0, 500),
-          contentType: response.headers.get('content-type')
-        });
-        throw new Error(`Resposta inválida do servidor (não é JSON): ${responseText.substring(0, 100)}`);
+        console.log('🔐 AuthContext: Response data (parsed):', data);
+      } catch (parseError) {
+        // Se falhou JSON, logar erro completo
+        console.error('❌ AuthContext: Erro ao parsear JSON:', parseError);
+        console.error('❌ AuthContext: Resposta completa:', responseText.substring(0, 500));
+        throw new Error(`Erro HTTP ${response.status}: Resposta não é JSON válido - ${responseText.substring(0, 200)}`);
       }
-      
+
+      // Verificar se resposta é sucesso HTTP
+      if (!response.ok) {
+        console.error('❌ AuthContext: Login falhou - HTTP não OK:', { status: response.status, data });
+        throw new Error(data?.error || data?.message || `Erro HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      // Verificar se resposta indica sucesso
       if (!data || !data.success) {
-        console.error('❌ AuthContext: Login falhou:', data);
-        throw new Error(data?.error || 'Erro ao fazer login');
+        console.error('❌ AuthContext: Login falhou - success=false:', data);
+        throw new Error(data?.error || data?.message || 'Erro ao fazer login');
       }
+
+      // ✅ Login bem-sucedido!
+      console.log('✅ AuthContext: Login bem-sucedido:', data.user);
 
       console.log('✅ Login bem-sucedido:', data.user);
 
