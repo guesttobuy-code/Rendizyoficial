@@ -5,7 +5,7 @@
 
 import { projectId, publicAnonKey } from './supabase/info';
 
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1/rendizy-server`;
+const BASE_URL = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a`;
 
 export interface WhatsAppStatus {
   status: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING' | 'ERROR';
