@@ -179,16 +179,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('🔐 AuthContext: URL de login:', url);
       console.log('🔐 AuthContext: Fazendo requisição...');
       
-      // ✅ CORREÇÃO DEFINITIVA: Usar apikey header ao invés de Authorization Bearer
-      // O Supabase Edge Functions requer um header de autenticação, mas podemos usar
-      // o anon key como apikey para permitir requisições públicas. Isso bypassa
-      // a validação de JWT sem precisar configurar rotas públicas no dashboard.
+      // ✅ CORREÇÃO DEFINITIVA: Usar APENAS apikey header SEM Authorization Bearer
+      // O Supabase Edge Functions valida JWT automaticamente no gateway se Authorization estiver presente.
+      // Ao remover Authorization e usar apenas apikey, permitimos que a requisição chegue ao nosso código.
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': publicAnonKey, // ✅ Usar apikey ao invés de Authorization Bearer
-          'Authorization': `Bearer ${publicAnonKey}` // ✅ Também manter Authorization para compatibilidade
+          'apikey': publicAnonKey // ✅ Usar APENAS apikey, sem Authorization Bearer
         },
         body: JSON.stringify({ username, password })
       });
