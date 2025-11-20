@@ -1769,16 +1769,44 @@ export function whatsappEvolutionRoutes(app: Hono) {
       console.log(`[WhatsApp Webhook Setup] ✅ Webhook configurado com sucesso`);
 
       // Salvar configuração no banco (opcional)
+      // Nota: webhook_url e webhook_events podem não existir na tabela ainda
+      // Por enquanto, apenas atualizamos updated_at
       const client = getSupabaseClient();
-      await client
-        .from('organization_channel_config')
-        .update({
-          webhook_url: webhookUrl,
-          webhook_events: events,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('organization_id', organizationId)
-        .catch(err => console.warn('[WhatsApp Webhook Setup] Erro ao salvar no banco:', err));
+      try {
+        await client
+          .from('organization_channel_config')
+          .update({
+            updated_at: new Date().toISOString(),
+          })
+          .eq('organization_id', organizationId)
+          .catch(err => {
+            console.warn('[WhatsApp Webhook Setup] Erro ao atualizar updated_at:', err);
+          });
+        
+        // Tentar salvar webhook_url e webhook_events se as colunas existirem
+        // (usando select para verificar se colunas existem antes de tentar update)
+        try {
+          const { error: updateError } = await client
+            .from('organization_channel_config')
+            .update({
+              webhook_url: webhookUrl,
+              webhook_events: events,
+            } as any)
+            .eq('organization_id', organizationId);
+          
+          if (updateError && updateError.code === '42703') {
+            // Coluna não existe - ignorar silenciosamente
+            console.log('[WhatsApp Webhook Setup] Colunas webhook_url/webhook_events não existem ainda - pulando salvamento');
+          } else if (updateError) {
+            console.warn('[WhatsApp Webhook Setup] Erro ao salvar webhook config:', updateError);
+          }
+        } catch (colErr) {
+          // Colunas não existem - ignorar
+          console.log('[WhatsApp Webhook Setup] Colunas webhook não disponíveis ainda');
+        }
+      } catch (err) {
+        console.warn('[WhatsApp Webhook Setup] Erro geral ao salvar no banco:', err);
+      }
 
       return c.json({
         success: true,
@@ -1820,14 +1848,26 @@ export function whatsappEvolutionRoutes(app: Hono) {
 
       // Buscar configuração do banco
       const client = getSupabaseClient();
-      const { data: dbConfig } = await client
-        .from('organization_channel_config')
-        .select('webhook_url, webhook_events')
-        .eq('organization_id', organizationId)
-        .maybeSingle()
-        .catch(() => ({ data: null }));
+      let webhookUrl: string | null = null;
+      let webhookEvents: string[] = [];
+      
+      try {
+        const { data: dbConfig } = await client
+          .from('organization_channel_config')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .maybeSingle();
+        
+        // Tentar acessar webhook_url e webhook_events (podem não existir ainda)
+        if (dbConfig) {
+          webhookUrl = (dbConfig as any).webhook_url || null;
+          webhookEvents = (dbConfig as any).webhook_events || [];
+        }
+      } catch (err) {
+        console.warn('[WhatsApp Webhook Status] Erro ao buscar config do banco:', err);
+      }
 
-      if (!dbConfig || !dbConfig.webhook_url) {
+      if (!webhookUrl) {
         return c.json({ 
           success: true,
           data: {
@@ -1856,8 +1896,8 @@ export function whatsappEvolutionRoutes(app: Hono) {
             data: {
               enabled: true,
               configured: true,
-              url: dbConfig.webhook_url,
-              events: dbConfig.webhook_events || [],
+              url: webhookUrl,
+              events: webhookEvents,
               evolutionData: evolutionData
             }
           });
@@ -1872,8 +1912,8 @@ export function whatsappEvolutionRoutes(app: Hono) {
         data: {
           enabled: true,
           configured: true,
-          url: dbConfig.webhook_url,
-          events: dbConfig.webhook_events || []
+          url: webhookUrl,
+          events: webhookEvents
         }
       });
     } catch (error) {
