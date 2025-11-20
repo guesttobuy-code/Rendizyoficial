@@ -166,8 +166,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // ✅ Login bem-sucedido!
       console.log('✅ AuthContext: Login bem-sucedido:', data.user);
 
-      console.log('✅ Login bem-sucedido:', data.user);
-
       // ✅ MELHORIA v1.0.103.400 - Garantir que user tenha organizationId
       // Converter para formato do User
       const loggedUser: User = {
@@ -209,7 +207,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(loggedUser);
 
-      return { success: true, user: loggedUser };
+      // ✅ Retornar user com type para compatibilidade com LoginPage
+      return { 
+        success: true, 
+        user: {
+          ...loggedUser,
+          type: data.user.type, // Manter type original da API para LoginPage
+          username: data.user.username // Manter username também
+        }
+      };
     } catch (error) {
       console.error('❌ AuthContext: Erro no login:', error);
       throw error;
