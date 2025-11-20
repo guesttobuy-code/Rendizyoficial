@@ -564,14 +564,53 @@ export function ChatInbox() {
       }
       
       // Converter mensagens do WhatsApp para o formato do sistema
-      const formattedMessages = whatsappMessages.map((msg: any) => ({
-        id: msg.key.id,
-        sender_type: msg.key.fromMe ? 'staff' : 'guest',
-        sender_name: msg.key.fromMe ? 'Você' : (msg.pushName || conv.guest_name),
-        content: extractMessageText(msg),
-        sent_at: new Date(msg.messageTimestamp * 1000),
-        read_at: msg.status === 'read' ? new Date() : undefined,
-      }));
+      const formattedMessages = whatsappMessages
+        .filter((msg: any) => {
+          // ✅ CORREÇÃO: Filtrar mensagens inválidas antes de processar
+          if (!msg) return false;
+          
+          // Evolution API pode retornar mensagens em diferentes formatos
+          // Formato 1: msg.key.id
+          // Formato 2: msg.id
+          // Formato 3: msg.message.key.id
+          const msgId = msg.id || msg.key?.id || msg.message?.key?.id || msg.key_id;
+          if (!msgId) {
+            console.warn('⚠️ Mensagem sem ID válido:', msg);
+            return false;
+          }
+          return true;
+        })
+        .map((msg: any) => {
+          try {
+            // ✅ CORREÇÃO: Extrair dados da mensagem de forma robusta
+            // Evolution API pode retornar em diferentes formatos
+            const msgId = msg.id || msg.key?.id || msg.message?.key?.id || msg.key_id || `msg_${Date.now()}_${Math.random()}`;
+            const fromMe = msg.key?.fromMe ?? msg.fromMe ?? msg.message?.key?.fromMe ?? false;
+            const pushName = msg.pushName || msg.name || msg.contact?.name || conv.guest_name || 'Contato';
+            const messageTimestamp = msg.messageTimestamp || msg.timestamp || msg.createdAt || Date.now() / 1000;
+            const status = msg.status || msg.ack || 'pending';
+            
+            return {
+              id: String(msgId),
+              sender_type: fromMe ? 'staff' : 'guest',
+              sender_name: fromMe ? 'Você' : pushName,
+              content: extractMessageText(msg),
+              sent_at: new Date(typeof messageTimestamp === 'number' ? messageTimestamp * 1000 : new Date(messageTimestamp).getTime()),
+              read_at: status === 'read' || status === 3 || status === 4 ? new Date() : undefined,
+            };
+          } catch (error) {
+            console.error('❌ Erro ao processar mensagem:', error, msg);
+            // Retornar mensagem mínima como fallback
+            return {
+              id: `msg_fallback_${Date.now()}_${Math.random()}`,
+              sender_type: 'guest' as const,
+              sender_name: 'Contato',
+              content: '[Mensagem não pôde ser processada]',
+              sent_at: new Date(),
+              read_at: undefined,
+            };
+          }
+        });
 
       setMessages(formattedMessages);
       
