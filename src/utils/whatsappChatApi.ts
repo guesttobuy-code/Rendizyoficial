@@ -179,10 +179,17 @@ export async function fetchWhatsAppMessages(chatId: string, limit: number = 50):
     const result = await response.json();
     console.log('[WhatsApp Chat API] ✅ Mensagens recebidas:', result.data?.length || 0);
     
-    return result.data || [];
+    // ✅ CORREÇÃO: Garantir que sempre retorna um array
+    if (!result.data || !Array.isArray(result.data)) {
+      console.warn('[WhatsApp Chat API] ⚠️ Resposta não é um array, retornando array vazio');
+      return [];
+    }
+    
+    return result.data;
   } catch (error) {
     console.error('[WhatsApp Chat API] ❌ Erro:', error);
-    throw error;
+    // ✅ CORREÇÃO: Retornar array vazio ao invés de lançar erro
+    return [];
   }
 }
 

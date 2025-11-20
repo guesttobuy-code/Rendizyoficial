@@ -542,15 +542,26 @@ export function ChatInbox() {
   const loadWhatsAppMessages = async (conversationId: string) => {
     try {
       const conv = conversations.find(c => c.id === conversationId);
-      if (!conv || !(conv as any).whatsapp_chat_id) {
+      if (!conv) {
         console.error('Conversa do WhatsApp não encontrada');
         return;
       }
 
-      const whatsappChatId = (conv as any).whatsapp_chat_id;
+      // ✅ CORREÇÃO: Extrair chatId correto (remover prefixo wa-)
+      const whatsappChatId = conversationId.startsWith('wa-') 
+        ? conversationId.replace('wa-', '') 
+        : (conv as any).whatsapp_chat_id || conversationId;
+      
       console.log('📥 Carregando mensagens do WhatsApp:', whatsappChatId);
 
       const whatsappMessages = await fetchWhatsAppMessages(whatsappChatId, 50);
+      
+      // ✅ CORREÇÃO: Garantir que é um array antes de fazer .map()
+      if (!Array.isArray(whatsappMessages)) {
+        console.error('❌ Mensagens do WhatsApp não são um array:', whatsappMessages);
+        setMessages([]);
+        return;
+      }
       
       // Converter mensagens do WhatsApp para o formato do sistema
       const formattedMessages = whatsappMessages.map((msg: any) => ({
