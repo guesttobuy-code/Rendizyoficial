@@ -1469,7 +1469,7 @@ export function ChatInbox() {
 
       {/* Lista de Conversas */}
       <div className="w-96 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-        {/* WhatsApp Integration */}
+        {/* WhatsApp Integration - Carregamento automático invisível */}
         <WhatsAppChatsImporter 
           onChatsLoaded={handleWhatsAppChatsLoaded}
         />

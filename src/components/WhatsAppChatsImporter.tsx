@@ -1,21 +1,12 @@
 /**
  * Componente para importar conversas do WhatsApp Evolution API
  * Busca e exibe conversas do WhatsApp na aba Chat
+ * ✅ v1.0.103.950 - Carregamento automático invisível ao entrar na página de chat
  */
 
-import React, { useState, useEffect } from 'react';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { toast } from 'sonner';
-import { Loader2, RefreshCw, MessageCircle, CheckCircle2 } from 'lucide-react';
-import {
-  fetchWhatsAppChats,
-  fetchWhatsAppMessages,
-  sendWhatsAppMessage,
-  formatPhoneDisplay,
-  extractMessageText,
-  extractPhoneNumber,
-} from '../utils/whatsappChatApi';
+import React, { useEffect } from 'react';
+import { formatPhoneDisplay, extractPhoneNumber } from '../utils/whatsappChatApi';
+import { fetchWhatsAppChats } from '../utils/whatsappChatApi';
 
 interface WhatsAppChat {
   id?: string | null; // ✅ CORREÇÃO: Evolution API pode retornar null
@@ -51,30 +42,22 @@ interface WhatsAppChatsImporterProps {
   onMessagesLoaded?: (chatId: string, messages: any[]) => void;
 }
 
-export function WhatsAppChatsImporter({ onChatsLoaded, onMessagesLoaded }: WhatsAppChatsImporterProps) {
-  const [loading, setLoading] = useState(false);
-  const [chats, setChats] = useState<WhatsAppChat[]>([]);
-  const [importedCount, setImportedCount] = useState(0);
-
+export function WhatsAppChatsImporter({ onChatsLoaded }: WhatsAppChatsImporterProps) {
   /**
-   * Buscar conversas do WhatsApp
+   * Buscar conversas do WhatsApp automaticamente
+   * Função invisível - carrega conversas ao entrar na página de chat
    */
-  const handleImportChats = async () => {
-    setLoading(true);
-    
+  const loadChatsAutomatically = async () => {
     try {
-      console.log('🔄 Importando conversas do WhatsApp...');
-      toast.info('📥 Importando conversas do WhatsApp...', { duration: 2000 });
+      console.log('🔄 Carregando conversas do WhatsApp automaticamente...');
       
       const whatsappChats = await fetchWhatsAppChats();
       
-      console.log('✅ Conversas importadas:', whatsappChats.length);
+      console.log('✅ Conversas carregadas:', whatsappChats.length);
       
       if (whatsappChats.length === 0) {
-        toast.info('ℹ️ Nenhuma conversa encontrada no WhatsApp', {
-          description: 'Verifique se o WhatsApp está conectado e possui conversas',
-        });
-        setImportedCount(0);
+        // Silenciosamente - sem toast, apenas log
+        console.log('ℹ️ Nenhuma conversa encontrada no WhatsApp');
         return;
       }
       
@@ -114,7 +97,8 @@ export function WhatsAppChatsImporter({ onChatsLoaded, onMessagesLoaded }: Whats
           property_id: '',
           channel: 'whatsapp' as const,
           status: chat.unreadCount && chat.unreadCount > 0 ? 'unread' as const : 'read' as const,
-          category: 'normal' as const,
+          // ✅ MELHORIA: Categorizar como 'urgent' se tem mensagens não lidas
+          category: (chat.unreadCount && chat.unreadCount > 0) ? 'urgent' as const : 'normal' as const,
           conversation_type: 'lead' as const,
           // ✅ CORREÇÃO: Extrair texto da mensagem corretamente
           // Evolution API pode retornar lastMessage como objeto complexo
@@ -164,7 +148,7 @@ export function WhatsAppChatsImporter({ onChatsLoaded, onMessagesLoaded }: Whats
               property_id: '',
               channel: 'whatsapp' as const,
               status: 'read' as const,
-              category: 'normal' as const,
+              category: 'normal' as const, // Fallback: normal em caso de erro
               conversation_type: 'lead' as const,
               // ✅ CORREÇÃO: Extrair texto da mensagem corretamente
               last_message: (() => {
@@ -196,91 +180,41 @@ export function WhatsAppChatsImporter({ onChatsLoaded, onMessagesLoaded }: Whats
             };
           }
         })
-        .filter((chat): chat is NonNullable<typeof chat> => chat !== null); // ✅ Filtrar nulls (não deve haver mais, mas segurança extra)
+        .filter((chat): chat is NonNullable<typeof chat> => chat !== null);
       
-      setChats(whatsappChats);
-      setImportedCount(convertedChats.length);
-      
-      // Notificar componente pai
+      // Notificar componente pai silenciosamente
       if (onChatsLoaded) {
         onChatsLoaded(convertedChats);
+        console.log(`✅ ${convertedChats.length} conversas carregadas e exibidas automaticamente`);
       }
       
-      toast.success(`✅ ${convertedChats.length} conversas importadas do WhatsApp!`, {
-        description: 'As conversas agora aparecem na lista',
-      });
-      
     } catch (error: any) {
-      console.error('❌ Erro ao importar conversas:', error);
-      
-      // Não mostrar toast de erro, apenas log no console
-      // O fetchWhatsAppChats já retorna array vazio em caso de erro
-      console.warn('⚠️ WhatsApp não disponível no momento');
-      setImportedCount(0);
-    } finally {
-      setLoading(false);
+      // Erro silencioso - apenas log no console
+      console.error('❌ Erro ao carregar conversas do WhatsApp:', error);
+      console.warn('⚠️ WhatsApp não disponível no momento - continuação silenciosa');
     }
   };
 
   /**
-   * Importar automaticamente ao montar
+   * Carregar conversas automaticamente ao montar o componente
+   * ✅ Carregamento automático e invisível ao entrar na página de chat
    */
   useEffect(() => {
-    console.log('🔵 WhatsAppChatsImporter montado - iniciando importação em 1 segundo...');
+    // Carregar imediatamente ao entrar na página de chat
+    loadChatsAutomatically();
     
-    // Auto-import na primeira carga
-    const timer = setTimeout(() => {
-      console.log('⏰ Timer acionado - chamando handleImportChats...');
-      handleImportChats();
-    }, 1000);
+    // Opcional: Recarregar periodicamente a cada 5 minutos
+    const interval = setInterval(() => {
+      loadChatsAutomatically();
+    }, 5 * 60 * 1000); // 5 minutos
     
     return () => {
-      console.log('🔴 WhatsAppChatsImporter desmontado - limpando timer');
-      clearTimeout(timer);
+      clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <div className="flex items-center gap-2 p-4 bg-green-50 border-b border-green-200">
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-4 w-4 text-green-600" />
-          <span className="text-sm font-medium text-green-900">
-            WhatsApp Evolution API
-          </span>
-          {importedCount > 0 && (
-            <Badge variant="secondary" className="bg-green-100 text-green-700">
-              {importedCount} conversas
-            </Badge>
-          )}
-        </div>
-        {importedCount > 0 && (
-          <p className="text-xs text-green-700 mt-1">
-            Conversas sincronizadas e prontas para uso
-          </p>
-        )}
-      </div>
-      
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={handleImportChats}
-        disabled={loading}
-        className="border-green-300 hover:bg-green-100"
-      >
-        {loading ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Importando...
-          </>
-        ) : (
-          <>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            {importedCount > 0 ? 'Atualizar' : 'Importar Conversas'}
-          </>
-        )}
-      </Button>
-    </div>
-  );
+  // ✅ Componente invisível - não renderiza nada na UI
+  // Apenas carrega conversas automaticamente em background
+  return null;
 }
