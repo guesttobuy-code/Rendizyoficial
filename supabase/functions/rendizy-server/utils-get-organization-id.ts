@@ -19,12 +19,37 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getSupabaseClient } from './kv_store.tsx';
 
 /**
- * Extrai o token do header Authorization do Hono Context
+ * Helper para parsear cookies
+ */
+function parseCookies(cookieHeader: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  cookieHeader.split(';').forEach(cookie => {
+    const [key, value] = cookie.trim().split('=');
+    if (key && value) {
+      cookies[key] = decodeURIComponent(value);
+    }
+  });
+  return cookies;
+}
+
+/**
+ * Extrai o token do cookie ou header Authorization do Hono Context
+ * ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Prioriza cookie, fallback para header
  * 
  * @param c - Context do Hono
  * @returns Token de autenticação ou undefined
  */
 function extractTokenFromContext(c: Context): string | undefined {
+  // ✅ PRIORIDADE 1: Tentar obter do cookie (nova forma)
+  const cookieHeader = c.req.header('Cookie') || '';
+  const cookies = parseCookies(cookieHeader);
+  const tokenFromCookie = cookies['rendizy-token'];
+  
+  if (tokenFromCookie) {
+    return tokenFromCookie;
+  }
+  
+  // ✅ PRIORIDADE 2: Fallback para header Authorization (compatibilidade durante migração)
   const authHeader = c.req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return undefined;

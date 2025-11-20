@@ -220,6 +220,7 @@ async function apiRequest<T>(
         'Authorization': `Bearer ${publicAnonKey}`,
         ...options.headers,
       },
+      credentials: 'include', // ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Enviar cookies automaticamente
     });
 
     const data = await response.json();

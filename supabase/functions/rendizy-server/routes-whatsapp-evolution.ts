@@ -444,31 +444,37 @@ export function whatsappEvolutionRoutes(app: Hono) {
           organizationId = queryOrgId;
         } else {
           // Buscar organização que já tem config salva (mais importante!)
-          const { data: configData } = await client
-            .from('organization_channel_config')
-            .select('organization_id')
-            .limit(1)
-            .maybeSingle()
-            .catch(() => ({ data: null }));
-          
-          if (configData?.organization_id) {
-            organizationId = configData.organization_id;
+          try {
+            const { data: configData } = await client
+              .from('organization_channel_config')
+              .select('organization_id')
+              .limit(1)
+              .maybeSingle();
+            
+            if (configData?.organization_id) {
+              organizationId = configData.organization_id;
+            }
+          } catch (err) {
+            // Ignorar erro silenciosamente
           }
         }
       }
       
       // Segundo: Se não conseguiu do query param, buscar organização com config salva
       if (!organizationId) {
-        const { data: configData } = await client
-          .from('organization_channel_config')
-          .select('organization_id')
-          .eq('whatsapp_enabled', true)
-          .limit(1)
-          .maybeSingle()
-          .catch(() => ({ data: null }));
-        
-        if (configData?.organization_id) {
-          organizationId = configData.organization_id;
+        try {
+          const { data: configData } = await client
+            .from('organization_channel_config')
+            .select('organization_id')
+            .eq('whatsapp_enabled', true)
+            .limit(1)
+            .maybeSingle();
+          
+          if (configData?.organization_id) {
+            organizationId = configData.organization_id;
+          }
+        } catch (err) {
+          // Ignorar erro silenciosamente
         }
       }
       
@@ -1718,14 +1724,32 @@ export function whatsappEvolutionRoutes(app: Hono) {
   app.post('/rendizy-server/make-server-67caf26a/whatsapp/webhook/setup', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
+      console.log(`[WhatsApp Webhook Setup] [${organizationId}] Buscando configuração...`);
+      
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
       
-      if (!config || !config.enabled) {
+      if (!config) {
+        console.error(`[WhatsApp Webhook Setup] [${organizationId}] Config não encontrado`);
         return c.json({ 
           success: false,
           error: 'WhatsApp não configurado para esta organização' 
         }, 400);
       }
+      
+      if (!config.enabled) {
+        console.error(`[WhatsApp Webhook Setup] [${organizationId}] Config desabilitado`);
+        return c.json({ 
+          success: false,
+          error: 'WhatsApp não configurado para esta organização' 
+        }, 400);
+      }
+      
+      console.log(`[WhatsApp Webhook Setup] [${organizationId}] Config encontrado:`, {
+        api_url: config.api_url,
+        instance_name: config.instance_name,
+        has_api_key: !!config.api_key,
+        has_instance_token: !!config.instance_token
+      });
 
       const body = await c.req.json();
       const { webhookUrl, events, webhookByEvents } = body;
@@ -1742,26 +1766,45 @@ export function whatsappEvolutionRoutes(app: Hono) {
       console.log(`[WhatsApp Webhook Setup] Eventos: ${events.join(', ')}`);
 
       // Configurar webhook na Evolution API
+      // A Evolution API espera webhook com enabled, url, events e webhook_by_events
+      // Também precisa corrigir GROUPS_UPDATE para GROUP_UPDATE
+      const correctedEvents = events.map(event => 
+        event === 'GROUPS_UPDATE' ? 'GROUP_UPDATE' : event
+      );
+      
       const response = await fetch(
         `${config.api_url}/webhook/set/${config.instance_name}`,
         {
           method: 'POST',
           headers: getEvolutionMessagesHeaders(config),
           body: JSON.stringify({
-            url: webhookUrl,
-            events: events,
-            webhook_by_events: webhookByEvents || false,
+            webhook: {
+              enabled: true,
+              url: webhookUrl,
+              events: correctedEvents,
+              webhook_by_events: webhookByEvents || false,
+            }
           }),
         }
       );
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[WhatsApp Webhook Setup] Erro:`, errorText);
+        console.error(`[WhatsApp Webhook Setup] Erro HTTP ${response.status}:`, errorText);
+        console.error(`[WhatsApp Webhook Setup] URL: ${config.api_url}/webhook/set/${config.instance_name}`);
+        console.error(`[WhatsApp Webhook Setup] Body enviado:`, JSON.stringify({
+          webhook: {
+            enabled: true,
+            url: webhookUrl,
+            events: correctedEvents,
+            webhook_by_events: webhookByEvents || false,
+          }
+        }));
         return c.json({ 
           success: false,
           error: 'Erro ao configurar webhook na Evolution API',
-          details: errorText
+          details: errorText,
+          status: response.status
         }, 500);
       }
 
@@ -1773,15 +1816,16 @@ export function whatsappEvolutionRoutes(app: Hono) {
       // Por enquanto, apenas atualizamos updated_at
       const client = getSupabaseClient();
       try {
-        await client
+        const { error: updateError } = await client
           .from('organization_channel_config')
           .update({
             updated_at: new Date().toISOString(),
           })
-          .eq('organization_id', organizationId)
-          .catch(err => {
-            console.warn('[WhatsApp Webhook Setup] Erro ao atualizar updated_at:', err);
-          });
+          .eq('organization_id', organizationId);
+        
+        if (updateError) {
+          console.warn('[WhatsApp Webhook Setup] Erro ao atualizar updated_at:', updateError);
+        }
         
         // Tentar salvar webhook_url e webhook_events se as colunas existirem
         // (usando select para verificar se colunas existem antes de tentar update)
@@ -1933,13 +1977,19 @@ export function whatsappEvolutionRoutes(app: Hono) {
       
       // Buscar eventos do KV Store (temporário - migrar para SQL depois)
       const client = getSupabaseClient();
-      const { data: events } = await client
-        .from('chat_webhooks')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false })
-        .limit(50)
-        .catch(() => ({ data: [] }));
+      let events = [];
+      try {
+        const { data } = await client
+          .from('chat_webhooks')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        events = data || [];
+      } catch (err) {
+        console.warn('[WhatsApp Webhook Events] Erro ao buscar eventos:', err);
+        events = [];
+      }
 
       return c.json({
         success: true,
@@ -1986,15 +2036,22 @@ export function whatsappEvolutionRoutes(app: Hono) {
 
       // Remover configuração do banco
       const client = getSupabaseClient();
-      await client
-        .from('organization_channel_config')
-        .update({
-          webhook_url: null,
-          webhook_events: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('organization_id', organizationId)
-        .catch(err => console.warn('[WhatsApp Webhook Delete] Erro ao atualizar banco:', err));
+      try {
+        const { error: updateError } = await client
+          .from('organization_channel_config')
+          .update({
+            webhook_url: null,
+            webhook_events: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('organization_id', organizationId);
+        
+        if (updateError) {
+          console.warn('[WhatsApp Webhook Delete] Erro ao atualizar banco:', updateError);
+        }
+      } catch (err) {
+        console.warn('[WhatsApp Webhook Delete] Erro ao atualizar banco:', err);
+      }
 
       return c.json({
         success: true,

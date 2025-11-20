@@ -45,26 +45,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        // ✅ Buscar token do localStorage (apenas como referência)
-        const token = localStorage.getItem('rendizy-token');
-        
-        if (!token) {
-          console.log('⚠️ [AuthContext] Nenhum token encontrado - usuário não autenticado');
-          setIsLoading(false);
-          return;
-        }
+        // ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Não buscar token do localStorage
+        // Cookie é enviado automaticamente pelo navegador
+        console.log('🔐 [AuthContext] Verificando sessão via cookie...');
 
         // ✅ SEMPRE validar token no backend SQL via /auth/me
-        console.log('🔐 [AuthContext] Validando token no backend SQL...');
+        // Cookie é enviado automaticamente com credentials: 'include'
         const { projectId, publicAnonKey } = await import('../utils/supabase/info');
         const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/me`;
         
         const response = await fetch(url, {
           method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
+            'Content-Type': 'application/json'
+            // ✅ MIGRAÇÃO: Não precisa mais enviar Authorization header
+            // Cookie é enviado automaticamente pelo navegador
+          },
+          credentials: 'include' // ✅ MIGRAÇÃO: Importante para enviar cookies
         });
 
         // Ler resposta como texto primeiro
@@ -75,8 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (parseError) {
           console.error('❌ [AuthContext] Erro ao parsear resposta:', parseError);
           console.error('❌ [AuthContext] Resposta:', responseText.substring(0, 200));
-          // Token inválido - limpar localStorage
-          localStorage.removeItem('rendizy-token');
+          // ✅ MIGRAÇÃO: Cookie será limpo pelo backend se inválido
           setIsLoading(false);
           return;
         }
@@ -84,8 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // ✅ Verificar se sessão é válida
         if (!response.ok || !data || !data.success) {
           console.log('❌ [AuthContext] Sessão inválida ou expirada:', data?.error);
-          // Token inválido/expirado - limpar localStorage
-          localStorage.removeItem('rendizy-token');
+          // ✅ MIGRAÇÃO: Cookie será limpo pelo backend se inválido
           setIsLoading(false);
           return;
         }
@@ -158,8 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('✅ [AuthContext] Usuário carregado do backend SQL:', loggedUser);
       } catch (error) {
         console.error('❌ [AuthContext] Erro ao carregar usuário:', error);
-        // Em caso de erro, limpar localStorage
-        localStorage.removeItem('rendizy-token');
+        // ✅ MIGRAÇÃO: Cookie será limpo pelo backend se inválido
       } finally {
         setIsLoading(false);
       }
@@ -189,7 +183,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'apikey': publicAnonKey,
           'Authorization': `Bearer ${publicAnonKey}` // ✅ Usar Authorization Bearer com anon key
         },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
+        credentials: 'include' // ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Importante para receber cookies
       });
       
       // ✅ ARQUITETURA CORRETA: Ler body apenas UMA vez
@@ -225,10 +220,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // ✅ Login bem-sucedido!
       console.log('✅ AuthContext: Login bem-sucedido - sessão criada no backend SQL');
+      console.log('✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Cookie definido automaticamente pelo backend');
 
-      // ✅ ARQUITETURA SQL v1.0.103.950 - Salvar APENAS token no localStorage
-      // Dados do usuário vêm SEMPRE do backend SQL via /auth/me
-      localStorage.setItem('rendizy-token', data.token);
+      // ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - NÃO salvar token no localStorage
+      // Cookie HttpOnly é definido automaticamente pelo backend
+      // Token ainda vem no JSON para compatibilidade, mas não é mais necessário salvar
       
       // ❌ NÃO salvar dados do usuário no localStorage
       // ✅ Buscar dados do usuário do backend SQL (fonte da verdade)
@@ -237,9 +233,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const meResponse = await fetch(meUrl, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${data.token}`
-        }
+          'Content-Type': 'application/json'
+          // ✅ MIGRAÇÃO: Não precisa mais enviar Authorization header
+          // Cookie é enviado automaticamente pelo navegador
+        },
+        credentials: 'include' // ✅ MIGRAÇÃO: Importante para enviar cookies
       });
 
       // ✅ ARQUITETURA CORRETA: Ler body apenas UMA vez
@@ -356,25 +354,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      const token = localStorage.getItem('rendizy-token');
+      // ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Não precisa buscar token do localStorage
+      // Cookie é enviado automaticamente pelo navegador
+      const { projectId, publicAnonKey } = await import('../utils/supabase/info');
+      const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/logout`;
       
-      // ✅ ARQUITETURA SQL v1.0.103.950 - Remover sessão do backend SQL
-      if (token) {
-        const { projectId, publicAnonKey } = await import('../utils/supabase/info');
-        const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/logout`;
-        
-        try {
-          await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          console.log('✅ [AuthContext] Sessão removida do backend SQL');
-        } catch (error) {
-          console.warn('⚠️ [AuthContext] Erro ao remover sessão do backend (continuando logout):', error);
-        }
+      try {
+        await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+            // ✅ MIGRAÇÃO: Não precisa mais enviar Authorization header
+            // Cookie é enviado automaticamente pelo navegador
+          },
+          credentials: 'include' // ✅ MIGRAÇÃO: Importante para enviar cookies
+        });
+        console.log('✅ [AuthContext] Sessão removida do backend SQL - cookie limpo');
+      } catch (error) {
+        console.warn('⚠️ [AuthContext] Erro ao remover sessão do backend (continuando logout):', error);
       }
     } catch (error) {
       console.error('❌ [AuthContext] Erro ao fazer logout:', error);
@@ -383,11 +380,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setOrganization(null);
       
-      // ✅ Limpar token do localStorage (único item salvo)
-      localStorage.removeItem('rendizy-token');
-      
-      // ❌ NÃO há mais rendizy-user ou rendizy-organization no localStorage
-      console.log('✅ [AuthContext] Logout completo - estado limpo');
+      // ✅ MIGRAÇÃO: Cookie é limpo pelo backend automaticamente
+      // Não precisa mais limpar localStorage
+      console.log('✅ [AuthContext] Logout completo - estado limpo, cookie limpo pelo backend');
     }
   };
 

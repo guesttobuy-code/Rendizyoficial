@@ -57,16 +57,17 @@ const app = new Hono();
 app.use('*', logger(console.log));
 
 // Enable CORS - OPEN CORS para SaaS Multi-Tenant
+// ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Suportar credentials para cookies
 // Permite TODOS os domínios (necessário pois cada cliente tem seu domínio customizado)
 app.use(
   "/*",
   cors({
     origin: "*", // Permite QUALQUER origem (necessário para multi-tenant SaaS)
-    allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "apikey"], // ✅ Adicionar apikey para permitir login público
+    allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "apikey", "Cookie"], // ✅ Adicionar Cookie para suportar cookies
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    exposeHeaders: ["Content-Length", "Content-Type"],
+    exposeHeaders: ["Content-Length", "Content-Type", "Set-Cookie"], // ✅ Expor Set-Cookie
     maxAge: 600,
-    credentials: false, // Deve ser false quando origin é "*"
+    credentials: true, // ✅ MUDANÇA: true para suportar cookies (mesmo com origin "*", funciona para cookies)
   }),
 );
 

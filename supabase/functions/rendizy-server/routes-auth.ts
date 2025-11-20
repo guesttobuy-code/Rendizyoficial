@@ -216,8 +216,23 @@ app.post('/login', async (c) => {
 
       console.log('✅ Login bem-sucedido:', { username, type: user.type });
 
+      // ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Definir cookie HttpOnly
+      const cookieValue = [
+        `rendizy-token=${token}`,
+        'HttpOnly',
+        'Secure',
+        'SameSite=Strict',
+        `Max-Age=86400`, // 24 horas
+        'Path=/'
+      ].join('; ');
+      
+      c.header('Set-Cookie', cookieValue);
+      console.log('✅ Cookie HttpOnly definido com sucesso');
+
       return c.json({
         success: true,
+        // ✅ Manter token no JSON para compatibilidade durante migração
+        // Frontend ainda pode usar temporariamente, mas cookie é a fonte da verdade
         token,
         user: {
           id: user.id,
@@ -251,33 +266,37 @@ app.post('/login', async (c) => {
 
 // POST /auth/logout - Logout
 // ✅ ARQUITETURA SQL: Remove sessão do SQL
+// ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Limpar cookie também
 app.post('/logout', async (c) => {
   try {
-    const token = c.req.header('Authorization')?.split(' ')[1];
-
+    // ✅ MIGRAÇÃO: Tentar obter token do cookie primeiro, depois do header (compatibilidade)
+    const cookieHeader = c.req.header('Cookie') || '';
+    const cookies = parseCookies(cookieHeader);
+    let token = cookies['rendizy-token'];
+    
+    // Fallback para header (compatibilidade durante migração)
     if (!token) {
-      return c.json({
-        success: false,
-        error: 'Token não fornecido'
-      }, 400);
+      token = c.req.header('Authorization')?.split(' ')[1];
     }
 
-    // ✅ ARQUITETURA SQL: Remover sessão do SQL
-    const supabase = getSupabaseClient();
-    const { error } = await supabase
-      .from('sessions')
-      .delete()
-      .eq('token', token);
+    if (token) {
+      // ✅ ARQUITETURA SQL: Remover sessão do SQL
+      const supabase = getSupabaseClient();
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('token', token);
 
-    if (error) {
-      console.error('❌ Erro ao remover sessão:', error);
-      return c.json({
-        success: false,
-        error: 'Erro ao fazer logout'
-      }, 500);
+      if (error) {
+        console.error('❌ Erro ao remover sessão:', error);
+      } else {
+        console.log('✅ Sessão removida do SQL');
+      }
     }
 
-    console.log('✅ Logout bem-sucedido - sessão removida do SQL');
+    // ✅ MIGRAÇÃO COOKIES HTTPONLY: Limpar cookie
+    c.header('Set-Cookie', 'rendizy-token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict');
+    console.log('✅ Cookie limpo com sucesso');
 
     return c.json({
       success: true,
@@ -285,6 +304,8 @@ app.post('/logout', async (c) => {
     });
   } catch (error) {
     console.error('❌ Erro no logout:', error);
+    // Mesmo com erro, limpar cookie
+    c.header('Set-Cookie', 'rendizy-token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict');
     return c.json({
       success: false,
       error: error instanceof Error ? error.message : 'Erro ao fazer logout'
@@ -292,11 +313,32 @@ app.post('/logout', async (c) => {
   }
 });
 
+// ✅ Helper para parsear cookies
+function parseCookies(cookieHeader: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  cookieHeader.split(';').forEach(cookie => {
+    const [key, value] = cookie.trim().split('=');
+    if (key && value) {
+      cookies[key] = decodeURIComponent(value);
+    }
+  });
+  return cookies;
+}
+
 // GET /auth/me - Verificar sessão atual
 // ✅ ARQUITETURA SQL: Busca sessão e usuário do SQL
+// ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Ler token do cookie primeiro
 app.get('/me', async (c) => {
   try {
-    const token = c.req.header('Authorization')?.split(' ')[1];
+    // ✅ MIGRAÇÃO: Tentar obter token do cookie primeiro, depois do header (compatibilidade)
+    const cookieHeader = c.req.header('Cookie') || '';
+    const cookies = parseCookies(cookieHeader);
+    let token = cookies['rendizy-token'];
+    
+    // Fallback para header (compatibilidade durante migração)
+    if (!token) {
+      token = c.req.header('Authorization')?.split(' ')[1];
+    }
 
     if (!token) {
       return c.json({
