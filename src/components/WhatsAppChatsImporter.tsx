@@ -116,7 +116,26 @@ export function WhatsAppChatsImporter({ onChatsLoaded, onMessagesLoaded }: Whats
           status: chat.unreadCount && chat.unreadCount > 0 ? 'unread' as const : 'read' as const,
           category: 'normal' as const,
           conversation_type: 'lead' as const,
-          last_message: chat.lastMessage?.message || (chat as any).lastMessage?.conversation || '',
+          // ✅ CORREÇÃO: Extrair texto da mensagem corretamente
+          // Evolution API pode retornar lastMessage como objeto complexo
+          last_message: (() => {
+            const lastMsg = chat.lastMessage || (chat as any).lastMessage;
+            if (!lastMsg) return '';
+            
+            // Se for string, retornar diretamente
+            if (typeof lastMsg === 'string') return lastMsg;
+            
+            // Se for objeto, extrair mensagem
+            if (typeof lastMsg === 'object') {
+              return lastMsg.message || 
+                     lastMsg.conversation || 
+                     lastMsg.text || 
+                     (lastMsg.extendedTextMessage?.text) ||
+                     '';
+            }
+            
+            return '';
+          })(),
           last_message_at: chat.lastMessageTimestamp 
             ? new Date(chat.lastMessageTimestamp * 1000)
             : ((chat as any).updatedAt ? new Date((chat as any).updatedAt) : new Date()),
@@ -147,7 +166,21 @@ export function WhatsAppChatsImporter({ onChatsLoaded, onMessagesLoaded }: Whats
               status: 'read' as const,
               category: 'normal' as const,
               conversation_type: 'lead' as const,
-              last_message: chat.lastMessage?.message || '',
+              // ✅ CORREÇÃO: Extrair texto da mensagem corretamente
+              last_message: (() => {
+                const lastMsg = chat.lastMessage || (chat as any).lastMessage;
+                if (!lastMsg) return '';
+                
+                if (typeof lastMsg === 'string') return lastMsg;
+                if (typeof lastMsg === 'object') {
+                  return lastMsg.message || 
+                         lastMsg.conversation || 
+                         lastMsg.text || 
+                         (lastMsg.extendedTextMessage?.text) ||
+                         '';
+                }
+                return '';
+              })(),
               last_message_at: chat.lastMessageTimestamp 
                 ? new Date(chat.lastMessageTimestamp * 1000)
                 : new Date(),
