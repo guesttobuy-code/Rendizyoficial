@@ -1,6 +1,6 @@
 # ============================================================================
 # Script Simplificado: Configurar GitHub Localmente
-# Repositório: suacasarendemais-png/Rendizy2producao
+# Repositório: guesttobuy-code/Rendizyoficial
 # ============================================================================
 
 Write-Host ""
@@ -10,7 +10,7 @@ Write-Host "══════════════════════�
 Write-Host ""
 
 # URL do repositório
-$githubUrl = "https://github.com/suacasarendemais-png/Rendizy2producao.git"
+$githubUrl = "https://github.com/guesttobuy-code/Rendizyoficial.git"
 
 # ============================================================================
 # PASSO 1: Verificar Git

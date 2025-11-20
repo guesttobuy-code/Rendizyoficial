@@ -17,7 +17,7 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 3. Se preferir rodar manualmente:
    ```powershell
    # Token está em TOKENS_E_ACESSOS_COMPLETO.md (não versionado)
-   git remote set-url origin https://[TOKEN]@github.com/suacasarendemais-png/Rendizy2producao.git
+   git remote set-url origin https://[TOKEN]@github.com/guesttobuy-code/Rendizyoficial.git
    git fetch origin
    git status
    ```
