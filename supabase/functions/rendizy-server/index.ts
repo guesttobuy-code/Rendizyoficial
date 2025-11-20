@@ -62,7 +62,7 @@ app.use(
   "/*",
   cors({
     origin: "*", // Permite QUALQUER origem (necessário para multi-tenant SaaS)
-    allowHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "apikey"], // ✅ Adicionar apikey para permitir login público
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length", "Content-Type"],
     maxAge: 600,

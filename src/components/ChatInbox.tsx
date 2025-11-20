@@ -1896,6 +1896,35 @@ export function ChatInbox() {
             {/* Mensagens */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
+                {/* ✅ Mensagem Fixa - Sempre visível no topo */}
+                {selectedConversation && (
+                  <div className="sticky top-0 z-10 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 mt-0.5">
+                        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
+                          <MessageSquare className="h-5 w-5 text-white" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Pin className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 fill-blue-600 dark:fill-blue-400" />
+                          <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
+                            Mensagem Fixa
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                          Olá! 👋 Bem-vindo ao chat. Estamos aqui para ajudar você com todas as suas dúvidas e solicitações. 
+                          Sinta-se à vontade para nos enviar uma mensagem a qualquer momento!
+                        </p>
+                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          <Clock className="h-3 w-3" />
+                          <span>Atendimento disponível 24/7</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {messages.length === 0 && !isLoading && (
                   <div className="text-center text-gray-500 dark:text-gray-400 py-8">
                     <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
