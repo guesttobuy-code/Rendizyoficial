@@ -94,6 +94,8 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 | `PROMPT_CONTEXTO_COMPLETO_SESSAO.md` | Compila tudo de 06/11/2025 (schema, migração, backlog) |
 | `SCHEMA_ANALISE_COMPLETA.md` | Descrição detalhada das 35 tabelas SQL |
 | `PLANO_MIGRACAO_BACKEND.md` | Plano para migrar das rotas KV Store para SQL |
+| `PLANO_MIGRACAO_SUPABASE.md` | **NOVO** - Plano completo para migrar banco de dados para nova conta Supabase |
+| `RESUMO_MIGRACAO_SUPABASE.md` | **NOVO** - Resumo executivo da migração Supabase |
 | `ANALISE_MIDDLEWARE_CHATGPT.md` | Adaptação do middleware Next.js para `ProtectedRoute` |
 | `RESUMO_IMPLEMENTACAO_PROTECTED_ROUTE.md` | Guia rápido do novo `ProtectedRoute` |
 | `ANALISE_TRIGGER_SIGNUP.md` | Migração/seed de organização automática |
@@ -123,6 +125,9 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 | `login-supabase.ps1` | Login no Supabase CLI (token ou interativo) |
 | `configurar-tokens.ps1` | Define variáveis de ambiente com tokens salvos |
 | `criar-zip-alteracoes.ps1` | Gera ZIP com arquivos modificados para envio rápido |
+| `exportar-banco-completo.ps1` | **NOVO** - Exporta schema, dados, migrations e Edge Functions |
+| `migrar-supabase.ps1` | **NOVO** - Migração completa de uma conta Supabase para outra |
+| `atualizar-project-id.ps1` | **NOVO** - Atualiza Project ID em todos os arquivos do projeto |
 
 ---
 
