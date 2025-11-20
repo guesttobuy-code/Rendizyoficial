@@ -87,6 +87,71 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 
 ---
 
+## 4.5. Arquitetura do Sistema (⚠️ NÃO VIOLAR)
+
+### 🏗️ **PRINCÍPIOS ARQUITETURAIS FUNDAMENTAIS:**
+
+#### ✅ **1. SQL RELACIONAL - SEMPRE**
+- ❌ **NUNCA** crie abstrações complexas que escondem SQL
+- ✅ **USE SQL DIRETO** nas rotas (`supabase/functions/rendizy-server/routes-*.ts`)
+- ✅ **Integridade no Banco** - Foreign keys, constraints, validações no DB
+- ✅ **Tabelas SQL** - Todas as entidades críticas em tabelas SQL normais
+- 📚 Referência: `ANALISE_HONESTA_ARQUITETURA.md`, `PLANO_REFATORACAO_ARQUITETURAL.md`
+
+#### ✅ **2. CÓDIGO SIMPLES - SEM OVERENGINEERING**
+- ❌ **NUNCA** crie repositórios intermediários que apenas "wrap" SQL
+- ❌ **NUNCA** crie múltiplas camadas de mappers desnecessários
+- ✅ **SQL direto nas rotas** - Menos código = menos bugs
+- ✅ **Validações no banco** - Constraints NOT NULL, CHECK, UNIQUE
+- 📚 Exemplo do que NÃO fazer:
+  ```typescript
+  // ❌ ERRADO: Repositório desnecessário
+  ChannelConfigRepository → SQL → Supabase
+  
+  // ✅ CORRETO: SQL direto
+  Route → SQL direto → Supabase
+  ```
+
+#### ✅ **3. AUTENTICAÇÃO SIMPLES**
+- ✅ **JWT simples** ou Supabase Auth - Sem sessões complexas no KV
+- ❌ **NUNCA** armazene sessões em KV Store (desnecessário)
+- ✅ **Token validado sem consultar banco** - JWT já tem expiração built-in
+- 📚 Referência: Migração para HttpOnly Cookies já feita
+
+#### ✅ **4. KV STORE APENAS PARA CACHE**
+- ❌ **NUNCA** use KV Store para dados permanentes
+- ✅ **KV Store APENAS** para cache temporário (TTL < 24h)
+- ✅ **Tudo que precisa persistir** → SQL Tables
+- 📚 Regra detalhada: `REGRA_KV_STORE_VS_SQL.md`
+
+#### ✅ **5. ESTRUTURA ATUAL (O QUE JÁ FUNCIONA)**
+- ✅ `organization_channel_config` - SQL direto (usar como referência)
+- ✅ `evolution_instances` - SQL direto
+- ✅ Rotas em `routes-*.ts` - SQL direto nas rotas
+- ⚠️ Algumas rotas ainda usam KV Store - migrar gradualmente para SQL
+
+### 🚨 **O QUE FOI LIMPO (NÃO VOLTAR ATRÁS):**
+1. ✅ Removidas abstrações excessivas que atrapalhavam
+2. ✅ Simplificado sistema de autenticação
+3. ✅ Migrado para SQL direto onde possível
+4. ✅ CORS corrigido - lista de origens permitidas (sem middleware customizado)
+5. ✅ Cookies HttpOnly implementados (segurança)
+
+### 📋 **CHECKLIST ANTES DE CRIAR CÓDIGO:**
+- [ ] Vou usar SQL direto? (não abstrações)
+- [ ] Vou salvar no SQL Table? (não KV Store)
+- [ ] Preciso de repositório intermediário? (provavelmente NÃO)
+- [ ] Vou adicionar constraints no banco? (validações)
+- [ ] Código está simples e direto? (sem overengineering)
+
+### 📚 **DOCUMENTAÇÃO DE ARQUITETURA:**
+- `ANALISE_HONESTA_ARQUITETURA.md` - Problemas identificados e soluções
+- `PLANO_REFATORACAO_ARQUITETURAL.md` - Plano de execução
+- `ARQUITETURA_MULTI_TENANT_v1.md` - Arquitetura multi-tenant
+- `ARQUITETURA_ESCALAVEL_SAAS.md` - Escalabilidade
+
+---
+
 ## 5. Contexto mais recente
 
 | Documento | Descrição |
