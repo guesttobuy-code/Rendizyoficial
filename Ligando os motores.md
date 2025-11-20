@@ -47,9 +47,9 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 ## 3. URLs do Sistema
 
 ### **Produção (Vercel)**
-- **URL:** https://rendizy2producao-am7c.vercel.app
-- **Dashboard:** https://rendizy2producao-am7c.vercel.app/dashboard
-- **Status:** ✅ Ativo
+- **URL:** https://rendizyoficial.vercel.app
+- **Dashboard:** https://rendizyoficial.vercel.app/dashboard
+- **Status:** ✅ Ativo (conectado ao GitHub `guesttobuy-code/Rendizyoficial`)
 
 ### **Desenvolvimento Local**
 - **URL:** http://localhost:3000
