@@ -8,6 +8,8 @@ import { getSupabaseClient } from './kv_store.tsx';
 import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
 // ✅ FIX v1.0.103.950 - Repository Pattern para garantir persistência
 import { channelConfigRepository } from './repositories/channel-config-repository.ts';
+// ✅ v1.0.103.960 - Monitoramento automático de conexão WhatsApp
+import { setupWebhooks, monitorWhatsAppConnection } from './services/whatsapp-monitor.ts';
 
 const chat = new Hono();
 
@@ -2079,6 +2081,35 @@ chat.post('/channels/whatsapp/connect', async (c) => {
     console.log('✅ WhatsApp connection initiated successfully');
     console.log('✅ QR Code saved to database');
 
+    // ✅ v1.0.103.960 - Configurar webhooks e iniciar monitoramento automaticamente após salvar configuração
+    if (orgId && api_url && instance_name && api_key && instance_token) {
+      console.log('✅ [POST /channels/whatsapp/connect] Configurando webhooks e monitoramento automático...');
+      
+      // Configurar webhooks automaticamente (não bloqueante)
+      setupWebhooks({
+        organizationId: orgId,
+        api_url: api_url,
+        instance_name: instance_name,
+        api_key: api_key,
+        instance_token: instance_token,
+        enabled: true,
+      }).catch(error => {
+        console.error('❌ [POST /channels/whatsapp/connect] Erro ao configurar webhooks:', error);
+      });
+      
+      // Iniciar monitoramento automático (não bloqueante)
+      monitorWhatsAppConnection({
+        organizationId: orgId,
+        api_url: api_url,
+        instance_name: instance_name,
+        api_key: api_key,
+        instance_token: instance_token,
+        enabled: true,
+      }).catch(error => {
+        console.error('❌ [POST /channels/whatsapp/connect] Erro ao iniciar monitoramento:', error);
+      });
+    }
+
     return c.json({ 
       success: true, 
       data: {
@@ -2144,6 +2175,35 @@ chat.post('/channels/whatsapp/status', async (c) => {
         
         if (!updateResult.success) {
           console.error('❌ [WhatsApp Status] Erro ao salvar status atualizado:', updateResult.error);
+        }
+        
+        // ✅ v1.0.103.960 - Se conectou, configurar webhooks e iniciar monitoramento automaticamente
+        if (isConnected && config.whatsapp.api_url && config.whatsapp.instance_name && config.whatsapp.api_key && config.whatsapp.instance_token) {
+          console.log('✅ [WhatsApp Status] WhatsApp conectado - Configurando webhooks e monitoramento automático...');
+          
+          // Configurar webhooks automaticamente (não bloqueante)
+          setupWebhooks({
+            organizationId: organization_id,
+            api_url: config.whatsapp.api_url,
+            instance_name: config.whatsapp.instance_name,
+            api_key: config.whatsapp.api_key,
+            instance_token: config.whatsapp.instance_token,
+            enabled: true,
+          }).catch(error => {
+            console.error('❌ [WhatsApp Status] Erro ao configurar webhooks:', error);
+          });
+          
+          // Iniciar monitoramento automático (não bloqueante)
+          monitorWhatsAppConnection({
+            organizationId: organization_id,
+            api_url: config.whatsapp.api_url,
+            instance_name: config.whatsapp.instance_name,
+            api_key: config.whatsapp.api_key,
+            instance_token: config.whatsapp.instance_token,
+            enabled: true,
+          }).catch(error => {
+            console.error('❌ [WhatsApp Status] Erro ao iniciar monitoramento:', error);
+          });
         }
       }
 

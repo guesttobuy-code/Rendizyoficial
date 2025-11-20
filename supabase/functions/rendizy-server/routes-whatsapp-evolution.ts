@@ -22,6 +22,7 @@
 import { Hono } from 'npm:hono@4.0.2';
 import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
 import { getSupabaseClient } from './kv_store.tsx';
+import { monitorWhatsAppConnection, heartbeat } from './services/whatsapp-monitor.ts';
 
 // ============================================================================
 // TYPES
@@ -1610,6 +1611,43 @@ export function whatsappEvolutionRoutes(app: Hono) {
         return c.json({ error: error.message }, 401);
       }
       return c.json({ error: 'Erro interno ao atualizar configurações' }, 500);
+    }
+  });
+
+  // ==========================================================================
+  // POST /rendizy-server/whatsapp/monitor/start - Iniciar monitoramento automático
+  // ✅ v1.0.103.960 - Monitora e reconecta automaticamente
+  // ==========================================================================
+  app.post('/rendizy-server/whatsapp/monitor/start', async (c) => {
+    try {
+      const organizationId = await getOrganizationIdOrThrow(c);
+      const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
+      
+      if (!config || !config.enabled) {
+        return c.json({ error: 'WhatsApp não configurado para esta organização' }, 400);
+      }
+
+      console.log(`[WhatsApp Monitor] 🚀 Iniciando monitoramento para org ${organizationId}...`);
+
+      // Iniciar monitoramento (não bloqueante)
+      monitorWhatsAppConnection({
+        organizationId,
+        ...config,
+      }).catch(error => {
+        console.error(`[WhatsApp Monitor] ❌ Erro no monitoramento:`, error);
+      });
+
+      return c.json({ 
+        success: true, 
+        message: 'Monitoramento iniciado com sucesso',
+        monitoring: true,
+      });
+    } catch (error) {
+      console.error('[WhatsApp] Erro ao iniciar monitoramento:', error);
+      if (error instanceof Error && error.message.includes('organization')) {
+        return c.json({ error: error.message }, 401);
+      }
+      return c.json({ error: 'Erro interno ao iniciar monitoramento' }, 500);
     }
   });
 
