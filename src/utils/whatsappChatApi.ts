@@ -5,7 +5,62 @@
 
 import { projectId, publicAnonKey } from './supabase/info';
 
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a`;
+const BASE_URL = `https://${projectId}.supabase.co/functions/v1/rendizy-server`;
+
+export interface WhatsAppStatus {
+  status: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING' | 'ERROR';
+  state?: string;
+  message?: string;
+}
+
+/**
+ * Verificar status da conexão WhatsApp
+ */
+export async function fetchWhatsAppStatus(): Promise<WhatsAppStatus> {
+  try {
+    const token = localStorage.getItem('rendizy-token');
+    
+    if (!token) {
+      console.error('[WhatsApp Chat API] ❌ Token não encontrado - usuário não autenticado');
+      return { status: 'ERROR', message: 'Usuário não autenticado' };
+    }
+
+    console.log('[WhatsApp Chat API] 🔍 Verificando status da conexão WhatsApp...');
+
+    const response = await fetch(`${BASE_URL}/whatsapp/status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    console.log('[WhatsApp Chat API] 📡 Status response:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[WhatsApp Chat API] ❌ Erro ao verificar status:', errorText);
+      return { status: 'ERROR', message: 'Erro ao verificar status' };
+    }
+
+    const result = await response.json();
+    console.log('[WhatsApp Chat API] 📊 Status recebido:', result);
+
+    if (result.success && result.data) {
+      const status = result.data.status || 'DISCONNECTED';
+      return {
+        status: status as WhatsAppStatus['status'],
+        state: result.data.state,
+        message: result.data.message
+      };
+    }
+
+    return { status: 'ERROR', message: 'Resposta inválida do servidor' };
+  } catch (error) {
+    console.error('[WhatsApp Chat API] ❌ Erro:', error);
+    return { status: 'ERROR', message: 'Erro ao verificar status' };
+  }
+}
 
 interface WhatsAppChat {
   id: string;
@@ -45,14 +100,23 @@ interface WhatsAppMessage {
  */
 export async function fetchWhatsAppChats(): Promise<WhatsAppChat[]> {
   try {
+    // ✅ ARQUITETURA SQL v1.0.103.950 - Usar token do usuário autenticado
+    const token = localStorage.getItem('rendizy-token');
+    
+    if (!token) {
+      console.error('[WhatsApp Chat API] ❌ Token não encontrado - usuário não autenticado');
+      return [];
+    }
+    
     console.log('[WhatsApp Chat API] 📥 Buscando conversas...');
     console.log('[WhatsApp Chat API] 🌐 URL:', `${BASE_URL}/whatsapp/chats`);
+    console.log('[WhatsApp Chat API] 🔑 Token:', token ? `${token.substring(0, 20)}...` : 'NONE');
     
     const response = await fetch(`${BASE_URL}/whatsapp/chats`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${publicAnonKey}`,
+        'Authorization': `Bearer ${token}`, // ✅ Token do usuário autenticado
       },
     });
 
@@ -88,13 +152,21 @@ export async function fetchWhatsAppChats(): Promise<WhatsAppChat[]> {
  */
 export async function fetchWhatsAppMessages(chatId: string, limit: number = 50): Promise<WhatsAppMessage[]> {
   try {
+    // ✅ ARQUITETURA SQL v1.0.103.950 - Usar token do usuário autenticado
+    const token = localStorage.getItem('rendizy-token');
+    
+    if (!token) {
+      console.error('[WhatsApp Chat API] ❌ Token não encontrado - usuário não autenticado');
+      throw new Error('Usuário não autenticado');
+    }
+    
     console.log('[WhatsApp Chat API] 📥 Buscando mensagens do chat:', chatId);
     
     const response = await fetch(`${BASE_URL}/whatsapp/messages/${encodeURIComponent(chatId)}?limit=${limit}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${publicAnonKey}`,
+        'Authorization': `Bearer ${token}`, // ✅ Token do usuário autenticado
       },
     });
 
@@ -119,13 +191,21 @@ export async function fetchWhatsAppMessages(chatId: string, limit: number = 50):
  */
 export async function sendWhatsAppMessage(number: string, text: string): Promise<any> {
   try {
+    // ✅ ARQUITETURA SQL v1.0.103.950 - Usar token do usuário autenticado
+    const token = localStorage.getItem('rendizy-token');
+    
+    if (!token) {
+      console.error('[WhatsApp Chat API] ❌ Token não encontrado - usuário não autenticado');
+      throw new Error('Usuário não autenticado');
+    }
+    
     console.log('[WhatsApp Chat API] 📤 Enviando mensagem para:', number);
     
     const response = await fetch(`${BASE_URL}/whatsapp/send-message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${publicAnonKey}`,
+        'Authorization': `Bearer ${token}`, // ✅ Token do usuário autenticado
       },
       body: JSON.stringify({ number, text }),
     });
@@ -149,7 +229,11 @@ export async function sendWhatsAppMessage(number: string, text: string): Promise
 /**
  * Formatar número para o padrão WhatsApp (55DDDNÚMERO@s.whatsapp.net)
  */
-export function formatWhatsAppNumber(phone: string): string {
+export function formatWhatsAppNumber(phone: string | null | undefined): string {
+  // ✅ CORREÇÃO: Verificar null/undefined antes de usar replace
+  if (!phone) {
+    return '';
+  }
   // Remove tudo que não for número
   const cleaned = phone.replace(/\D/g, '');
   
@@ -163,7 +247,11 @@ export function formatWhatsAppNumber(phone: string): string {
 /**
  * Extrair número limpo do formato WhatsApp
  */
-export function extractPhoneNumber(whatsappId: string): string {
+export function extractPhoneNumber(whatsappId: string | null | undefined): string {
+  // ✅ CORREÇÃO: Verificar null/undefined antes de usar replace
+  if (!whatsappId) {
+    return '';
+  }
   // Remove @s.whatsapp.net ou @g.us
   return whatsappId.replace(/@.*/, '');
 }
@@ -171,7 +259,11 @@ export function extractPhoneNumber(whatsappId: string): string {
 /**
  * Formatar número para exibição (+55 21 99999-9999)
  */
-export function formatPhoneDisplay(whatsappId: string): string {
+export function formatPhoneDisplay(whatsappId: string | null | undefined): string {
+  // ✅ CORREÇÃO: Verificar null/undefined antes de processar
+  if (!whatsappId) {
+    return 'Número desconhecido';
+  }
   const number = extractPhoneNumber(whatsappId);
   
   // Verifica se é número brasileiro (começa com 55)

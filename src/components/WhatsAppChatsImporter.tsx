@@ -75,14 +75,20 @@ export function WhatsAppChatsImporter({ onChatsLoaded, onMessagesLoaded }: Whats
       
       // Converter conversas do WhatsApp para o formato do sistema
       const convertedChats = whatsappChats.map((chat, index) => {
+        // ✅ CORREÇÃO: Verificar se chat.id existe antes de processar
+        if (!chat || !chat.id) {
+          console.warn('⚠️ Conversa inválida encontrada (sem ID):', chat);
+          return null;
+        }
+        
         const phoneNumber = extractPhoneNumber(chat.id);
         const displayPhone = formatPhoneDisplay(chat.id);
         
         return {
           id: `wa-${chat.id}`,
-          guest_name: chat.name || displayPhone,
+          guest_name: chat.name || displayPhone || 'Contato sem nome',
           guest_email: '',
-          guest_phone: displayPhone,
+          guest_phone: displayPhone || 'Número desconhecido',
           reservation_code: '',
           property_name: '',
           property_id: '',
@@ -104,7 +110,7 @@ export function WhatsAppChatsImporter({ onChatsLoaded, onMessagesLoaded }: Whats
           profile_picture_url: chat.profilePictureUrl,
           unread_count: chat.unreadCount || 0,
         };
-      });
+      }).filter((chat): chat is NonNullable<typeof chat> => chat !== null); // ✅ CORREÇÃO: Filtrar nulls
       
       setChats(whatsappChats);
       setImportedCount(convertedChats.length);
