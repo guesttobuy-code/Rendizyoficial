@@ -1,20 +1,21 @@
 /**
- * UTILS - Get Organization ID (Híbrido: KV Store + Supabase Auth)
+ * UTILS - Get Organization ID (ARQUITETURA SQL)
  * 
  * Helper centralizado para obter organization_id do usuário autenticado
- * Compatível com sistema atual (KV Store) e preparado para futuro (Supabase Auth)
+ * ✅ ARQUITETURA SQL v1.0.103.950 - USA APENAS TABELA sessions DO SQL
  * 
  * PRIORIDADE:
- * 1. KV Store (sistema atual) - via tenancyMiddleware/imobiliariaId
- * 2. Supabase Auth (futuro) - via user_metadata.organization_id
+ * 1. Tabela sessions do SQL (ARQUITETURA SQL) - via session.organization_id
+ * 2. Tabela users do SQL - via user.organization_id
  * 
- * @version 1.0.103.500
- * @updated 2025-11-17 - PASSO 3 - Helper híbrido compatível com KV Store
+ * ❌ REMOVIDO: Fallback para KV Store (sistema antigo removido)
+ * 
+ * @version 1.0.103.950
+ * @updated 2024-11-20 - REMOVIDO KV Store - APENAS SQL AGORA
  */
 
 import { Context } from 'npm:hono';
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { getSessionFromToken } from './utils-session.ts';
 import { getSupabaseClient } from './kv_store.tsx';
 
 /**
@@ -160,11 +161,15 @@ async function getOrganizationIdFromSupabaseAuth(token: string): Promise<string 
 }
 
 /**
- * Obtém organization_id do usuário autenticado (HÍBRIDO)
+ * Obtém organization_id do usuário autenticado (ARQUITETURA SQL)
+ * 
+ * ✅ ARQUITETURA SQL v1.0.103.950 - USA APENAS TABELA sessions DO SQL
  * 
  * PRIORIDADE:
- * 1. KV Store (sistema atual) - via session.imobiliariaId → lookup SQL
- * 2. Supabase Auth (futuro) - via user_metadata.organization_id
+ * 1. Tabela sessions do SQL - via session.organization_id
+ * 2. Tabela users do SQL - via user.organization_id
+ * 
+ * ❌ REMOVIDO: Fallback para KV Store (sistema antigo removido)
  * 
  * @param c - Context do Hono (para extrair token)
  * @returns Promise<string> - organization_id (UUID) do usuário
@@ -213,41 +218,59 @@ export async function getOrganizationIdOrThrow(c: Context): Promise<string> {
       return '00000000-0000-0000-0000-000000000001';
     }
 
-    // 2. PRIORIDADE 1: Tentar buscar do KV Store (sistema atual)
-    // Buscar sessão do KV Store via getSessionFromToken
-    const session = await getSessionFromToken(token);
+    // 2. PRIORIDADE 1: Tentar buscar da tabela sessions do SQL (ARQUITETURA SQL)
+    // ✅ ARQUITETURA SQL v1.0.103.950 - Buscar sessão da tabela sessions do SQL
+    console.log(`🔍 [getOrganizationIdOrThrow] Buscando sessão na tabela SQL...`);
+    const client = getSupabaseClient();
+    const { data: session, error: sessionError } = await client
+      .from('sessions')
+      .select('*')
+      .eq('token', token)
+      .single();
     
-    if (session && session.imobiliariaId) {
-      console.log(`🔍 [getOrganizationIdOrThrow] Tentando lookup via KV Store: imobiliariaId=${session.imobiliariaId}`);
-      
-      // Converter imobiliariaId → organizationId (UUID) via SQL
-      const orgId = await lookupOrganizationIdFromImobiliariaId(session.imobiliariaId);
-      
-      if (orgId) {
-        console.log(`✅ [getOrganizationIdOrThrow] organization_id encontrado via KV Store: ${orgId}`);
-        return orgId;
+    if (sessionError || !session) {
+      console.warn(`⚠️ [getOrganizationIdOrThrow] Sessão não encontrada na tabela SQL:`, sessionError?.code || 'NONE');
+    } else {
+      // ✅ Verificar se sessão expirou
+      const now = new Date();
+      const expiresAt = new Date(session.expires_at);
+      if (now > expiresAt) {
+        console.warn(`⚠️ [getOrganizationIdOrThrow] Sessão expirada: expires_at=${expiresAt}`);
+      } else {
+        // ✅ Sessão válida - usar organization_id diretamente da sessão SQL
+        if (session.organization_id) {
+          console.log(`✅ [getOrganizationIdOrThrow] organization_id encontrado na sessão SQL: ${session.organization_id}`);
+          return session.organization_id;
+        }
+        
+        // Se não tiver organization_id na sessão, tentar buscar do usuário
+        if (session.user_id) {
+          console.log(`🔍 [getOrganizationIdOrThrow] Buscando organization_id do usuário ${session.user_id}...`);
+          const { data: user, error: userError } = await client
+            .from('users')
+            .select('organization_id')
+            .eq('id', session.user_id)
+            .maybeSingle();
+          
+          if (!userError && user?.organization_id) {
+            console.log(`✅ [getOrganizationIdOrThrow] organization_id encontrado no usuário: ${user.organization_id}`);
+            return user.organization_id;
+          }
+        }
       }
-      
-      console.warn(`⚠️ [getOrganizationIdOrThrow] ImobiliariaId não mapeado para organizationId: ${session.imobiliariaId}`);
     }
-
-    // 3. PRIORIDADE 2: Tentar buscar do Supabase Auth (fallback para futuro)
-    console.log('🔍 [getOrganizationIdOrThrow] Tentando buscar via Supabase Auth...');
-    const orgIdFromAuth = await getOrganizationIdFromSupabaseAuth(token);
     
-    if (orgIdFromAuth) {
-      console.log(`✅ [getOrganizationIdOrThrow] organization_id encontrado via Supabase Auth: ${orgIdFromAuth}`);
-      return orgIdFromAuth;
-    }
-
-    // 4. Nenhum método funcionou - usar UUID fixo como fallback ao invés de lançar erro
-    console.warn('⚠️ [getOrganizationIdOrThrow] Não foi possível obter organization_id via métodos normais, usando UUID fixo como fallback', {
-      hasSession: !!session,
-      hasImobiliariaId: session?.imobiliariaId || false,
-      imobiliariaId: session?.imobiliariaId,
-    });
+    // ❌ REMOVIDO: Fallback para KV Store - sistema antigo removido
+    // ✅ ARQUITETURA SQL v1.0.103.950 - APENAS SQL AGORA
     
-    // Retornar UUID fixo ao invés de lançar erro para evitar quebras
+    // Se não encontrou sessão no SQL, retornar erro (não mais fallback para KV Store)
+    console.error(`❌ [getOrganizationIdOrThrow] Sessão não encontrada na tabela SQL - usuário não autenticado`);
+    console.error(`❌ [getOrganizationIdOrThrow] Token: ${token ? `${token.substring(0, 20)}...` : 'NONE'}`);
+    console.error(`❌ [getOrganizationIdOrThrow] SessionError:`, sessionError?.code || 'NONE');
+    
+    // Usar UUID fixo como fallback apenas se for absolutamente necessário
+    // (pode indicar problema de autenticação)
+    console.warn('⚠️ [getOrganizationIdOrThrow] Usando UUID fixo como fallback (sessão não encontrada no SQL)');
     return '00000000-0000-0000-0000-000000000001';
   } catch (error) {
     console.error('❌ [getOrganizationIdOrThrow] Erro ao obter organization_id, usando fallback:', error);

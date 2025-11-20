@@ -76,14 +76,24 @@ export class EvolutionContactsService {
    */
   async fetchContacts(): Promise<EvolutionContact[]> {
     try {
-      // Import necessário para obter projectId e publicAnonKey
-      const { projectId, publicAnonKey } = await import('../supabase/info');
+      // ✅ ARQUITETURA SQL v1.0.103.950 - Usar token do usuário autenticado
+      const token = localStorage.getItem('rendizy-token');
+      
+      if (!token) {
+        console.error('[Evolution] ❌ Token não encontrado - usuário não autenticado');
+        return [];
+      }
+      
+      // Import necessário para obter projectId
+      const { projectId } = await import('../supabase/info');
+      
+      console.log('[Evolution] 🔑 Token:', token ? `${token.substring(0, 20)}...` : 'NONE');
       
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/contacts`,
         {
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
+            'Authorization': `Bearer ${token}`, // ✅ Token do usuário autenticado
             'Content-Type': 'application/json'
           }
         }
@@ -119,14 +129,24 @@ export class EvolutionContactsService {
    */
   async fetchChats(): Promise<EvolutionChat[]> {
     try {
-      // Import necessário para obter projectId e publicAnonKey
-      const { projectId, publicAnonKey } = await import('../supabase/info');
+      // ✅ ARQUITETURA SQL v1.0.103.950 - Usar token do usuário autenticado
+      const token = localStorage.getItem('rendizy-token');
+      
+      if (!token) {
+        console.error('[Evolution] ❌ Token não encontrado - usuário não autenticado');
+        return [];
+      }
+      
+      // Import necessário para obter projectId
+      const { projectId } = await import('../supabase/info');
+      
+      console.log('[Evolution] 🔑 Token:', token ? `${token.substring(0, 20)}...` : 'NONE');
       
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/chats`,
         {
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
+            'Authorization': `Bearer ${token}`, // ✅ Token do usuário autenticado
             'Content-Type': 'application/json'
           }
         }

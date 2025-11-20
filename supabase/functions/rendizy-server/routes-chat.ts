@@ -1175,31 +1175,65 @@ chat.patch('/channels/config', async (c) => {
       organization_id: orgId,
     };
     
-    // WhatsApp config - ✅ GARANTIR que TODOS os campos são incluídos, mesmo strings vazias
+    // WhatsApp config - ✅ MELHORIA: Carregar dados existentes primeiro para fazer merge correto
     if (body.whatsapp) {
-      // Sempre incluir campos obrigatórios (mesmo se vazios, para garantir que sejam salvos)
-      dbData.whatsapp_enabled = body.whatsapp.enabled ?? false;
+      // ✅ Carregar configuração existente para preservar campos que não foram enviados
+      const existingConfig = await loadChannelConfigFromDB(orgId);
+      
+      // Sempre incluir campos obrigatórios (usar valor do body se fornecido, senão valor existente, senão padrão)
+      dbData.whatsapp_enabled = body.whatsapp.enabled ?? existingConfig?.whatsapp?.enabled ?? false;
       
       // ✅ CRÍTICO: Usar operador ?? para diferenciar undefined de string vazia
-      // Se o campo for undefined, usar string vazia. Se for string vazia, manter string vazia.
-      dbData.whatsapp_api_url = body.whatsapp.api_url !== undefined ? (body.whatsapp.api_url || '') : '';
-      dbData.whatsapp_instance_name = body.whatsapp.instance_name !== undefined ? (body.whatsapp.instance_name || '') : '';
-      dbData.whatsapp_api_key = body.whatsapp.api_key !== undefined ? (body.whatsapp.api_key || '') : '';
-      dbData.whatsapp_instance_token = body.whatsapp.instance_token !== undefined ? (body.whatsapp.instance_token || '') : '';
+      // Se o campo for undefined no body, preservar valor existente. Se for string (mesmo vazia), usar valor novo.
+      dbData.whatsapp_api_url = body.whatsapp.api_url !== undefined ? (body.whatsapp.api_url || '') : (existingConfig?.whatsapp?.api_url || '');
+      dbData.whatsapp_instance_name = body.whatsapp.instance_name !== undefined ? (body.whatsapp.instance_name || '') : (existingConfig?.whatsapp?.instance_name || '');
+      dbData.whatsapp_api_key = body.whatsapp.api_key !== undefined ? (body.whatsapp.api_key || '') : (existingConfig?.whatsapp?.api_key || '');
+      dbData.whatsapp_instance_token = body.whatsapp.instance_token !== undefined ? (body.whatsapp.instance_token || '') : (existingConfig?.whatsapp?.instance_token || '');
       
-      // Campos opcionais (preservar se já existirem)
+      // Campos opcionais (preservar se não fornecidos no body)
       if (body.whatsapp.connected !== undefined) {
         dbData.whatsapp_connected = body.whatsapp.connected;
+      } else if (existingConfig?.whatsapp?.connected !== undefined) {
+        dbData.whatsapp_connected = existingConfig.whatsapp.connected;
       }
+      
       if (body.whatsapp.connection_status !== undefined) {
         dbData.whatsapp_connection_status = body.whatsapp.connection_status || 'disconnected';
+      } else if (existingConfig?.whatsapp?.connection_status) {
+        dbData.whatsapp_connection_status = existingConfig.whatsapp.connection_status;
       }
+      
       if (body.whatsapp.phone_number !== undefined) {
         dbData.whatsapp_phone_number = body.whatsapp.phone_number || null;
+      } else if (existingConfig?.whatsapp?.phone_number !== undefined) {
+        dbData.whatsapp_phone_number = existingConfig.whatsapp.phone_number || null;
       }
+      
       if (body.whatsapp.qr_code !== undefined) {
         dbData.whatsapp_qr_code = body.whatsapp.qr_code || null;
+      } else if (existingConfig?.whatsapp?.qr_code !== undefined) {
+        dbData.whatsapp_qr_code = existingConfig.whatsapp.qr_code || null;
       }
+      
+      if (body.whatsapp.last_connected_at !== undefined) {
+        dbData.whatsapp_last_connected_at = body.whatsapp.last_connected_at || null;
+      } else if (existingConfig?.whatsapp?.last_connected_at !== undefined) {
+        dbData.whatsapp_last_connected_at = existingConfig.whatsapp.last_connected_at || null;
+      }
+      
+      if (body.whatsapp.error_message !== undefined) {
+        dbData.whatsapp_error_message = body.whatsapp.error_message || null;
+      } else if (existingConfig?.whatsapp?.error_message !== undefined) {
+        dbData.whatsapp_error_message = existingConfig.whatsapp.error_message || null;
+      }
+      
+      console.log('💾 [PATCH /channels/config] Merge de dados WhatsApp:', {
+        'body.api_url': body.whatsapp.api_url ? `${body.whatsapp.api_url.substring(0, 30)}...` : 'undefined',
+        'existing.api_url': existingConfig?.whatsapp?.api_url ? `${existingConfig.whatsapp.api_url.substring(0, 30)}...` : 'undefined',
+        'final.api_url': dbData.whatsapp_api_url ? `${dbData.whatsapp_api_url.substring(0, 30)}...` : 'VAZIO',
+        'preservando.qr_code': dbData.whatsapp_qr_code ? 'SIM' : 'NÃO',
+        'preservando.phone_number': dbData.whatsapp_phone_number || 'NÃO',
+      });
     }
     
     // SMS config
@@ -1241,7 +1275,7 @@ chat.patch('/channels/config', async (c) => {
       return c.json(errorResponse('Erro ao salvar configurações: Dados não retornados'), 500);
     }
     
-    savedData = result.data;
+    const savedData = result.data;
     console.log('✅✅ [PATCH /channels/config] Dados salvos e verificados via Repository:', {
       whatsapp_api_url: savedData.whatsapp_api_url || 'VAZIO',
       whatsapp_instance_name: savedData.whatsapp_instance_name || 'VAZIO',

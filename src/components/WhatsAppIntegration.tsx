@@ -177,16 +177,30 @@ export default function WhatsAppIntegration() {
   const loadConfig = async () => {
     setLoading(true);
     
-    console.log('📡 [WhatsApp] Carregando configurações do Supabase...');
+    console.log('📡 [WhatsApp] Carregando configurações do Supabase...', { organizationId });
     
     try {
       const result = await channelsApi.getConfig(organizationId);
       
+      console.log('📥 [WhatsApp] Resposta da API:', { 
+        success: result.success, 
+        hasData: !!result.data,
+        whatsapp: result.data?.whatsapp ? 'existe' : 'não existe'
+      });
+      
       if (result.success && result.data) {
         console.log('✅ [WhatsApp] Configurações carregadas do banco');
-        console.log('📋 [WhatsApp] Dados recebidos:', JSON.stringify(result.data, null, 2));
+        console.log('📋 [WhatsApp] Dados recebidos:', {
+          organization_id: result.data.organization_id,
+          whatsapp_enabled: result.data.whatsapp?.enabled,
+          whatsapp_api_url: result.data.whatsapp?.api_url ? `${result.data.whatsapp.api_url.substring(0, 30)}...` : 'VAZIO',
+          whatsapp_instance_name: result.data.whatsapp?.instance_name || 'VAZIO',
+          whatsapp_api_key: result.data.whatsapp?.api_key ? '***PRESENTE***' : 'VAZIO',
+          whatsapp_instance_token: result.data.whatsapp?.instance_token ? '***PRESENTE***' : 'VAZIO',
+        });
         setConfig(result.data);
         
+        // ✅ MELHORIA: Garantir que formulário seja preenchido SEMPRE que houver dados salvos
         if (result.data.whatsapp) {
           const formData = {
             api_url: result.data.whatsapp.api_url || '',
@@ -194,13 +208,30 @@ export default function WhatsAppIntegration() {
             api_key: result.data.whatsapp.api_key || '',
             instance_token: result.data.whatsapp.instance_token || ''
           };
-          console.log('📝 [WhatsApp] Preenchendo formulário:', formData);
+          console.log('📝 [WhatsApp] Preenchendo formulário com dados salvos:', {
+            api_url: formData.api_url ? `${formData.api_url.substring(0, 30)}...` : 'VAZIO',
+            instance_name: formData.instance_name || 'VAZIO',
+            api_key: formData.api_key ? '***PRESENTE***' : 'VAZIO',
+            instance_token: formData.instance_token ? '***PRESENTE***' : 'VAZIO',
+          });
           setWhatsappForm(formData);
+          
+          // ✅ Notificar usuário que credenciais foram carregadas
+          if (formData.api_url && formData.instance_name) {
+            console.log('✅ [WhatsApp] Credenciais carregadas com sucesso! Formulário preenchido automaticamente.');
+          }
         } else {
           console.warn('⚠️ [WhatsApp] result.data.whatsapp não existe:', result.data);
         }
       } else {
         console.log('ℹ️ [WhatsApp] Nenhuma configuração encontrada (usando padrão)');
+        // ✅ Garantir que formulário esteja vazio se não há dados salvos
+        setWhatsappForm({
+          api_url: '',
+          instance_name: '',
+          api_key: '',
+          instance_token: ''
+        });
       }
     } catch (error) {
       console.error('❌ [WhatsApp] Erro ao carregar configurações:', error);
@@ -535,45 +566,69 @@ export default function WhatsAppIntegration() {
         return;
       }
       
+      // ✅ MELHORIA: Merge completo com dados existentes para garantir que nada se perca
       const configToSave = {
         whatsapp: {
-          ...config?.whatsapp,
+          ...config?.whatsapp, // Preservar dados existentes (QR Code, status de conexão, etc)
           enabled: true,
           api_url: cleanUrl,
           instance_name: whatsappForm.instance_name.trim(),
           api_key: whatsappForm.api_key.trim(),
           instance_token: whatsappForm.instance_token.trim(),
+          // Preservar status de conexão se já existir
           connected: config?.whatsapp?.connected || false,
-          connection_status: config?.whatsapp?.connection_status || 'disconnected'
+          connection_status: config?.whatsapp?.connection_status || 'disconnected',
+          // Preservar campos opcionais que não devem ser sobrescritos
+          phone_number: config?.whatsapp?.phone_number,
+          qr_code: config?.whatsapp?.qr_code,
+          last_connected_at: config?.whatsapp?.last_connected_at,
+          error_message: config?.whatsapp?.error_message,
         }
       };
       
-      console.log('📤 Salvando config:', configToSave);
-      
-      // 🔥 MODO DESENVOLVIMENTO - Salvar localmente (backend não deployado ainda)
-      // Quando o backend for deployado, isso funcionará automaticamente via API
+      console.log('📤 [WhatsApp] Salvando configurações:', {
+        organization_id: organizationId,
+        api_url: cleanUrl ? `${cleanUrl.substring(0, 30)}...` : 'VAZIO',
+        instance_name: configToSave.whatsapp.instance_name || 'VAZIO',
+        api_key: configToSave.whatsapp.api_key ? '***PRESENTE***' : 'VAZIO',
+        instance_token: configToSave.whatsapp.instance_token ? '***PRESENTE***' : 'VAZIO',
+        preserving: {
+          connected: configToSave.whatsapp.connected,
+          qr_code: configToSave.whatsapp.qr_code ? 'SIM' : 'NÃO',
+          phone_number: configToSave.whatsapp.phone_number || 'NÃO'
+        }
+      });
       
       try {
-        // Tentar salvar no backend (se estiver deployado)
+        // Tentar salvar no backend
         const result = await channelsApi.updateConfig(organizationId, configToSave);
         
-        console.log('📥 Resultado:', result);
+        console.log('📥 [WhatsApp] Resultado do salvamento:', { 
+          success: result.success, 
+          hasData: !!result.data,
+          error: result.error 
+        });
         
         if (result.success) {
-          console.log('✅ Configurações salvas no backend!');
-          toast.success('✅ Configurações salvas no servidor!');
+          console.log('✅ [WhatsApp] Configurações salvas no backend!');
+          toast.success('✅ Configurações salvas no servidor!', {
+            description: 'Suas credenciais foram salvas e estarão disponíveis na próxima vez.',
+            duration: 5000
+          });
           
           // Recarregar configurações do backend para garantir sincronização
           await loadConfig();
           
-          // Atualizar formulário com dados salvos
+          // ✅ MELHORIA: Atualizar formulário com dados salvos confirmados do backend
           if (result.data?.whatsapp) {
-            setWhatsappForm({
+            const savedFormData = {
               api_url: result.data.whatsapp.api_url || cleanUrl,
               instance_name: result.data.whatsapp.instance_name || whatsappForm.instance_name,
               api_key: result.data.whatsapp.api_key || whatsappForm.api_key,
               instance_token: result.data.whatsapp.instance_token || whatsappForm.instance_token
-            });
+            };
+            console.log('✅ [WhatsApp] Formulário atualizado com dados confirmados do backend');
+            setWhatsappForm(savedFormData);
           }
         } else {
           throw new Error(result.error || 'Backend returned error');

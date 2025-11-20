@@ -40,69 +40,126 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ✅ MELHORIA v1.0.103.400 - Carrega usuário com fallback para user_metadata
-  // Load user from localStorage on mount, fallback to user_metadata from Supabase
+  // ✅ ARQUITETURA SQL v1.0.103.950 - SEMPRE valida token no backend SQL
+  // NÃO usa localStorage como fonte de verdade - sempre busca do banco
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const savedUser = localStorage.getItem('rendizy-user');
-        const savedOrg = localStorage.getItem('rendizy-organization');
+        // ✅ Buscar token do localStorage (apenas como referência)
+        const token = localStorage.getItem('rendizy-token');
         
-        // Carregar usuário do localStorage
-        if (savedUser) {
-          setUser(JSON.parse(savedUser));
+        if (!token) {
+          console.log('⚠️ [AuthContext] Nenhum token encontrado - usuário não autenticado');
+          setIsLoading(false);
+          return;
         }
+
+        // ✅ SEMPRE validar token no backend SQL via /auth/me
+        console.log('🔐 [AuthContext] Validando token no backend SQL...');
+        const { projectId, publicAnonKey } = await import('../utils/supabase/info');
+        const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/me`;
         
-        // Carregar organização do localStorage (fonte primária)
-        if (savedOrg) {
-          setOrganization(JSON.parse(savedOrg));
-        } else {
-          // ✅ FALLBACK: Se não tiver organização no localStorage, 
-          // tentar obter de user_metadata do Supabase
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        // Ler resposta como texto primeiro
+        const responseText = await response.text();
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('❌ [AuthContext] Erro ao parsear resposta:', parseError);
+          console.error('❌ [AuthContext] Resposta:', responseText.substring(0, 200));
+          // Token inválido - limpar localStorage
+          localStorage.removeItem('rendizy-token');
+          setIsLoading(false);
+          return;
+        }
+
+        // ✅ Verificar se sessão é válida
+        if (!response.ok || !data || !data.success) {
+          console.log('❌ [AuthContext] Sessão inválida ou expirada:', data?.error);
+          // Token inválido/expirado - limpar localStorage
+          localStorage.removeItem('rendizy-token');
+          setIsLoading(false);
+          return;
+        }
+
+        // ✅ Carregar dados do usuário do backend SQL (fonte da verdade)
+        console.log('✅ [AuthContext] Sessão válida - carregando dados do backend SQL');
+        
+        const backendUser = data.user;
+        const loggedUser: User = {
+          id: backendUser.id,
+          email: backendUser.email,
+          name: backendUser.name,
+          username: backendUser.username,
+          role: backendUser.type === 'superadmin' ? 'super_admin' : (backendUser.role || 'staff'),
+          status: backendUser.status || 'active',
+          emailVerified: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastLoginAt: new Date(),
+          organizationId: backendUser.organizationId || backendUser.organization?.id || undefined
+        };
+
+        setUser(loggedUser);
+
+        // ✅ Carregar organização do backend SQL se existir
+        if (backendUser.organization) {
+          const org: Organization = {
+            id: backendUser.organization.id,
+            name: backendUser.organization.name,
+            slug: backendUser.organization.slug,
+            plan: 'professional',
+            status: 'active',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          setOrganization(org);
+          console.log('✅ [AuthContext] Organização carregada do backend SQL:', org);
+        } else if (backendUser.organizationId) {
+          // Buscar organização se tiver apenas o ID
           try {
-            const { data: { session } } = await supabase.auth.getSession();
+            const orgResponse = await fetch(
+              `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${backendUser.organizationId}`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              }
+            );
             
-            if (session?.user?.user_metadata?.organization_id) {
-              const orgId = session.user.user_metadata.organization_id;
-              console.log('✅ [AuthContext] organization_id encontrado em user_metadata:', orgId);
-              
-              // Buscar organização completa da API
-              const { projectId, publicAnonKey } = await import('../utils/supabase/info');
-              const response = await fetch(
-                `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${orgId}`,
-                {
-                  headers: {
-                    'Authorization': `Bearer ${publicAnonKey}`
-                  }
-                }
-              );
-              
-              if (response.ok) {
-                const result = await response.json();
-                if (result.success && result.data) {
-                  const org: Organization = {
-                    id: result.data.id,
-                    name: result.data.name,
-                    slug: result.data.slug,
-                    plan: result.data.plan || 'professional',
-                    status: result.data.status || 'active',
-                    createdAt: new Date(result.data.created_at || Date.now()),
-                    updatedAt: new Date(result.data.updated_at || Date.now())
-                  };
-                  
-                  localStorage.setItem('rendizy-organization', JSON.stringify(org));
-                  setOrganization(org);
-                  console.log('✅ [AuthContext] Organização carregada de user_metadata:', org);
-                }
+            if (orgResponse.ok) {
+              const orgResult = await orgResponse.json();
+              if (orgResult.success && orgResult.data) {
+                const org: Organization = {
+                  id: orgResult.data.id,
+                  name: orgResult.data.name,
+                  slug: orgResult.data.slug,
+                  plan: orgResult.data.plan || 'professional',
+                  status: orgResult.data.status || 'active',
+                  createdAt: new Date(orgResult.data.created_at || Date.now()),
+                  updatedAt: new Date(orgResult.data.updated_at || Date.now())
+                };
+                setOrganization(org);
               }
             }
           } catch (error) {
-            console.warn('⚠️ [AuthContext] Erro ao tentar obter organização de user_metadata:', error);
-            // Não falhar se não conseguir obter de user_metadata
+            console.warn('⚠️ [AuthContext] Erro ao buscar organização:', error);
           }
         }
+
+        console.log('✅ [AuthContext] Usuário carregado do backend SQL:', loggedUser);
       } catch (error) {
-        console.error('❌ [AuthContext] Error loading user:', error);
+        console.error('❌ [AuthContext] Erro ao carregar usuário:', error);
+        // Em caso de erro, limpar localStorage
+        localStorage.removeItem('rendizy-token');
       } finally {
         setIsLoading(false);
       }
@@ -164,56 +221,121 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // ✅ Login bem-sucedido!
-      console.log('✅ AuthContext: Login bem-sucedido:', data.user);
+      console.log('✅ AuthContext: Login bem-sucedido - sessão criada no backend SQL');
 
-      // ✅ MELHORIA v1.0.103.400 - Garantir que user tenha organizationId
-      // Converter para formato do User
+      // ✅ ARQUITETURA SQL v1.0.103.950 - Salvar APENAS token no localStorage
+      // Dados do usuário vêm SEMPRE do backend SQL via /auth/me
+      localStorage.setItem('rendizy-token', data.token);
+      
+      // ❌ NÃO salvar dados do usuário no localStorage
+      // ✅ Buscar dados do usuário do backend SQL (fonte da verdade)
+      console.log('🔐 [AuthContext] Buscando dados do usuário do backend SQL...');
+      const meUrl = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/me`;
+      const meResponse = await fetch(meUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${data.token}`
+        }
+      });
+
+      // ✅ ARQUITETURA CORRETA: Ler body apenas UMA vez
+      const meResponseText = await meResponse.text();
+      console.log('🔐 [AuthContext] /auth/me Response status:', meResponse.status, meResponse.statusText);
+      console.log('🔐 [AuthContext] /auth/me Response text (primeiros 500 chars):', meResponseText.substring(0, 500));
+
+      let meData;
+      try {
+        meData = JSON.parse(meResponseText);
+        console.log('🔐 [AuthContext] /auth/me Response data (parsed):', meData);
+      } catch (parseError) {
+        console.error('❌ [AuthContext] Erro ao parsear /auth/me JSON:', parseError);
+        console.error('❌ [AuthContext] Resposta completa:', meResponseText.substring(0, 500));
+        throw new Error(`Erro HTTP ${meResponse.status}: Resposta não é JSON válido - ${meResponseText.substring(0, 200)}`);
+      }
+
+      if (!meResponse.ok) {
+        console.error('❌ [AuthContext] /auth/me falhou - HTTP não OK:', { status: meResponse.status, data: meData });
+        throw new Error(meData?.error || meData?.message || `Erro HTTP ${meResponse.status}: ${meResponse.statusText}`);
+      }
+
+      if (!meData || !meData.success || !meData.user) {
+        console.error('❌ [AuthContext] /auth/me falhou - success=false ou user ausente:', meData);
+        throw new Error(meData?.error || meData?.message || 'Erro ao obter dados do usuário do backend');
+      }
+
+      // ✅ Carregar dados do usuário do backend SQL
+      const backendUser = meData.user;
       const loggedUser: User = {
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.name,
-        role: data.user.type === 'superadmin' ? 'super_admin' : (data.user.role || 'staff'),
-        status: 'active',
+        id: backendUser.id,
+        email: backendUser.email,
+        name: backendUser.name,
+        username: backendUser.username,
+        role: backendUser.type === 'superadmin' ? 'super_admin' : (backendUser.role || 'staff'),
+        status: backendUser.status || 'active',
         emailVerified: true,
         createdAt: new Date(),
         updatedAt: new Date(),
         lastLoginAt: new Date(),
-        // ✅ Garantir organizationId se existir
-        organizationId: data.user.imobiliaria?.id || data.user.organizationId || undefined
+        organizationId: backendUser.organizationId || backendUser.organization?.id || undefined
       };
 
-      // Salvar token, usuário e organização
-      localStorage.setItem('rendizy-token', data.token);
-      localStorage.setItem('rendizy-user', JSON.stringify(loggedUser));
-      
-      // ✅ MELHORIA v1.0.103.400 - Salvar organização se existir
-      if (data.user.imobiliaria) {
+      setUser(loggedUser);
+
+      // ✅ Carregar organização do backend SQL se existir
+      if (backendUser.organization) {
         const org: Organization = {
-          id: data.user.imobiliaria.id,
-          name: data.user.imobiliaria.name,
-          slug: data.user.imobiliaria.slug,
+          id: backendUser.organization.id,
+          name: backendUser.organization.name,
+          slug: backendUser.organization.slug,
           plan: 'professional',
           status: 'active',
           createdAt: new Date(),
           updatedAt: new Date()
         };
-        localStorage.setItem('rendizy-organization', JSON.stringify(org));
         setOrganization(org);
-      } else if (data.user.organizationId) {
-        // Se tiver organizationId mas não imobiliaria, buscar organização
-        // (isso será feito no useEffect de loadUser)
-        loggedUser.organizationId = data.user.organizationId;
+        console.log('✅ [AuthContext] Organização carregada do backend SQL:', org);
+      } else if (backendUser.organizationId) {
+        // Buscar organização se tiver apenas o ID
+        try {
+          const orgResponse = await fetch(
+            `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${backendUser.organizationId}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${data.token}`
+              }
+            }
+          );
+          
+          if (orgResponse.ok) {
+            const orgResult = await orgResponse.json();
+            if (orgResult.success && orgResult.data) {
+              const org: Organization = {
+                id: orgResult.data.id,
+                name: orgResult.data.name,
+                slug: orgResult.data.slug,
+                plan: orgResult.data.plan || 'professional',
+                status: orgResult.data.status || 'active',
+                createdAt: new Date(orgResult.data.created_at || Date.now()),
+                updatedAt: new Date(orgResult.data.updated_at || Date.now())
+              };
+              setOrganization(org);
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ [AuthContext] Erro ao buscar organização:', error);
+        }
       }
 
-      setUser(loggedUser);
+      console.log('✅ [AuthContext] Usuário carregado do backend SQL:', loggedUser);
 
       // ✅ Retornar user com type para compatibilidade com LoginPage
       return { 
         success: true, 
         user: {
           ...loggedUser,
-          type: data.user.type, // Manter type original da API para LoginPage
-          username: data.user.username // Manter username também
+          type: backendUser.type, // Manter type original da API para LoginPage
+          username: backendUser.username // Manter username também
         }
       };
     } catch (error) {
@@ -228,26 +350,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const token = localStorage.getItem('rendizy-token');
       
+      // ✅ ARQUITETURA SQL v1.0.103.950 - Remover sessão do backend SQL
       if (token) {
         const { projectId, publicAnonKey } = await import('../utils/supabase/info');
         const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/logout`;
         
-        await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        try {
+          await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          console.log('✅ [AuthContext] Sessão removida do backend SQL');
+        } catch (error) {
+          console.warn('⚠️ [AuthContext] Erro ao remover sessão do backend (continuando logout):', error);
+        }
       }
     } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+      console.error('❌ [AuthContext] Erro ao fazer logout:', error);
     } finally {
+      // ✅ Limpar estado local
       setUser(null);
       setOrganization(null);
+      
+      // ✅ Limpar token do localStorage (único item salvo)
       localStorage.removeItem('rendizy-token');
-      localStorage.removeItem('rendizy-user');
-      localStorage.removeItem('rendizy-organization');
+      
+      // ❌ NÃO há mais rendizy-user ou rendizy-organization no localStorage
+      console.log('✅ [AuthContext] Logout completo - estado limpo');
     }
   };
 

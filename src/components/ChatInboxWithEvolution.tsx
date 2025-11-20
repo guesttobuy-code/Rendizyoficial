@@ -5,18 +5,51 @@
  * 
  * @version v1.0.103.164
  * @date 2025-10-31
+ * @updated v1.0.103.950 - Adicionado indicador de status do WhatsApp
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChatInbox } from './ChatInbox';
 import { EvolutionContactsList } from './EvolutionContactsList';
 import { LocalContact } from '../utils/services/evolutionContactsService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { MessageSquare, Smartphone, Users } from 'lucide-react';
+import { fetchWhatsAppStatus, WhatsAppStatus } from '../utils/whatsappChatApi';
 
 export function ChatInboxWithEvolution() {
   const [selectedContact, setSelectedContact] = useState<LocalContact | null>(null);
   const [activeTab, setActiveTab] = useState<'inbox' | 'whatsapp'>('inbox');
+  const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppStatus>({ status: 'DISCONNECTED' });
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+
+  /**
+   * Verificar status do WhatsApp
+   */
+  const checkWhatsAppStatus = async () => {
+    setIsCheckingStatus(true);
+    try {
+      const status = await fetchWhatsAppStatus();
+      setWhatsappStatus(status);
+      console.log('📊 [Chat] Status do WhatsApp:', status);
+    } catch (error) {
+      console.error('❌ [Chat] Erro ao verificar status do WhatsApp:', error);
+      setWhatsappStatus({ status: 'ERROR', message: 'Erro ao verificar status' });
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
+  /**
+   * Verificar status ao montar e quando a aba WhatsApp estiver ativa
+   */
+  useEffect(() => {
+    if (activeTab === 'whatsapp') {
+      checkWhatsAppStatus();
+      // Verificar status a cada 30 segundos
+      const interval = setInterval(checkWhatsAppStatus, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
 
   const handleContactSelect = (contact: LocalContact) => {
     setSelectedContact(contact);
@@ -24,27 +57,80 @@ export function ChatInboxWithEvolution() {
     // TODO: Abrir conversa com este contato no futuro
   };
 
+  /**
+   * Obter cor do indicador baseado no status
+   */
+  const getStatusColor = () => {
+    switch (whatsappStatus.status) {
+      case 'CONNECTED':
+        return 'bg-green-500';
+      case 'DISCONNECTED':
+        return 'bg-red-500';
+      case 'CONNECTING':
+        return 'bg-yellow-500';
+      case 'ERROR':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
+    }
+  };
+
+  /**
+   * Obter texto do status
+   */
+  const getStatusText = () => {
+    switch (whatsappStatus.status) {
+      case 'CONNECTED':
+        return 'Conectado';
+      case 'DISCONNECTED':
+        return 'Desconectado';
+      case 'CONNECTING':
+        return 'Conectando...';
+      case 'ERROR':
+        return 'Erro';
+      default:
+        return 'Desconhecido';
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Tabs no topo */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col">
         <div className="bg-white dark:bg-gray-800 border-b">
-          <TabsList className="w-full grid grid-cols-2 max-w-md rounded-none bg-transparent border-b-0 h-14">
-            <TabsTrigger 
-              value="inbox" 
-              className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none"
-            >
-              <MessageSquare className="w-4 h-4" />
-              Chat Inbox
-            </TabsTrigger>
-            <TabsTrigger 
-              value="whatsapp" 
-              className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-green-600 rounded-none"
-            >
-              <Smartphone className="w-4 h-4" />
-              WhatsApp
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between">
+            <TabsList className="w-full grid grid-cols-2 max-w-md rounded-none bg-transparent border-b-0 h-14">
+              <TabsTrigger 
+                value="inbox" 
+                className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none"
+              >
+                <MessageSquare className="w-4 h-4" />
+                Chat Inbox
+              </TabsTrigger>
+              <TabsTrigger 
+                value="whatsapp" 
+                className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-green-600 rounded-none"
+              >
+                <Smartphone className="w-4 h-4" />
+                WhatsApp
+              </TabsTrigger>
+            </TabsList>
+            
+            {/* ✅ Indicador de Status do WhatsApp - v1.0.103.950 */}
+            {activeTab === 'whatsapp' && (
+              <div className="flex items-center gap-2 px-4">
+                <div className="flex items-center gap-2">
+                  <div 
+                    className={`w-3 h-3 rounded-full ${getStatusColor()} ${!isCheckingStatus ? 'animate-pulse' : ''}`}
+                    title={`Status: ${getStatusText()}`}
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {getStatusText()}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Tab Content: Chat Inbox Completo */}

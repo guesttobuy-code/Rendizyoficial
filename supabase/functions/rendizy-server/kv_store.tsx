@@ -18,13 +18,13 @@ const client = () => createClient(
 );
 
 // Set stores a key-value pair in the database.
-// ✅ SIMPLIFICADO: Removido updated_at - tabela não tem essa coluna
+// ✅ CORRIGIDO: A tabela TEM created_at e updated_at - usar DEFAULT NOW() do banco
 export const set = async (key: string, value: any): Promise<void> => {
   const supabase = client()
   const { error } = await supabase.from("kv_store_67caf26a").upsert({
     key,
     value
-    // ✅ Apenas key e value - tabela simples sem timestamps
+    // ✅ Não especificar created_at/updated_at - deixar o banco usar DEFAULT NOW()
   }, {
     onConflict: 'key'
   });
@@ -53,14 +53,14 @@ export const del = async (key: string): Promise<void> => {
 };
 
 // Sets multiple key-value pairs in the database.
-// ✅ SIMPLIFICADO: Removido updated_at - tabela não tem essa coluna
+// ✅ CORRIGIDO: A tabela TEM created_at e updated_at - usar DEFAULT NOW() do banco
 export const mset = async (keys: string[], values: any[]): Promise<void> => {
   const supabase = client()
   const { error } = await supabase.from("kv_store_67caf26a").upsert(
     keys.map((k, i) => ({ 
       key: k, 
       value: values[i]
-      // ✅ Apenas key e value - tabela simples sem timestamps
+      // ✅ Não especificar created_at/updated_at - deixar o banco usar DEFAULT NOW()
     })),
     {
       onConflict: 'key'
