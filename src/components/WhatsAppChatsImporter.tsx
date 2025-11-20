@@ -74,21 +74,30 @@ export function WhatsAppChatsImporter({ onChatsLoaded, onMessagesLoaded }: Whats
       }
       
       // Converter conversas do WhatsApp para o formato do sistema
-      const convertedChats = whatsappChats.map((chat, index) => {
-        // ✅ CORREÇÃO: Verificar se chat.id existe antes de processar
-        if (!chat || !chat.id) {
-          console.warn('⚠️ Conversa inválida encontrada (sem ID):', chat);
-          return null;
-        }
-        
-        const phoneNumber = extractPhoneNumber(chat.id);
-        const displayPhone = formatPhoneDisplay(chat.id);
-        
-        return {
-          id: `wa-${chat.id}`,
-          guest_name: chat.name || displayPhone || 'Contato sem nome',
-          guest_email: '',
-          guest_phone: displayPhone || 'Número desconhecido',
+      const convertedChats = whatsappChats
+        .filter((chat) => {
+          // ✅ CORREÇÃO: Filtrar conversas inválidas ANTES de processar
+          if (!chat) {
+            console.warn('⚠️ Conversa inválida (null/undefined):', chat);
+            return false;
+          }
+          if (!chat.id || typeof chat.id !== 'string' || chat.id.trim() === '') {
+            console.warn('⚠️ Conversa inválida (sem ID válido):', chat);
+            return false;
+          }
+          return true;
+        })
+        .map((chat, index) => {
+          // ✅ Agora chat.id é garantido como string válida
+          try {
+            const phoneNumber = extractPhoneNumber(chat.id);
+            const displayPhone = formatPhoneDisplay(chat.id);
+            
+            return {
+              id: `wa-${chat.id}`,
+              guest_name: chat.name || displayPhone || 'Contato sem nome',
+              guest_email: '',
+              guest_phone: displayPhone || 'Número desconhecido',
           reservation_code: '',
           property_name: '',
           property_id: '',
@@ -108,9 +117,40 @@ export function WhatsAppChatsImporter({ onChatsLoaded, onMessagesLoaded }: Whats
           tags: [],
           whatsapp_chat_id: chat.id, // ID original do WhatsApp
           profile_picture_url: chat.profilePictureUrl,
-          unread_count: chat.unreadCount || 0,
-        };
-      }).filter((chat): chat is NonNullable<typeof chat> => chat !== null); // ✅ CORREÇÃO: Filtrar nulls
+              unread_count: chat.unreadCount || 0,
+            };
+          } catch (error) {
+            console.error('❌ Erro ao processar conversa:', chat, error);
+            // Retornar conversa com dados mínimos em caso de erro
+            return {
+              id: `wa-${chat.id}`,
+              guest_name: chat.name || 'Contato sem nome',
+              guest_email: '',
+              guest_phone: 'Número desconhecido',
+              reservation_code: '',
+              property_name: '',
+              property_id: '',
+              channel: 'whatsapp' as const,
+              status: 'read' as const,
+              category: 'normal' as const,
+              conversation_type: 'lead' as const,
+              last_message: chat.lastMessage?.message || '',
+              last_message_at: chat.lastMessageTimestamp 
+                ? new Date(chat.lastMessageTimestamp * 1000)
+                : new Date(),
+              checkin_date: new Date(),
+              checkout_date: new Date(),
+              messages: [],
+              order: index,
+              isPinned: false,
+              tags: [],
+              whatsapp_chat_id: chat.id,
+              profile_picture_url: chat.profilePictureUrl,
+              unread_count: chat.unreadCount || 0,
+            };
+          }
+        })
+        .filter((chat): chat is NonNullable<typeof chat> => chat !== null); // ✅ Filtrar nulls (não deve haver mais, mas segurança extra)
       
       setChats(whatsappChats);
       setImportedCount(convertedChats.length);

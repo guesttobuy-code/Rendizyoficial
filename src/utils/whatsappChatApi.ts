@@ -266,6 +266,11 @@ export function formatPhoneDisplay(whatsappId: string | null | undefined): strin
   }
   const number = extractPhoneNumber(whatsappId);
   
+  // ✅ CORREÇÃO: Verificar se number é válido antes de processar
+  if (!number || number.length === 0) {
+    return 'Número desconhecido';
+  }
+  
   // Verifica se é número brasileiro (começa com 55)
   if (number.startsWith('55') && number.length >= 12) {
     const ddd = number.substring(2, 4);
@@ -274,7 +279,7 @@ export function formatPhoneDisplay(whatsappId: string | null | undefined): strin
     return `+55 ${ddd} ${firstPart}-${lastPart}`;
   }
   
-  // Retorna com + na frente se não for Brasil
+  // Retorna com + na frente se não for Brasil (e number não estiver vazio)
   return `+${number}`;
 }
 
