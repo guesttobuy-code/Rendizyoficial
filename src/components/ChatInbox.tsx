@@ -630,7 +630,7 @@ export function ChatInbox() {
     setIsLoading(true);
     try {
       const result = await conversationsApi.list(organizationId);
-      if (result.success && result.data) {
+      if (result.success && result.data && result.data.length > 0) {
         // Convert API data to component format
         const formattedConversations = result.data.map((conv: ApiConversation) => ({
           ...conv,
@@ -645,18 +645,19 @@ export function ChatInbox() {
           setSelectedConversation(formattedConversations[0]);
         }
       } else {
-        console.error('Failed to load conversations:', result.error);
-        // Fallback to mock data on error
+        console.log('⚠️ Nenhuma conversa do backend, usando dados mock para demonstração');
+        // ✅ Fallback para mock data quando não há conversas do backend
         setConversations(mockConversations);
-        if (mockConversations.length > 0) {
+        if (mockConversations.length > 0 && !selectedConversation) {
           setSelectedConversation(mockConversations[0]);
         }
       }
     } catch (error) {
-      console.error('Error loading conversations:', error);
-      // Fallback to mock data
+      console.error('❌ Erro ao carregar conversas:', error);
+      console.log('✅ Usando dados mock para demonstração');
+      // ✅ Fallback para mock data em caso de erro
       setConversations(mockConversations);
-      if (mockConversations.length > 0) {
+      if (mockConversations.length > 0 && !selectedConversation) {
         setSelectedConversation(mockConversations[0]);
       }
     } finally {
