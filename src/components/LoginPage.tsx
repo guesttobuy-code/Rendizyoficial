@@ -37,29 +37,43 @@ export default function LoginPage() {
       
       const result = await login(username, password);
       
-      // ✅ Verificar se result existe e tem success
-      if (!result) {
+      console.log('🔐 [LoginPage] Resultado do login recebido:', result);
+      console.log('🔐 [LoginPage] Tipo do resultado:', typeof result);
+      console.log('🔐 [LoginPage] Result.success:', result?.success);
+      console.log('🔐 [LoginPage] Result.user:', result?.user);
+      
+      // ✅ CORREÇÃO: Verificar se result existe e tem success
+      if (!result || typeof result !== 'object') {
+        console.error('❌ Login retornou resposta inválida:', result);
+        console.error('❌ Tipo recebido:', typeof result);
         throw new Error('Resposta inválida do servidor');
       }
       
-      if (result.success) {
+      if (result.success && result.user) {
+        console.log('✅ Login bem-sucedido:', result.user);
         toast.success('✅ Login realizado com sucesso!', {
-          description: `Bem-vindo, ${result.user?.name || username}!`
+          description: `Bem-vindo, ${result.user.name || username}!`
         });
         
+        // Aguardar um pouco para garantir que o estado foi atualizado
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         // Redirecionar baseado no tipo de usuário
-        if (result.user?.type === 'superadmin') {
+        if (result.user.type === 'superadmin') {
           navigate('/configuracoes');
         } else {
           navigate('/');
         }
       } else {
-        throw new Error(result.error || 'Erro ao fazer login');
+        // ✅ CORREÇÃO: Mostrar erro específico se houver
+        const errorMsg = result.error || 'Erro ao fazer login';
+        console.error('❌ Login falhou:', errorMsg);
+        throw new Error(errorMsg);
       }
     } catch (err) {
       console.error('❌ Erro no login:', err);
       
-      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao fazer login';
       setError(errorMessage);
       
       toast.error('❌ Erro ao fazer login', {
