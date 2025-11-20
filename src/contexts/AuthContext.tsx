@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('🔐 AuthContext: Fazendo login...', { username });
       
       const { projectId, publicAnonKey } = await import('../utils/supabase/info');
-      const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/auth/login`;
+      const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/login`;
       
       console.log('🔐 AuthContext: URL de login:', url);
       console.log('🔐 AuthContext: Fazendo requisição...');

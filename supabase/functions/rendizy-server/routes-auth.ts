@@ -1,6 +1,15 @@
 import { Hono } from 'npm:hono';
-import * as kv from './kv_store.tsx';
 import { createHash } from 'node:crypto';
+// ✅ ARQUITETURA SQL: Importar Supabase Client
+import { createClient } from 'jsr:@supabase/supabase-js@2.49.8';
+
+// Helper: Obter cliente Supabase
+function getSupabaseClient() {
+  return createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+}
 
 const app = new Hono();
 
@@ -68,69 +77,8 @@ function generateToken(): string {
   return `${timestamp}_${random1}_${random2}`;
 }
 
-// Inicializar SuperAdmins (se não existirem)
-async function initializeSuperAdmin() {
-  try {
-    const superAdmins = [
-      {
-        id: 'superadmin_rppt',
-        username: 'rppt',
-        passwordHash: hashPassword('root'),
-        name: 'Super Administrador',
-        email: 'suacasarendemais@gmail.com', // ✅ Atualizado para email real
-        type: 'superadmin' as const,
-        status: 'active' as const,
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'superadmin_admin',
-        username: 'admin',
-        passwordHash: hashPassword('root'),
-        name: 'Administrador',
-        email: 'root@rendizy.com',
-        type: 'superadmin' as const,
-        status: 'active' as const,
-        createdAt: new Date().toISOString()
-      }
-    ];
-
-    let initialized = 0;
-    let updated = 0;
-
-    for (const superAdmin of superAdmins) {
-      const existing = await kv.get(`superadmin:${superAdmin.username}`);
-      
-      if (!existing) {
-        await kv.set(`superadmin:${superAdmin.username}`, superAdmin);
-        console.log(`✅ SuperAdmin inicializado: ${superAdmin.username} / root`);
-        initialized++;
-      } else {
-        // ✅ Atualizar email se mudou (permite atualizar email do SuperAdmin existente)
-        if (existing.email !== superAdmin.email) {
-          existing.email = superAdmin.email;
-          await kv.set(`superadmin:${superAdmin.username}`, existing);
-          console.log(`🔄 SuperAdmin atualizado: ${superAdmin.username} - Email: ${superAdmin.email}`);
-          updated++;
-        }
-      }
-    }
-
-    if (initialized > 0) {
-      console.log(`✅ ${initialized} SuperAdmin(s) inicializado(s) com sucesso`);
-    }
-    if (updated > 0) {
-      console.log(`🔄 ${updated} SuperAdmin(s) atualizado(s) com sucesso`);
-    }
-    if (initialized === 0 && updated === 0) {
-      console.log('ℹ️ SuperAdmins já existem e estão atualizados, nenhuma ação necessária');
-    }
-    
-    return superAdmins[0];
-  } catch (error) {
-    console.error('❌ Erro ao inicializar SuperAdmins:', error);
-    throw error;
-  }
-}
+// ❌ REMOVIDO: initializeSuperAdmin() - SuperAdmins agora são criados na migration SQL
+// Ver: supabase/migrations/20241120_create_users_table.sql
 
 // POST /auth/login - Login
 app.post('/login', async (c) => {
@@ -148,113 +96,125 @@ app.post('/login', async (c) => {
 
     console.log('👤 Login attempt:', { username });
 
-    // 1. Verificar se é SuperAdmin
-    const superAdmin = await kv.get(`superadmin:${username}`);
+    // ✅ ARQUITETURA SQL: Buscar usuário da tabela SQL ao invés de KV Store
+    const supabase = getSupabaseClient();
     
-    if (superAdmin && superAdmin.type === 'superadmin') {
-      if (!verifyPassword(password, superAdmin.passwordHash)) {
-        console.log('❌ Senha incorreta para SuperAdmin');
-        return c.json({
-          success: false,
-          error: 'Usuário ou senha incorretos'
-        }, 401);
-      }
-
-      if (superAdmin.status !== 'active') {
-        console.log('❌ SuperAdmin suspenso');
-        return c.json({
-          success: false,
-          error: 'Usuário suspenso'
-        }, 403);
-      }
-
-      // Criar sessão
-      const sessionId = generateSessionId();
-      const token = generateToken();
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 horas
-
-      const session: Session = {
-        id: sessionId,
-        userId: superAdmin.id,
-        username: superAdmin.username,
-        type: 'superadmin',
-        createdAt: now.toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        lastActivity: now.toISOString()
-      };
-
-      await kv.set(`session:${token}`, session);
-
-      // Atualizar lastLogin
-      superAdmin.lastLogin = now.toISOString();
-      await kv.set(`superadmin:${username}`, superAdmin);
-
-      console.log('✅ Login SuperAdmin bem-sucedido:', username);
-
+    // Verificar se tabela users existe (debug)
+    const { data: allUsers, error: checkError } = await supabase
+      .from('users')
+      .select('id, username, type')
+      .limit(5);
+    
+    if (checkError) {
+      console.error('❌ ERRO CRÍTICO: Tabela users não existe ou erro de acesso:', checkError);
       return c.json({
-        success: true,
-        token,
-        user: {
-          id: superAdmin.id,
-          username: superAdmin.username,
-          name: superAdmin.name,
-          email: superAdmin.email,
-          type: 'superadmin',
-          status: superAdmin.status
-        },
-        expiresAt: expiresAt.toISOString()
-      });
+        success: false,
+        error: `Erro ao acessar tabela users: ${checkError.message}`,
+        details: checkError.code || 'UNKNOWN_ERROR'
+      }, 500);
     }
-
-    // 2. Verificar se é usuário de imobiliária
-    const allUsers = await kv.getByPrefix('usuario_imobiliaria:');
-    const user = allUsers.find((u: UsuarioImobiliaria) => u.username === username);
-
-    if (user) {
-      if (!verifyPassword(password, user.passwordHash)) {
-        console.log('❌ Senha incorreta para usuário de imobiliária');
+    
+    console.log('✅ Tabela users acessível. Usuários encontrados:', allUsers?.length || 0);
+    
+    // Buscar usuário na tabela SQL
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .maybeSingle();
+    
+    if (userError) {
+      console.error('❌ Erro ao buscar usuário:', userError);
+      return c.json({
+        success: false,
+        error: `Erro ao buscar usuário: ${userError.message}`,
+        details: userError.code || 'QUERY_ERROR'
+      }, 500);
+    }
+    
+    // Se não encontrou usuário, retornar erro
+    if (!user) {
+      console.log('❌ Usuário não encontrado:', username);
+      console.log('📋 Usuários disponíveis na tabela:', allUsers?.map(u => u.username) || []);
+      return c.json({
+        success: false,
+        error: 'Usuário ou senha incorretos'
+      }, 401);
+    }
+    
+    console.log('✅ Usuário encontrado na tabela SQL:', { id: user.id, username: user.username, type: user.type });
+    
+    // 1. Verificar se é SuperAdmin ou usuário de organização
+    if (user.type === 'superadmin' || user.type === 'imobiliaria' || user.type === 'staff') {
+      // ✅ ARQUITETURA SQL: Verificar senha usando hash do banco
+      console.log('🔍 Verificando senha:', { 
+        username, 
+        passwordHashLength: user.password_hash?.length,
+        passwordHashPrefix: user.password_hash?.substring(0, 20),
+        computedHash: hashPassword(password),
+        storedHash: user.password_hash
+      });
+      
+      if (!verifyPassword(password, user.password_hash)) {
+        console.log('❌ Senha incorreta para usuário:', username);
+        console.log('🔍 Debug senha:', {
+          computed: hashPassword(password),
+          stored: user.password_hash,
+          match: hashPassword(password) === user.password_hash
+        });
         return c.json({
           success: false,
           error: 'Usuário ou senha incorretos'
         }, 401);
       }
+      
+      console.log('✅ Senha verificada com sucesso!');
 
       if (user.status !== 'active') {
-        console.log('❌ Usuário suspenso');
+        console.log('❌ Usuário suspenso:', username);
         return c.json({
           success: false,
           error: 'Usuário suspenso'
         }, 403);
       }
 
-      // Criar sessão
-      const sessionId = generateSessionId();
-      const token = generateToken();
+      // ✅ ARQUITETURA SQL: Atualizar last_login_at no banco
       const now = new Date();
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ last_login_at: now.toISOString() })
+        .eq('id', user.id);
+      
+      if (updateError) {
+        console.warn('⚠️ Erro ao atualizar last_login_at:', updateError);
+        // Não bloquear login se falhar atualização
+      }
+
+      // ✅ ARQUITETURA SQL: Gerar token e criar sessão no SQL
+      const token = generateToken();
       const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 horas
 
-      const session: Session = {
-        id: sessionId,
-        userId: user.id,
-        username: user.username,
-        type: 'imobiliaria',
-        imobiliariaId: user.imobiliariaId,
-        createdAt: now.toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        lastActivity: now.toISOString()
-      };
+      // Salvar sessão no SQL
+      const { error: sessionError } = await supabase
+        .from('sessions')
+        .insert({
+          token,
+          user_id: user.id,
+          username: user.username,
+          type: user.type,
+          organization_id: user.organization_id || null,
+          expires_at: expiresAt.toISOString(),
+          last_activity: now.toISOString()
+        });
 
-      await kv.set(`session:${token}`, session);
+      if (sessionError) {
+        console.warn('⚠️ Erro ao criar sessão no SQL:', sessionError);
+        // Não bloquear login se falhar criar sessão, mas logar para debug
+      } else {
+        console.log('✅ Sessão criada no SQL com sucesso');
+      }
 
-      // Atualizar lastLogin
-      user.lastLogin = now.toISOString();
-      await kv.set(`usuario_imobiliaria:${user.id}`, user);
-
-      // Buscar dados da imobiliária
-      const imobiliaria = await kv.get(`imobiliaria:${user.imobiliariaId}`);
-
-      console.log('✅ Login usuário imobiliária bem-sucedido:', username);
+      console.log('✅ Login bem-sucedido:', { username, type: user.type });
 
       return c.json({
         success: true,
@@ -264,23 +224,17 @@ app.post('/login', async (c) => {
           username: user.username,
           name: user.name,
           email: user.email,
-          type: 'imobiliaria',
-          role: user.role,
+          type: user.type,
           status: user.status,
-          imobiliariaId: user.imobiliariaId,
-          imobiliaria: imobiliaria ? {
-            id: imobiliaria.id,
-            name: imobiliaria.name,
-            slug: imobiliaria.slug
-          } : null,
-          permissions: user.permissions || []
+          organizationId: user.organization_id || undefined
         },
         expiresAt: expiresAt.toISOString()
       });
     }
 
-    // Usuário não encontrado
-    console.log('❌ Usuário não encontrado:', username);
+    // ✅ ARQUITETURA SQL: Código unificado - todos os tipos de usuário já foram tratados acima
+    // Se chegou aqui, usuário não foi encontrado ou tipo não suportado
+    console.log('❌ Usuário não encontrado ou tipo não suportado:', username);
     return c.json({
       success: false,
       error: 'Usuário ou senha incorretos'
@@ -296,11 +250,9 @@ app.post('/login', async (c) => {
 });
 
 // POST /auth/logout - Logout
-// ✅ MELHORIA v1.0.103.400 - Usa removeSession do utils-session
+// ✅ ARQUITETURA SQL: Remove sessão do SQL
 app.post('/logout', async (c) => {
   try {
-    // ✅ Usar helper removeSession ao invés de código manual
-    const { removeSession } = await import('./utils-session.ts');
     const token = c.req.header('Authorization')?.split(' ')[1];
 
     if (!token) {
@@ -310,16 +262,22 @@ app.post('/logout', async (c) => {
       }, 400);
     }
 
-    const removed = await removeSession(token);
-    
-    if (!removed) {
+    // ✅ ARQUITETURA SQL: Remover sessão do SQL
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from('sessions')
+      .delete()
+      .eq('token', token);
+
+    if (error) {
+      console.error('❌ Erro ao remover sessão:', error);
       return c.json({
         success: false,
         error: 'Erro ao fazer logout'
       }, 500);
     }
 
-    console.log('✅ Logout bem-sucedido');
+    console.log('✅ Logout bem-sucedido - sessão removida do SQL');
 
     return c.json({
       success: true,
@@ -335,11 +293,9 @@ app.post('/logout', async (c) => {
 });
 
 // GET /auth/me - Verificar sessão atual
-// ✅ MELHORIA v1.0.103.400 - Usa getSessionFromToken do utils-session
+// ✅ ARQUITETURA SQL: Busca sessão e usuário do SQL
 app.get('/me', async (c) => {
   try {
-    // ✅ Usar helper getSessionFromToken ao invés de código manual
-    const { getSessionFromToken } = await import('./utils-session.ts');
     const token = c.req.header('Authorization')?.split(' ')[1];
 
     if (!token) {
@@ -349,35 +305,68 @@ app.get('/me', async (c) => {
       }, 401);
     }
 
-    const session = await getSessionFromToken(token);
+    // ✅ ARQUITETURA SQL: Buscar sessão do SQL
+    const supabase = getSupabaseClient();
+    const { data: session, error: sessionError } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('token', token)
+      .single();
 
-    if (!session) {
+    if (sessionError || !session) {
+      console.log('❌ Sessão não encontrada ou expirada:', sessionError);
       return c.json({
         success: false,
         error: 'Sessão inválida ou expirada'
       }, 401);
     }
 
-    // Buscar dados do usuário
-    let user;
-    if (session.type === 'superadmin') {
-      user = await kv.get(`superadmin:${session.username}`);
-    } else {
-      const allUsers = await kv.getByPrefix('usuario_imobiliaria:');
-      user = allUsers.find((u: UsuarioImobiliaria) => u.id === session.userId);
+    // Verificar se sessão expirou
+    const now = new Date();
+    const expiresAt = new Date(session.expires_at);
+    if (now > expiresAt) {
+      console.log('❌ Sessão expirada:', session.token);
+      // Remover sessão expirada
+      await supabase.from('sessions').delete().eq('token', token);
+      return c.json({
+        success: false,
+        error: 'Sessão expirada'
+      }, 401);
     }
 
-    if (!user) {
+    // Atualizar last_activity
+    await supabase
+      .from('sessions')
+      .update({ last_activity: now.toISOString() })
+      .eq('token', token);
+
+    // ✅ ARQUITETURA SQL: Buscar dados do usuário do SQL
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', session.user_id)
+      .single();
+
+    if (userError || !user) {
+      console.error('❌ Usuário não encontrado:', userError);
       return c.json({
         success: false,
         error: 'Usuário não encontrado'
       }, 404);
     }
 
-    // Se for usuário de imobiliária, buscar dados da imobiliária
-    let imobiliaria = null;
-    if (session.type === 'imobiliaria' && session.imobiliariaId) {
-      imobiliaria = await kv.get(`imobiliaria:${session.imobiliariaId}`);
+    // ✅ ARQUITETURA SQL: Buscar organização se houver
+    let organization = null;
+    if (session.organization_id) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id, name, slug')
+        .eq('id', session.organization_id)
+        .single();
+      
+      if (org) {
+        organization = org;
+      }
     }
 
     return c.json({
@@ -388,20 +377,18 @@ app.get('/me', async (c) => {
         name: user.name,
         email: user.email,
         type: user.type,
-        role: user.role,
         status: user.status,
-        imobiliariaId: session.imobiliariaId,
-        imobiliaria: imobiliaria ? {
-          id: imobiliaria.id,
-          name: imobiliaria.name,
-          slug: imobiliaria.slug
-        } : null,
-        permissions: user.permissions || []
+        organizationId: session.organization_id || undefined,
+        organization: organization ? {
+          id: organization.id,
+          name: organization.name,
+          slug: organization.slug
+        } : null
       },
       session: {
-        createdAt: session.createdAt,
-        expiresAt: session.expiresAt,
-        lastActivity: session.lastActivity
+        createdAt: session.created_at,
+        expiresAt: session.expires_at,
+        lastActivity: session.last_activity
       }
     });
   } catch (error) {
@@ -413,43 +400,43 @@ app.get('/me', async (c) => {
   }
 });
 
-// POST /auth/init - Inicializar SuperAdmins (rota de setup)
-app.post('/init', async (c) => {
-  try {
-    console.log('🔧 Inicializando SuperAdmins...');
-    
-    await initializeSuperAdmin();
+// ❌ REMOVIDO: POST /auth/init - SuperAdmins agora são criados na migration SQL
+// Ver: supabase/migrations/20241120_create_users_table.sql
+// Se necessário verificar SuperAdmins, use: GET /auth/verify-users-table
 
+// ============================================================================
+// ROTA TEMPORÁRIA: Verificar tabela users (após migration)
+// ============================================================================
+app.get('/verify-users-table', async (c) => {
+  try {
+    const supabase = getSupabaseClient();
+    
     // Buscar todos os SuperAdmins
-    const rpptAdmin = await kv.get('superadmin:rppt');
-    const rootAdmin = await kv.get('superadmin:admin');
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('type', 'superadmin');
+
+    if (error) {
+      return c.json({
+        success: false,
+        error: error.message,
+        details: error
+      }, 500);
+    }
 
     return c.json({
       success: true,
-      message: 'SuperAdmins inicializados com sucesso',
-      superAdmins: [
-        rpptAdmin ? {
-          username: rpptAdmin.username,
-          name: rpptAdmin.name,
-          email: rpptAdmin.email
-        } : null,
-        rootAdmin ? {
-          username: rootAdmin.username,
-          name: rootAdmin.name,
-          email: rootAdmin.email
-        } : null
-      ].filter(Boolean)
+      message: 'Tabela users verificada com sucesso',
+      count: users?.length || 0,
+      users: users || []
     });
   } catch (error) {
-    console.error('❌ Erro ao inicializar SuperAdmins:', error);
     return c.json({
       success: false,
-      error: 'Erro ao inicializar SuperAdmins'
+      error: error instanceof Error ? error.message : 'Erro ao verificar tabela users'
     }, 500);
   }
 });
-
-// Inicializar SuperAdmin ao carregar o módulo
-initializeSuperAdmin().catch(console.error);
 
 export default app;

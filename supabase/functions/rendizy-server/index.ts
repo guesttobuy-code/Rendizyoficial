@@ -87,7 +87,8 @@ app.get("/rendizy-server/make-server-67caf26a/health", (c) => {
 // Sistema de Login Multi-Tenant: SuperAdmin + Imobiliárias
 // ============================================================================
 
-app.route('/rendizy-server/make-server-67caf26a/auth', authApp);
+// ✅ ARQUITETURA SQL: Rota de autenticação sem make-server-67caf26a
+app.route('/rendizy-server/auth', authApp);
 
 // ============================================================================
 // LOCATIONS ROUTES
