@@ -354,8 +354,23 @@ export function whatsappEvolutionRoutes(app: Hono) {
         return c.json({ error: 'Erro ao buscar mensagens', details: errorText }, response.status);
       }
 
-      const messages = await response.json();
-      console.log(`[WhatsApp] [${organizationId}] ✉️ Mensagens encontradas:`, messages.length || 0);
+      const responseData = await response.json();
+      console.log(`[WhatsApp] [${organizationId}] 📦 Resposta bruta:`, typeof responseData, Array.isArray(responseData) ? 'é array' : 'não é array');
+      
+      // ✅ CORREÇÃO: Evolution API pode retornar array diretamente ou objeto com array
+      let messages: any[] = [];
+      if (Array.isArray(responseData)) {
+        messages = responseData;
+      } else if (responseData && Array.isArray(responseData.data)) {
+        messages = responseData.data;
+      } else if (responseData && Array.isArray(responseData.messages)) {
+        messages = responseData.messages;
+      } else if (responseData && typeof responseData === 'object') {
+        // Se for objeto único, converter para array
+        messages = [responseData];
+      }
+      
+      console.log(`[WhatsApp] [${organizationId}] ✉️ Mensagens encontradas:`, messages.length);
 
       return c.json({ success: true, data: messages });
     } catch (error) {
