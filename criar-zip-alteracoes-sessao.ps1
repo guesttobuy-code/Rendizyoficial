@@ -44,3 +44,4 @@ Write-Host "📦 Arquivo: $zipPath"
 Write-Host "📊 Arquivos incluídos: $($existingFiles.Count)"
 
 
+

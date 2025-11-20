@@ -148,7 +148,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // POST /rendizy-server/whatsapp/send-message - Enviar mensagem de texto
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/send-message', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/send-message', async (c) => {
     try {
       // ✅ CORREÇÃO 1: Obter organization_id
       const organizationId = await getOrganizationIdOrThrow(c);
@@ -204,7 +204,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // POST /rendizy-server/whatsapp/send-media - Enviar mensagem com mídia
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/send-media', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/send-media', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -252,7 +252,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ✅ CORREÇÃO 3: Removido c.req.query('chatId') e c.req.query('limit')
   // Usa parâmetros padrão ou rota específica para chatId
   // ==========================================================================
-  app.get('/rendizy-server/whatsapp/messages', async (c) => {
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/messages', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -315,7 +315,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // GET /rendizy-server/whatsapp/messages/:chatId - Buscar mensagens de uma conversa
   // ✅ CORREÇÃO 3: chatId vem da rota, limit tem padrão no backend
   // ==========================================================================
-  app.get('/rendizy-server/whatsapp/messages/:chatId', async (c) => {
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/messages/:chatId', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -356,21 +356,63 @@ export function whatsappEvolutionRoutes(app: Hono) {
 
       const responseData = await response.json();
       console.log(`[WhatsApp] [${organizationId}] 📦 Resposta bruta:`, typeof responseData, Array.isArray(responseData) ? 'é array' : 'não é array');
+      console.log(`[WhatsApp] [${organizationId}] 📦 Estrutura da resposta:`, JSON.stringify(responseData).substring(0, 500));
       
-      // ✅ CORREÇÃO: Evolution API pode retornar array diretamente ou objeto com array
+      // ✅ CORREÇÃO: Evolution API pode retornar em múltiplos formatos
+      // Formato comum: {data: [{messages: {records: [...]}}]}
       let messages: any[] = [];
+      
+      // Formato 1: Array direto de mensagens
       if (Array.isArray(responseData)) {
-        messages = responseData;
-      } else if (responseData && Array.isArray(responseData.data)) {
-        messages = responseData.data;
-      } else if (responseData && Array.isArray(responseData.messages)) {
+        messages = responseData.flatMap((item: any) => {
+          // Se item tem messages.records, extrair
+          if (item?.messages?.records && Array.isArray(item.messages.records)) {
+            return item.messages.records;
+          }
+          // Se item tem records, extrair
+          if (item?.records && Array.isArray(item.records)) {
+            return item.records;
+          }
+          // Senão, retornar item como mensagem
+          return [item];
+        });
+      }
+      // Formato 2: Objeto com data array [{messages: {records: [...]}}]
+      else if (responseData && Array.isArray(responseData.data)) {
+        messages = responseData.data.flatMap((item: any) => {
+          // Se item tem messages.records, extrair
+          if (item?.messages?.records && Array.isArray(item.messages.records)) {
+            return item.messages.records;
+          }
+          // Se item tem records, extrair
+          if (item?.records && Array.isArray(item.records)) {
+            return item.records;
+          }
+          // Senão, retornar item como mensagem
+          return [item];
+        });
+      }
+      // Formato 3: Objeto com messages.records direto
+      else if (responseData?.messages?.records && Array.isArray(responseData.messages.records)) {
+        messages = responseData.messages.records;
+      }
+      // Formato 4: Objeto com messages array
+      else if (responseData?.messages && Array.isArray(responseData.messages)) {
         messages = responseData.messages;
-      } else if (responseData && typeof responseData === 'object') {
-        // Se for objeto único, converter para array
+      }
+      // Formato 5: Objeto com records
+      else if (responseData?.records && Array.isArray(responseData.records)) {
+        messages = responseData.records;
+      }
+      // Formato 6: Objeto único (tratar como mensagem única)
+      else if (responseData && typeof responseData === 'object') {
         messages = [responseData];
       }
       
       console.log(`[WhatsApp] [${organizationId}] ✉️ Mensagens encontradas:`, messages.length);
+      if (messages.length > 0) {
+        console.log(`[WhatsApp] [${organizationId}] 📝 Primeira mensagem:`, JSON.stringify(messages[0]).substring(0, 300));
+      }
 
       return c.json({ success: true, data: messages });
     } catch (error) {
@@ -386,7 +428,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // GET /rendizy-server/whatsapp/status - Status da instância
   // ✅ REFATORADO v1.0.103.950 - Usa fallback de organização como GET /channels/config
   // ==========================================================================
-  app.get('/rendizy-server/whatsapp/status', async (c) => {
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/status', async (c) => {
     try {
       const client = getSupabaseClient();
       
@@ -531,7 +573,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // GET /rendizy-server/whatsapp/instance-info - Informações detalhadas da instância
   // ==========================================================================
-  app.get('/rendizy-server/whatsapp/instance-info', async (c) => {
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/instance-info', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -582,7 +624,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // GET /rendizy-server/whatsapp/qr-code - Obter QR Code para conexão
   // ==========================================================================
-  app.get('/rendizy-server/whatsapp/qr-code', async (c) => {
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/qr-code', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -628,7 +670,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // POST /rendizy-server/whatsapp/check-number - Verificar se número existe no WhatsApp
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/check-number', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/check-number', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -672,7 +714,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // GET /rendizy-server/whatsapp/health - Health check
   // ==========================================================================
-  app.get('/rendizy-server/whatsapp/health', async (c) => {
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/health', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -701,7 +743,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // POST /rendizy-server/whatsapp/disconnect - Desconectar instância
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/disconnect', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/disconnect', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -735,7 +777,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // POST /rendizy-server/whatsapp/reconnect - Reconectar instância
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/reconnect', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/reconnect', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -769,7 +811,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // GET /rendizy-server/whatsapp/contacts - Buscar todos os contatos
   // ==========================================================================
-  app.get('/rendizy-server/whatsapp/contacts', async (c) => {
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/contacts', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -1055,7 +1097,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   };
 
   // ✅ ROTA NOVA (sem prefixo)
-  app.get('/rendizy-server/whatsapp/chats', handleGetWhatsAppChats);
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/chats', handleGetWhatsAppChats);
   
   // ✅ ROTA DE COMPATIBILIDADE (com prefixo antigo para frontend em produção)
   app.get('/rendizy-server/make-server-67caf26a/whatsapp/chats', handleGetWhatsAppChats);
@@ -1133,7 +1175,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // O webhook correto está em routes-chat.ts: /chat/channels/whatsapp/webhook
   // Mas a Evolution API espera: /rendizy-server/whatsapp/webhook
   // Vamos manter ambas as rotas funcionando
-  app.post('/rendizy-server/whatsapp/webhook', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/webhook', async (c) => {
     try {
       const payload = await c.req.json();
       console.log('📥 [WhatsApp Webhook] Evento recebido:', payload.event || 'unknown');
@@ -1153,7 +1195,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ROTA ANTIGA (removida - substituída pela função handleGetWhatsAppChats)
   // ==========================================================================
   /*
-  app.get('/rendizy-server/whatsapp/chats', async (c) => {
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/chats', async (c) => {
     try {
       // ✅ ARQUITETURA SQL v1.0.103.950 - Logs detalhados para debug
       console.log(`🔍 [WhatsApp Chats] Iniciando busca de conversas...`);
@@ -1239,7 +1281,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // POST /rendizy-server/whatsapp/webhook - Receber eventos da Evolution API
   // ✅ CORREÇÃO 6: Processa e salva eventos no Supabase
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/webhook', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/webhook', async (c) => {
     try {
       const payload = await c.req.json();
       const { event, instance, data } = payload;
@@ -1296,7 +1338,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ALIASES: Rotas sem /rendizy-server/make-server-67caf26a para compatibilidade com frontend
   // ==========================================================================
   
-  app.get('/rendizy-server/whatsapp/contacts', async (c) => {
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/contacts', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -1359,7 +1401,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
     }
   });
 
-  app.get('/rendizy-server/whatsapp/chats', async (c) => {
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/chats', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -1419,7 +1461,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // POST /rendizy-server/whatsapp/send-list - Enviar lista interativa
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/send-list', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/send-list', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -1462,7 +1504,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // POST /rendizy-server/whatsapp/send-location - Enviar localização
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/send-location', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/send-location', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -1505,7 +1547,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // POST /rendizy-server/whatsapp/send-poll - Enviar enquete
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/send-poll', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/send-poll', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -1548,7 +1590,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // ==========================================================================
   // PUT /rendizy-server/whatsapp/mark-as-read - Marcar mensagens como lidas
   // ==========================================================================
-  app.put('/rendizy-server/whatsapp/mark-as-read', async (c) => {
+  app.put('/rendizy-server/make-server-67caf26a/whatsapp/mark-as-read', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -1592,7 +1634,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // POST /rendizy-server/whatsapp/settings - Configurar instância
   // ✅ CORREÇÃO 4: Usa getEvolutionManagerHeaders() para endpoints manager
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/settings', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/settings', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -1633,7 +1675,7 @@ export function whatsappEvolutionRoutes(app: Hono) {
   // POST /rendizy-server/whatsapp/monitor/start - Iniciar monitoramento automático
   // ✅ v1.0.103.960 - Monitora e reconecta automaticamente
   // ==========================================================================
-  app.post('/rendizy-server/whatsapp/monitor/start', async (c) => {
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/monitor/start', async (c) => {
     try {
       const organizationId = await getOrganizationIdOrThrow(c);
       const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
@@ -1663,6 +1705,267 @@ export function whatsappEvolutionRoutes(app: Hono) {
         return c.json({ error: error.message }, 401);
       }
       return c.json({ error: 'Erro interno ao iniciar monitoramento' }, 500);
+    }
+  });
+
+  // ==========================================================================
+  // WEBHOOK MANAGEMENT ROUTES (v1.0.103.322)
+  // Gerenciamento de webhooks da Evolution API
+  // ==========================================================================
+
+  // POST /rendizy-server/make-server-67caf26a/whatsapp/webhook/setup
+  // Configurar webhook automaticamente na Evolution API
+  app.post('/rendizy-server/make-server-67caf26a/whatsapp/webhook/setup', async (c) => {
+    try {
+      const organizationId = await getOrganizationIdOrThrow(c);
+      const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
+      
+      if (!config || !config.enabled) {
+        return c.json({ 
+          success: false,
+          error: 'WhatsApp não configurado para esta organização' 
+        }, 400);
+      }
+
+      const body = await c.req.json();
+      const { webhookUrl, events, webhookByEvents } = body;
+
+      if (!webhookUrl || !events || !Array.isArray(events)) {
+        return c.json({ 
+          success: false,
+          error: 'webhookUrl e events são obrigatórios' 
+        }, 400);
+      }
+
+      console.log(`[WhatsApp Webhook Setup] [${organizationId}] Configurando webhook...`);
+      console.log(`[WhatsApp Webhook Setup] URL: ${webhookUrl}`);
+      console.log(`[WhatsApp Webhook Setup] Eventos: ${events.join(', ')}`);
+
+      // Configurar webhook na Evolution API
+      const response = await fetch(
+        `${config.api_url}/webhook/set/${config.instance_name}`,
+        {
+          method: 'POST',
+          headers: getEvolutionMessagesHeaders(config),
+          body: JSON.stringify({
+            url: webhookUrl,
+            events: events,
+            webhook_by_events: webhookByEvents || false,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[WhatsApp Webhook Setup] Erro:`, errorText);
+        return c.json({ 
+          success: false,
+          error: 'Erro ao configurar webhook na Evolution API',
+          details: errorText
+        }, 500);
+      }
+
+      const data = await response.json();
+      console.log(`[WhatsApp Webhook Setup] ✅ Webhook configurado com sucesso`);
+
+      // Salvar configuração no banco (opcional)
+      const client = getSupabaseClient();
+      await client
+        .from('organization_channel_config')
+        .update({
+          webhook_url: webhookUrl,
+          webhook_events: events,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('organization_id', organizationId)
+        .catch(err => console.warn('[WhatsApp Webhook Setup] Erro ao salvar no banco:', err));
+
+      return c.json({
+        success: true,
+        data: data,
+        config: {
+          enabled: true,
+          url: webhookUrl,
+          events: events,
+          configuredAt: new Date().toISOString(),
+        }
+      });
+    } catch (error) {
+      console.error('[WhatsApp Webhook Setup] Erro:', error);
+      return c.json({ 
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro interno ao configurar webhook' 
+      }, 500);
+    }
+  });
+
+  // GET /rendizy-server/make-server-67caf26a/whatsapp/webhook/status
+  // Verificar status atual do webhook
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/webhook/status', async (c) => {
+    try {
+      const organizationId = await getOrganizationIdOrThrow(c);
+      const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
+      
+      if (!config || !config.enabled) {
+        return c.json({ 
+          success: true,
+          data: {
+            enabled: false,
+            configured: false,
+            url: null,
+            events: []
+          }
+        });
+      }
+
+      // Buscar configuração do banco
+      const client = getSupabaseClient();
+      const { data: dbConfig } = await client
+        .from('organization_channel_config')
+        .select('webhook_url, webhook_events')
+        .eq('organization_id', organizationId)
+        .maybeSingle()
+        .catch(() => ({ data: null }));
+
+      if (!dbConfig || !dbConfig.webhook_url) {
+        return c.json({ 
+          success: true,
+          data: {
+            enabled: false,
+            configured: false,
+            url: null,
+            events: []
+          }
+        });
+      }
+
+      // Verificar status na Evolution API
+      try {
+        const response = await fetch(
+          `${config.api_url}/webhook/find/${config.instance_name}`,
+          {
+            method: 'GET',
+            headers: getEvolutionMessagesHeaders(config),
+          }
+        );
+
+        if (response.ok) {
+          const evolutionData = await response.json();
+          return c.json({
+            success: true,
+            data: {
+              enabled: true,
+              configured: true,
+              url: dbConfig.webhook_url,
+              events: dbConfig.webhook_events || [],
+              evolutionData: evolutionData
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('[WhatsApp Webhook Status] Erro ao verificar na Evolution API:', err);
+      }
+
+      // Retornar dados do banco se Evolution API falhar
+      return c.json({
+        success: true,
+        data: {
+          enabled: true,
+          configured: true,
+          url: dbConfig.webhook_url,
+          events: dbConfig.webhook_events || []
+        }
+      });
+    } catch (error) {
+      console.error('[WhatsApp Webhook Status] Erro:', error);
+      return c.json({ 
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro interno ao verificar status' 
+      }, 500);
+    }
+  });
+
+  // GET /rendizy-server/make-server-67caf26a/whatsapp/webhook/events
+  // Listar últimos eventos recebidos
+  app.get('/rendizy-server/make-server-67caf26a/whatsapp/webhook/events', async (c) => {
+    try {
+      const organizationId = await getOrganizationIdOrThrow(c);
+      
+      // Buscar eventos do KV Store (temporário - migrar para SQL depois)
+      const client = getSupabaseClient();
+      const { data: events } = await client
+        .from('chat_webhooks')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+        .catch(() => ({ data: [] }));
+
+      return c.json({
+        success: true,
+        data: events || [],
+        count: events?.length || 0
+      });
+    } catch (error) {
+      console.error('[WhatsApp Webhook Events] Erro:', error);
+      return c.json({ 
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro interno ao listar eventos' 
+      }, 500);
+    }
+  });
+
+  // DELETE /rendizy-server/make-server-67caf26a/whatsapp/webhook
+  // Remover configuração do webhook
+  app.delete('/rendizy-server/make-server-67caf26a/whatsapp/webhook', async (c) => {
+    try {
+      const organizationId = await getOrganizationIdOrThrow(c);
+      const config = await getEvolutionConfigForOrganization(organizationId) || getEvolutionConfigFromEnv();
+      
+      if (!config || !config.enabled) {
+        return c.json({ 
+          success: false,
+          error: 'WhatsApp não configurado para esta organização' 
+        }, 400);
+      }
+
+      // Remover webhook na Evolution API
+      const response = await fetch(
+        `${config.api_url}/webhook/delete/${config.instance_name}`,
+        {
+          method: 'DELETE',
+          headers: getEvolutionMessagesHeaders(config),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[WhatsApp Webhook Delete] Erro:`, errorText);
+        // Continuar mesmo se Evolution API falhar
+      }
+
+      // Remover configuração do banco
+      const client = getSupabaseClient();
+      await client
+        .from('organization_channel_config')
+        .update({
+          webhook_url: null,
+          webhook_events: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('organization_id', organizationId)
+        .catch(err => console.warn('[WhatsApp Webhook Delete] Erro ao atualizar banco:', err));
+
+      return c.json({
+        success: true,
+        message: 'Webhook removido com sucesso'
+      });
+    } catch (error) {
+      console.error('[WhatsApp Webhook Delete] Erro:', error);
+      return c.json({ 
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro interno ao remover webhook' 
+      }, 500);
     }
   });
 

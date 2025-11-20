@@ -19,7 +19,47 @@ const client = () => createClient(
 
 // Set stores a key-value pair in the database.
 // ✅ CORRIGIDO: A tabela TEM created_at e updated_at - usar DEFAULT NOW() do banco
+// 🚫 VALIDAÇÃO: Previne uso indevido de KV Store para dados críticos
 export const set = async (key: string, value: any): Promise<void> => {
+  // ✅ Validar uso de KV Store (previne dados críticos em KV Store)
+  // 🚫 REGRA: KV Store APENAS para cache temporário (veja REGRA_KV_STORE_VS_SQL.md)
+  const criticalPatterns = [
+    /^user:/i,
+    /^session:/i,
+    /^conversation:/i,
+    /^message:/i,
+    /^reservation:/i,
+    /^property:/i,
+    /^listing:/i,
+    /^organization:/i,
+    /^org:/i,
+    /^config:/i,
+    /^channel_config:/i,
+    /^acc:/i,
+    /^res:/i,
+    /^guest:/i,
+    /^booking:/i,
+    /chat:conversation:/i,
+    /chat:message:/i,
+  ];
+  
+  const isCritical = criticalPatterns.some(pattern => pattern.test(key));
+  if (isCritical) {
+    const allowedPrefixes = ['cache:', 'process:', 'temp:', 'lock:', 'queue:'];
+    const hasAllowedPrefix = allowedPrefixes.some(prefix => key.startsWith(prefix));
+    
+    if (!hasAllowedPrefix) {
+      throw new Error(
+        `❌ PROIBIDO: Não use KV Store para dados críticos!\n` +
+        `   Key: ${key}\n` +
+        `   REGRA: KV Store APENAS para cache temporário (TTL < 24h)\n` +
+        `   SOLUÇÃO: Use tabela SQL apropriada (users, conversations, messages, etc)\n` +
+        `   📚 Veja: REGRA_KV_STORE_VS_SQL.md\n` +
+        `   ✅ Prefixos permitidos: cache:*, process:*, temp:*, lock:*, queue:*`
+      );
+    }
+  }
+  
   const supabase = client()
   const { error } = await supabase.from("kv_store_67caf26a").upsert({
     key,

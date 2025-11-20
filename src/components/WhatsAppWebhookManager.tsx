@@ -121,8 +121,8 @@ export default function WhatsAppWebhookManager() {
   const [configuring, setConfiguring] = useState(false);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
-  // URL do webhook
-  const webhookUrl = `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/webhook`;
+  // URL do webhook (rota correta: /chat/channels/whatsapp/webhook)
+  const webhookUrl = `https://${projectId}.supabase.co/functions/v1/rendizy-server/chat/channels/whatsapp/webhook`;
 
   useEffect(() => {
     loadWebhookStatus();
@@ -137,7 +137,7 @@ export default function WhatsAppWebhookManager() {
     try {
       setLoading(true);
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/webhook/status`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/webhook/status`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
@@ -170,7 +170,7 @@ export default function WhatsAppWebhookManager() {
     try {
       setLoadingEvents(true);
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/webhook/events`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/webhook/events`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
@@ -199,7 +199,7 @@ export default function WhatsAppWebhookManager() {
       setConfiguring(true);
       
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/webhook/setup`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/webhook/setup`,
         {
           method: 'POST',
           headers: {
@@ -243,7 +243,7 @@ export default function WhatsAppWebhookManager() {
       setConfiguring(true);
       
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/webhook`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/webhook`,
         {
           method: 'DELETE',
           headers: {

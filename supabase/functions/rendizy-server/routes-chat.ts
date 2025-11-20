@@ -180,25 +180,59 @@ interface OrganizationChannelConfig {
 // ============================================
 
 // GET all conversations
+// ✅ MIGRAÇÃO v1.0.103.970 - Usar SQL ao invés de KV Store
+// 🚫 REGRA: Conversas devem estar em SQL (veja REGRA_KV_STORE_VS_SQL.md)
 chat.get('/conversations', async (c) => {
   try {
     // ✅ REFATORADO v1.0.103.500 - Usar helper híbrido ao invés de query param
     const orgId = await getOrganizationIdOrThrow(c);
 
-    const prefix = `chat:conversation:${orgId}:`;
-    const conversations = await kv.getByPrefix<Conversation>(prefix);
+    const supabase = getSupabaseClient();
+    
+    // Fetch conversations from SQL
+    const { data: conversations, error } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('organization_id', orgId)
+      .order('last_message_at', { ascending: false });
 
-    // Sort by order and last_message_at
-    conversations.sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      if (a.order !== undefined && b.order !== undefined) {
-        if (a.order !== b.order) return a.order - b.order;
-      }
+    if (error) {
+      console.error('❌ [GET /conversations] Erro ao buscar conversas do SQL:', error);
+      throw new Error(`Erro ao buscar conversas: ${error.message}`);
+    }
+
+    // Map SQL format to frontend format
+    const mappedConversations = (conversations || []).map((conv: any) => ({
+      id: conv.id,
+      organization_id: conv.organization_id,
+      guest_name: conv.guest_name,
+      guest_email: conv.guest_email,
+      guest_phone: conv.guest_phone,
+      channel: conv.channel,
+      status: conv.status,
+      category: conv.category,
+      conversation_type: conv.conversation_type,
+      last_message: conv.last_message,
+      last_message_at: conv.last_message_at,
+      created_at: conv.created_at,
+      updated_at: conv.updated_at,
+      external_conversation_id: conv.external_conversation_id,
+      last_channel: conv.last_channel,
+      channel_metadata: conv.channel_metadata || {},
+      isPinned: conv.status === 'pinned',
+      unread_count: conv.unread_count || 0,
+    }));
+
+    // Sort by status (pinned first), then last_message_at
+    mappedConversations.sort((a, b) => {
+      const statusOrder = { pinned: 0, urgent: 1, normal: 2, resolved: 3 };
+      const aOrder = statusOrder[a.status as keyof typeof statusOrder] ?? 2;
+      const bOrder = statusOrder[b.status as keyof typeof statusOrder] ?? 2;
+      if (aOrder !== bOrder) return aOrder - bOrder;
       return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
     });
 
-    return c.json({ success: true, data: conversations });
+    return c.json({ success: true, data: mappedConversations });
   } catch (error) {
     console.error('Error fetching conversations:', error);
     return c.json({ 
@@ -434,21 +468,49 @@ chat.patch('/conversations/:id/pin', async (c) => {
 // ============================================
 
 // GET messages for a conversation
+// ✅ MIGRAÇÃO v1.0.103.970 - Usar SQL ao invés de KV Store
+// 🚫 REGRA: Mensagens devem estar em SQL (veja REGRA_KV_STORE_VS_SQL.md)
 chat.get('/conversations/:id/messages', async (c) => {
   try {
     const conversationId = c.req.param('id');
     // ✅ REFATORADO v1.0.103.500 - Usar helper híbrido ao invés de query param
     const orgId = await getOrganizationIdOrThrow(c);
 
-    const prefix = `chat:message:${orgId}:${conversationId}:`;
-    const messages = await kv.getByPrefix<Message>(prefix);
+    const supabase = getSupabaseClient();
+    
+    // Fetch messages from SQL
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .eq('organization_id', orgId)
+      .order('sent_at', { ascending: true });
 
-    // Sort by sent_at
-    messages.sort((a, b) => 
-      new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
-    );
+    if (error) {
+      console.error('❌ [GET /conversations/:id/messages] Erro ao buscar mensagens do SQL:', error);
+      throw new Error(`Erro ao buscar mensagens: ${error.message}`);
+    }
 
-    return c.json({ success: true, data: messages });
+    // Map SQL format to frontend format
+    const mappedMessages = (messages || []).map((msg: any) => ({
+      id: msg.id,
+      conversation_id: msg.conversation_id,
+      sender_type: msg.sender_type,
+      sender_name: msg.sender_name,
+      sender_id: msg.sender_id,
+      content: msg.content,
+      sent_at: msg.sent_at,
+      read_at: msg.read_at,
+      organization_id: msg.organization_id,
+      attachments: msg.attachments || [],
+      channel: msg.channel,
+      direction: msg.direction,
+      external_id: msg.external_id,
+      external_status: msg.external_status,
+      metadata: msg.metadata || {},
+    }));
+
+    return c.json({ success: true, data: mappedMessages });
   } catch (error) {
     console.error('Error fetching messages:', error);
     return c.json({ 
@@ -2525,80 +2587,102 @@ chat.post('/channels/whatsapp/webhook', async (c) => {
     const organizationId = orgConfig.organization_id;
     console.log(`✅ Found organization: ${organizationId}`);
 
-    // Find or create conversation
-    const conversationsPrefix = `chat:conversation:${organizationId}:`;
-    const allConversations = await kv.getByPrefix<Conversation>(conversationsPrefix);
+    // ✅ MIGRAÇÃO v1.0.103.970 - Usar SQL ao invés de KV Store
+    // 🚫 REGRA: Conversas e mensagens devem estar em SQL (veja REGRA_KV_STORE_VS_SQL.md)
+    const supabase = getSupabaseClient();
     
-    let conversation = allConversations.find(conv => 
-      conv.guest_phone?.replace(/\D/g, '').includes(senderPhone) ||
-      conv.channel_metadata?.whatsapp_contact_id === senderJid
-    );
+    // Find or create conversation in SQL
+    const { data: existingConversations, error: findError } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .or(`external_conversation_id.eq.${senderJid},guest_phone.ilike.%${senderPhone}%`)
+      .limit(1);
+    
+    let conversation: any = existingConversations?.[0];
 
     if (!conversation) {
-      // Create new conversation
-      const conversationId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      conversation = {
-        id: conversationId,
-        organization_id: organizationId,
-        guest_name: senderName,
-        guest_email: '',
-        guest_phone: `+${senderPhone}`,
-        channel: 'whatsapp',
-        status: 'unread',
-        category: 'normal',
-        conversation_type: 'guest',
-        last_message: messageText,
-        last_message_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        external_conversation_id: senderJid,
-        last_channel: 'whatsapp',
-        channel_metadata: {
-          whatsapp_contact_id: senderJid
-        }
-      };
+      // Create new conversation in SQL
+      const { data: newConversation, error: createError } = await supabase
+        .from('conversations')
+        .insert({
+          organization_id: organizationId,
+          guest_name: senderName,
+          guest_email: '',
+          guest_phone: `+${senderPhone}`,
+          channel: 'whatsapp',
+          status: 'normal',
+          category: 'normal',
+          conversation_type: 'guest',
+          last_message: messageText,
+          last_message_at: new Date(messageData.messageTimestamp * 1000).toISOString(),
+          external_conversation_id: senderJid,
+          last_channel: 'whatsapp',
+          channel_metadata: {
+            whatsapp_contact_id: senderJid
+          },
+          unread_count: 1
+        })
+        .select()
+        .single();
       
-      await kv.set(`chat:conversation:${organizationId}:${conversationId}`, conversation);
-      console.log(`✅ Created new conversation: ${conversationId}`);
+      if (createError) {
+        console.error('❌ [Webhook] Erro ao criar conversa no SQL:', createError);
+        throw new Error(`Erro ao criar conversa: ${createError.message}`);
+      }
+      
+      conversation = newConversation;
+      console.log(`✅ [Webhook] Conversa criada no SQL: ${conversation.id}`);
     } else {
-      // Update existing conversation
-      conversation.last_message = messageText;
-      conversation.last_message_at = new Date().toISOString();
-      conversation.last_channel = 'whatsapp';
-      conversation.status = 'unread';
-      conversation.updated_at = new Date().toISOString();
+      // Update existing conversation in SQL
+      const { error: updateError } = await supabase
+        .from('conversations')
+        .update({
+          last_message: messageText,
+          last_message_at: new Date(messageData.messageTimestamp * 1000).toISOString(),
+          last_channel: 'whatsapp',
+          status: conversation.unread_count > 0 ? 'urgent' : 'normal',
+          unread_count: (conversation.unread_count || 0) + 1
+        })
+        .eq('id', conversation.id);
       
-      await kv.set(`chat:conversation:${organizationId}:${conversation.id}`, conversation);
-      console.log(`✅ Updated conversation: ${conversation.id}`);
+      if (updateError) {
+        console.error('❌ [Webhook] Erro ao atualizar conversa no SQL:', updateError);
+      } else {
+        conversation.unread_count = (conversation.unread_count || 0) + 1;
+        console.log(`✅ [Webhook] Conversa atualizada no SQL: ${conversation.id}`);
+      }
     }
 
-    // Create message
-    const newMessageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const newMessage: Message = {
-      id: newMessageId,
-      conversation_id: conversation.id,
-      sender_type: 'guest',
-      sender_name: senderName,
-      content: messageText,
-      sent_at: new Date(messageData.messageTimestamp * 1000).toISOString(),
-      organization_id: organizationId,
-      attachments: [],
-      channel: 'whatsapp',
-      direction: 'incoming',
-      external_id: messageId,
-      external_status: 'delivered',
-      metadata: {
-        whatsapp_message_id: messageId,
-        media_type: messageData.messageType
-      }
-    };
+    // Create message in SQL
+    const { data: newMessage, error: messageError } = await supabase
+      .from('messages')
+      .insert({
+        organization_id: organizationId,
+        conversation_id: conversation.id,
+        sender_type: 'guest',
+        sender_name: senderName,
+        content: messageText,
+        sent_at: new Date(messageData.messageTimestamp * 1000).toISOString(),
+        attachments: [],
+        channel: 'whatsapp',
+        direction: 'incoming',
+        external_id: messageId,
+        external_status: 'delivered',
+        metadata: {
+          whatsapp_message_id: messageId,
+          media_type: messageData.messageType
+        }
+      })
+      .select()
+      .single();
+    
+    if (messageError) {
+      console.error('❌ [Webhook] Erro ao salvar mensagem no SQL:', messageError);
+      throw new Error(`Erro ao salvar mensagem: ${messageError.message}`);
+    }
 
-    await kv.set(
-      `chat:message:${organizationId}:${conversation.id}:${newMessageId}`,
-      newMessage
-    );
-
-    console.log('✅ WhatsApp message processed successfully');
+    console.log('✅ [Webhook] Mensagem salva no SQL:', newMessage.id);
 
     return c.json({ 
       success: true, 
