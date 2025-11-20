@@ -398,6 +398,7 @@ export function ChatInbox() {
   useEffect(() => {
     loadConversations();
     loadProperties();
+    loadTemplates(); // ✅ Carregar templates do backend
   }, []);
 
   useEffect(() => {
