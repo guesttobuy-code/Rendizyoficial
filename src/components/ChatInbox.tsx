@@ -433,7 +433,14 @@ const ConversationCard: React.FC<ConversationCardProps> = ({
           
           <div className="flex items-center justify-between">
             <p className="text-gray-500 dark:text-gray-500 text-sm truncate flex-1">
-              {conversation.last_message}
+              {/* ✅ CORREÇÃO: Garantir que last_message seja sempre string */}
+              {typeof conversation.last_message === 'string' 
+                ? conversation.last_message 
+                : (conversation.last_message?.message || 
+                   conversation.last_message?.conversation || 
+                   conversation.last_message?.text || 
+                   (conversation.last_message?.extendedTextMessage?.text) ||
+                   '')}
             </p>
             {conversation.status === 'unread' && (
               <Circle className="h-2 w-2 fill-red-500 text-red-500 flex-shrink-0 ml-2" />
