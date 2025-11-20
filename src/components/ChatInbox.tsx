@@ -114,222 +114,11 @@ interface Conversation {
 
 // Removido - usando interface do TemplateManagerModal
 
-// Mock data inicial de templates
-const initialMockTemplates: TemplateType[] = [
-  {
-    id: 'tpl-001',
-    name: 'Confirmação de Reserva',
-    category: 'Pré Check-in',
-    content: 'Olá {guest_name}!\n\nSua reserva foi confirmada! ✅\n\n📅 Check-in: {checkin_date}\n📅 Check-out: {checkout_date}\n🏠 Imóvel: {property_name}\n\nEm breve enviaremos mais informações.\n\nEquipe RENDIZY'
-  },
-  {
-    id: 'tpl-002',
-    name: 'Instruções Check-in',
-    category: 'Pré Check-in',
-    content: 'Olá {guest_name}!\n\nEstamos aguardando você! 🎉\n\n📍 Endereço: {property_address}\n🔑 Código de acesso: {access_code}\n📶 WiFi: {wifi_name}\n🔐 Senha WiFi: {wifi_password}\n\nQualquer dúvida, estamos à disposição!'
-  },
-  {
-    id: 'tpl-003',
-    name: 'Lembrete 24h',
-    category: 'Pré Check-in',
-    content: 'Olá {guest_name}!\n\nSeu check-in é amanhã às {checkin_time}! ⏰\n\nEstamos ansiosos para recebê-lo em {property_name}.\n\nTem alguma dúvida? Estamos aqui para ajudar!'
-  },
-  {
-    id: 'tpl-004',
-    name: 'Agradecimento',
-    category: 'Pós Check-out',
-    content: 'Olá {guest_name}!\n\nObrigado por se hospedar conosco! 😊\n\nEsperamos que tenha aproveitado sua estadia em {property_name}.\n\nSeria uma honra recebê-lo novamente!'
-  },
-  {
-    id: 'tpl-005',
-    name: 'Pedido de Avaliação',
-    category: 'Pós Check-out',
-    content: 'Olá {guest_name}!\n\nSua opinião é muito importante! ⭐\n\nPoderia nos contar como foi sua experiência em {property_name}?\n\nSua avaliação nos ajuda a melhorar cada vez mais!'
-  }
-];
+// ❌ REMOVIDO: initialMockTemplates - RENDIZY usa apenas dados reais do backend
+// Templates devem ser carregados do backend através da API templatesApi
 
-const mockConversations: Conversation[] = [
-  {
-    id: 'conv-001',
-    guest_name: 'João Silva',
-    guest_email: 'joao@email.com',
-    guest_phone: '+55 21 99999-8888',
-    reservation_code: 'RES-015',
-    property_name: 'Casa Itaúnas Vista Mar',
-    property_id: 'prop-001',
-    channel: 'system',
-    status: 'unread',
-    category: 'urgent',
-    conversation_type: 'guest',
-    last_message: 'Qual o código do WiFi?',
-    last_message_at: new Date(2025, 9, 29, 10, 30),
-    checkin_date: new Date(2025, 9, 29),
-    checkout_date: new Date(2025, 10, 3),
-    order: 0,
-    isPinned: false,
-    messages: [
-      {
-        id: 'msg-001',
-        sender_type: 'guest',
-        sender_name: 'João Silva',
-        content: 'Olá! Já estou no imóvel. Qual o código do WiFi?',
-        sent_at: new Date(2025, 9, 29, 10, 30),
-      }
-    ]
-  },
-  {
-    id: 'conv-002',
-    guest_name: 'Maria Santos',
-    guest_email: 'maria@email.com',
-    guest_phone: '+55 21 98888-7777',
-    reservation_code: 'RES-020',
-    property_name: 'Arraial Novo Beach',
-    property_id: 'prop-002',
-    channel: 'email',
-    status: 'read',
-    category: 'normal',
-    conversation_type: 'guest',
-    last_message: 'Perfeito, muito obrigada!',
-    last_message_at: new Date(2025, 9, 28, 15, 45),
-    checkin_date: new Date(2025, 10, 5),
-    checkout_date: new Date(2025, 10, 10),
-    order: 1,
-    isPinned: false,
-    messages: [
-      {
-        id: 'msg-002',
-        sender_type: 'guest',
-        sender_name: 'Maria Santos',
-        content: 'Boa tarde! Gostaria de confirmar o horário de check-in.',
-        sent_at: new Date(2025, 9, 28, 14, 20),
-        read_at: new Date(2025, 9, 28, 14, 25)
-      },
-      {
-        id: 'msg-003',
-        sender_type: 'staff',
-        sender_name: 'Você',
-        content: 'Olá Maria! O check-in é a partir das 14h. Você pode chegar a qualquer momento após esse horário.',
-        sent_at: new Date(2025, 9, 28, 14, 30),
-        read_at: new Date(2025, 9, 28, 15, 40)
-      },
-      {
-        id: 'msg-004',
-        sender_type: 'guest',
-        sender_name: 'Maria Santos',
-        content: 'Perfeito, muito obrigada!',
-        sent_at: new Date(2025, 9, 28, 15, 45),
-        read_at: new Date(2025, 9, 28, 15, 50)
-      }
-    ]
-  },
-  {
-    id: 'conv-003',
-    guest_name: 'Carlos Mendes',
-    guest_email: 'carlos@email.com',
-    guest_phone: '+55 21 97777-6666',
-    reservation_code: 'RES-012',
-    property_name: 'Barra Beach House',
-    property_id: 'prop-003',
-    channel: 'whatsapp',
-    status: 'resolved',
-    category: 'resolved',
-    conversation_type: 'guest',
-    last_message: 'Obrigado pela estadia!',
-    last_message_at: new Date(2025, 9, 27, 11, 15),
-    checkin_date: new Date(2025, 9, 20),
-    checkout_date: new Date(2025, 9, 27),
-    order: 2,
-    isPinned: false,
-    messages: [
-      {
-        id: 'msg-005',
-        sender_type: 'system',
-        sender_name: 'Sistema',
-        content: 'Reserva confirmada! Check-in: 20/10/2025',
-        sent_at: new Date(2025, 9, 15, 9, 0),
-        read_at: new Date(2025, 9, 15, 9, 5)
-      },
-      {
-        id: 'msg-006',
-        sender_type: 'guest',
-        sender_name: 'Carlos Mendes',
-        content: 'Obrigado pela estadia! Tudo estava perfeito.',
-        sent_at: new Date(2025, 9, 27, 11, 15),
-        read_at: new Date(2025, 9, 27, 11, 20)
-      }
-    ]
-  },
-  {
-    id: 'conv-004',
-    guest_name: 'Ana Paula',
-    guest_email: 'ana@email.com',
-    guest_phone: '+55 21 96666-5555',
-    reservation_code: 'RES-025',
-    property_name: 'Copacabana Lux Apt',
-    property_id: 'prop-004',
-    channel: 'system',
-    status: 'unread',
-    category: 'normal',
-    conversation_type: 'guest',
-    last_message: 'Tem estacionamento no prédio?',
-    last_message_at: new Date(2025, 9, 29, 9, 15),
-    checkin_date: new Date(2025, 10, 1),
-    checkout_date: new Date(2025, 10, 4),
-    order: 3,
-    isPinned: false,
-    messages: [
-      {
-        id: 'msg-025-1',
-        sender_type: 'guest',
-        sender_name: 'Ana Paula',
-        content: 'Tem estacionamento no prédio?',
-        sent_at: new Date(2025, 9, 29, 9, 15)
-      },
-      {
-        id: 'msg-025-2',
-        sender_type: 'staff',
-        sender_name: 'Você',
-        content: 'Bom dia Ana! Sim, temos estacionamento gratuito no prédio.',
-        sent_at: new Date(2025, 9, 29, 9, 20),
-        read_at: new Date(2025, 9, 29, 9, 21)
-      }
-    ]
-  },
-  // LEAD - Negociação (não tem reserva ainda)
-  {
-    id: 'conv-005',
-    guest_name: 'Patricia Oliveira',
-    guest_email: 'patricia@email.com',
-    guest_phone: '+55 22 99888-7766',
-    reservation_code: '', // Sem reserva ainda
-    property_name: '', // Ainda não escolheu
-    channel: 'whatsapp',
-    status: 'unread',
-    category: 'urgent',
-    conversation_type: 'lead',
-    last_message: 'Quero uma casa em Cabo Frio para 6 pessoas, de 15 a 22 de novembro',
-    last_message_at: new Date(2025, 9, 29, 14, 20),
-    checkin_date: new Date(2025, 10, 15), // Data desejada
-    checkout_date: new Date(2025, 10, 22), // Data desejada
-    order: 4,
-    isPinned: false,
-    lead_data: {
-      desired_location: 'Cabo Frio',
-      num_guests: 6,
-      desired_checkin: new Date(2025, 10, 15),
-      desired_checkout: new Date(2025, 10, 22)
-    },
-    messages: [
-      {
-        id: 'msg-lead-001',
-        sender_type: 'guest',
-        sender_name: 'Patricia Oliveira',
-        content: 'Olá! Quero uma casa em Cabo Frio para 6 pessoas, de 15 a 22 de novembro',
-        sent_at: new Date(2025, 9, 29, 14, 20)
-      }
-    ]
-  }
-];
+// ❌ REMOVIDO: mockConversations - RENDIZY usa apenas dados reais do backend
+// Todos os dados devem vir do backend através da API
 
 // Componente de Card de Conversa com Drag and Drop
 interface ConversationCardProps {
@@ -517,12 +306,27 @@ export function ChatInbox() {
   // Internal notes
   const [isInternalNote, setIsInternalNote] = useState(false);
 
-  // Templates
-  const [templates, setTemplates] = useState<TemplateType[]>(() => {
-    const saved = localStorage.getItem('rendizy_chat_templates');
-    return saved ? JSON.parse(saved) : initialMockTemplates;
-  });
+  // Templates - carregar do backend apenas
+  const [templates, setTemplates] = useState<TemplateType[]>([]);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
+  
+  // Carregar templates do backend
+  const loadTemplates = async () => {
+    try {
+      const result = await templatesApi.list(organizationId);
+      if (result.success && result.data) {
+        setTemplates(result.data);
+        // Salvar no localStorage como cache
+        localStorage.setItem('rendizy_chat_templates', JSON.stringify(result.data));
+      } else {
+        console.warn('⚠️ Nenhum template encontrado no backend');
+        setTemplates([]);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar templates:', error);
+      setTemplates([]);
+    }
+  };
   
   // Template autocomplete com "/"
   const [showTemplatePopup, setShowTemplatePopup] = useState(false);
@@ -630,7 +434,7 @@ export function ChatInbox() {
     setIsLoading(true);
     try {
       const result = await conversationsApi.list(organizationId);
-      if (result.success && result.data && result.data.length > 0) {
+      if (result.success && result.data) {
         // Convert API data to component format
         const formattedConversations = result.data.map((conv: ApiConversation) => ({
           ...conv,
@@ -643,23 +447,21 @@ export function ChatInbox() {
         setConversations(formattedConversations);
         if (formattedConversations.length > 0 && !selectedConversation) {
           setSelectedConversation(formattedConversations[0]);
+        } else {
+          // Se não há conversas, limpar seleção
+          setSelectedConversation(null);
         }
       } else {
-        console.log('⚠️ Nenhuma conversa do backend, usando dados mock para demonstração');
-        // ✅ Fallback para mock data quando não há conversas do backend
-        setConversations(mockConversations);
-        if (mockConversations.length > 0 && !selectedConversation) {
-          setSelectedConversation(mockConversations[0]);
-        }
+        console.log('⚠️ Nenhuma conversa encontrada no backend');
+        // ✅ Usar apenas dados reais - não usar mocks
+        setConversations([]);
+        setSelectedConversation(null);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar conversas:', error);
-      console.log('✅ Usando dados mock para demonstração');
-      // ✅ Fallback para mock data em caso de erro
-      setConversations(mockConversations);
-      if (mockConversations.length > 0 && !selectedConversation) {
-        setSelectedConversation(mockConversations[0]);
-      }
+      // ✅ Usar apenas dados reais - não usar mocks
+      setConversations([]);
+      setSelectedConversation(null);
     } finally {
       setIsLoading(false);
     }
