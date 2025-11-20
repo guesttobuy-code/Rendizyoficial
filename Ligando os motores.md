@@ -62,9 +62,23 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 
 ---
 
-## 4. Regras de Ouro (Documentação)
+## 4. Regras de Ouro (OBRIGATÓRIO LER ANTES DE COMEÇAR)
 
-Sempre revisar antes de começar:
+### 🚨 **REGRAS CRÍTICAS - NUNCA VIOLAR:**
+
+1. **`REGRA_KV_STORE_VS_SQL.md`** ⚠️ **OBRIGATÓRIO**
+   - ❌ **NUNCA** use KV Store para dados permanentes
+   - ✅ Use SQL para TUDO que precisa persistir
+   - ✅ KV Store APENAS para cache temporário (TTL < 24h)
+   - **Contexto:** Sistema SaaS multi-tenant - dados críticos devem estar em SQL
+
+2. **`REGRA_AUTENTICACAO_TOKEN.md`** ⚠️ **OBRIGATÓRIO**
+   - ❌ **NUNCA** use localStorage para tokens em produção
+   - ✅ Use Cookies HttpOnly para tokens
+   - ✅ Sistema é SaaS público em escala - segurança crítica
+   - **Status:** ⚠️ Migração pendente (localStorage ainda em uso, mas deve migrar)
+
+### 📋 **Documentação Geral:**
 - `src/docs/RESUMO_FINAL_28OUT2025.md`
   - Atualizar `LOG_ATUAL.md`
   - Criar snapshot diário
@@ -90,9 +104,11 @@ Sempre revisar antes de começar:
 ## 6. Checklist inicial
 
 1. [ ] Abrir este arquivo 😄  
-2. [ ] Conectar GitHub (`configurar-github-simples.ps1`)  
-3. [ ] Conectar Supabase (`login-supabase.ps1`)  
-4. [ ] Ler `Regras de Ouro` (link acima)  
+2. [ ] **LER REGRAS DE OURO** (seção 4 acima) ⚠️ **OBRIGATÓRIO**
+   - [ ] Ler `REGRA_KV_STORE_VS_SQL.md`
+   - [ ] Ler `REGRA_AUTENTICACAO_TOKEN.md`
+3. [ ] Conectar GitHub (`configurar-github-simples.ps1`)  
+4. [ ] Conectar Supabase (`login-supabase.ps1`)  
 5. [ ] Revisar `PROMPT_CONTEXTO_COMPLETO_SESSAO.md`  
 6. [ ] Atualizar `LOG_ATUAL.md` com o plano da sessão  
 
@@ -137,11 +153,13 @@ Sempre revisar antes de começar:
 
 ## 9. Lembretes
 
+- ⚠️ **SEMPRE revisar Regras de Ouro antes de começar** (seção 4)
 - Tokens estão documentados em `TOKENS_*` (arqs ignorados no Git).  
 - `LOG_ATUAL.md` precisa ser mantido fora do repositório (arquivo vivo).  
 - Toda sessão deve terminar com snapshot em `/docs/logs/`.  
 - Backend ainda usa KV Store → seguir plano de migração para SQL.  
 - **Deploy sempre feito pelo Auto, nunca pelo usuário.**
+- **Sistema é SaaS público em escala** → segurança e performance são críticas
 
 ---
 
