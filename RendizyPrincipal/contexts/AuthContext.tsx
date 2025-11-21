@@ -65,9 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'X-Auth-Token': token, // ✅ Usar header customizado para evitar validação JWT automática do Supabase
-            'Authorization': `Bearer ${token}`, // ✅ Fallback para compatibilidade
+            'X-Auth-Token': token, // ✅ Usar APENAS header customizado para evitar validação JWT automática do Supabase
             'apikey': publicAnonKey // ✅ Adicionar apikey para Supabase Edge Functions
+            // ❌ REMOVIDO: Authorization header (causa validação JWT automática do Supabase)
           }
           // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
         });
@@ -138,7 +138,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${backendUser.organizationId}`,
               {
                 headers: {
-                  'Authorization': `Bearer ${token}`
+                  'X-Auth-Token': token,
+                  'apikey': publicAnonKey
                 }
               }
             );
@@ -288,7 +289,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${backendUser.organizationId}`,
             {
               headers: {
-                'Authorization': `Bearer ${data.token}`
+                'X-Auth-Token': data.token,
+                'apikey': publicAnonKey
               }
             }
           );
@@ -349,7 +351,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': token ? `Bearer ${token}` : '' // ✅ SOLUÇÃO SIMPLES: Token no header
+            'X-Auth-Token': token || '', // ✅ Usar header customizado para evitar validação JWT
+            'apikey': publicAnonKey
           }
           // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
         });
