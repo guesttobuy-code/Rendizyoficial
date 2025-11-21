@@ -2,6 +2,8 @@ import { Hono } from 'npm:hono';
 import { createHash } from 'node:crypto';
 // ✅ ARQUITETURA SQL: Importar Supabase Client
 import { createClient } from 'jsr:@supabase/supabase-js@2.49.8';
+// ✅ Usar getSessionFromToken que já funciona em outras rotas
+import { getSessionFromToken } from './utils-session.ts';
 
 // Helper: Obter cliente Supabase
 // ✅ DESABILITADO JWT VALIDATION - Usar SERVICE_ROLE_KEY que bypassa JWT
@@ -352,72 +354,27 @@ app.get('/me', async (c) => {
       }, 401);
     }
 
-    // ✅ ARQUITETURA SQL: Buscar sessão do SQL
-    // ✅ SOLUÇÃO SIMPLES: Usar SERVICE_ROLE_KEY que bypassa JWT validation
+    // ✅ Usar getSessionFromToken que já funciona em outras rotas
     console.log('🔍 [auth/me] Buscando sessão com token:', token?.substring(0, 20) + '...');
-    const supabase = getSupabaseClient();
+    const session = await getSessionFromToken(token);
     
-    // ✅ IMPORTANTE: SERVICE_ROLE_KEY não valida JWT - query direta na tabela
-    const { data: session, error: sessionError } = await supabase
-      .from('sessions')
-      .select('*')
-      .eq('token', token)
-      .single();
-
-    console.log('🔍 [auth/me] Query result:', {
-      hasSession: !!session,
-      hasError: !!sessionError,
-      errorCode: sessionError?.code,
-      errorMessage: sessionError?.message,
-      errorDetails: sessionError ? JSON.stringify(sessionError, null, 2) : 'No error'
-    });
-
-    if (sessionError || !session) {
-      console.log('❌ [auth/me] Sessão não encontrada ou erro na query');
-      console.log('❌ [auth/me] Error completo:', sessionError ? JSON.stringify(sessionError, null, 2) : 'No error object');
-      
-      // ✅ Se erro for "Invalid JWT", pode ser que Supabase esteja validando automaticamente
-      // Mas com SERVICE_ROLE_KEY isso não deveria acontecer
-      if (sessionError?.message?.includes('JWT') || sessionError?.message?.includes('jwt') || sessionError?.code === 'PGRST301') {
-        console.error('❌ [auth/me] ERRO: Supabase retornou erro JWT (não deveria com SERVICE_ROLE_KEY)');
-        console.error('❌ [auth/me] Possível causa: Supabase interceptando header Authorization');
-        console.error('❌ [auth/me] Solução: Verificar se SERVICE_ROLE_KEY está configurado corretamente');
-      }
-      
+    if (!session) {
+      console.log('❌ [auth/me] Sessão não encontrada ou inválida');
       return c.json({
         success: false,
-        error: sessionError?.message || 'Sessão inválida ou expirada',
-        code: sessionError?.code || 'SESSION_NOT_FOUND',
-        details: sessionError?.hint || undefined
+        error: 'Sessão inválida ou expirada',
+        code: 'SESSION_NOT_FOUND'
       }, 401);
     }
     
-    console.log('✅ [auth/me] Sessão encontrada:', session.id);
-
-    // Verificar se sessão expirou
-    const now = new Date();
-    const expiresAt = new Date(session.expires_at);
-    if (now > expiresAt) {
-      console.log('❌ Sessão expirada:', session.token);
-      // Remover sessão expirada
-      await supabase.from('sessions').delete().eq('token', token);
-      return c.json({
-        success: false,
-        error: 'Sessão expirada'
-      }, 401);
-    }
-
-    // Atualizar last_activity
-    await supabase
-      .from('sessions')
-      .update({ last_activity: now.toISOString() })
-      .eq('token', token);
+    console.log('✅ [auth/me] Sessão encontrada:', session.userId);
 
     // ✅ ARQUITETURA SQL: Buscar dados do usuário do SQL
+    const supabase = getSupabaseClient();
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('*')
-      .eq('id', session.user_id)
+      .eq('id', session.userId)
       .single();
 
     if (userError || !user) {
