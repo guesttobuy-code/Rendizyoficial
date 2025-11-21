@@ -323,9 +323,13 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 // ✅ ARQUITETURA SQL: Busca sessão e usuário do SQL
 // ✅ SOLUÇÃO SIMPLES - Token do header Authorization (como estava funcionando ontem)
 app.get('/me', async (c) => {
+  console.log('🚀 [auth/me] ROTA CHAMADA - URL:', c.req.url);
+  console.log('🚀 [auth/me] MÉTODO:', c.req.method);
+  console.log('🚀 [auth/me] PATH:', c.req.path);
+  
   try {
     console.log('🔍 [auth/me] Requisição recebida - Headers:', {
-      'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present' : 'missing',
+      'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present (' + c.req.header('X-Auth-Token')?.substring(0, 20) + '...)' : 'missing',
       'Authorization': c.req.header('Authorization') ? 'present' : 'missing',
       'apikey': c.req.header('apikey') ? 'present' : 'missing'
     });
@@ -334,7 +338,9 @@ app.get('/me', async (c) => {
     // Fallback para Authorization para compatibilidade
     let token = c.req.header('X-Auth-Token');
     if (!token) {
-      token = c.req.header('Authorization')?.split(' ')[1];
+      const authHeader = c.req.header('Authorization');
+      console.log('🔍 [auth/me] Authorization header:', authHeader ? authHeader.substring(0, 30) + '...' : 'NONE');
+      token = authHeader?.split(' ')[1];
     }
     
     console.log('🔍 [auth/me] Token extraído:', token ? token.substring(0, 20) + '...' : 'NONE');
