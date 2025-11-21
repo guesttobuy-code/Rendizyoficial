@@ -842,17 +842,38 @@ export function ChatInbox() {
     });
   };
 
+  const normalizeMessageText = (message: any): string => {
+    if (!message) return '';
+    if (typeof message === 'string') return message;
+    if (typeof message === 'object') {
+      return (
+        message.message ||
+        message.conversation ||
+        message.text ||
+        message.body ||
+        message.extendedTextMessage?.text ||
+        ''
+      );
+    }
+    return String(message);
+  };
+
   const filteredConversations = conversations.filter(conv => {
     // Enhanced search: includes guest name, reservation code, property name, email, phone, and message content
     const searchLower = searchQuery.toLowerCase();
+    const lastMessageText = normalizeMessageText(conv.last_message).toLowerCase();
     const matchesSearch = searchQuery === '' || (
       conv.guest_name.toLowerCase().includes(searchLower) ||
       conv.reservation_code.toLowerCase().includes(searchLower) ||
       conv.property_name.toLowerCase().includes(searchLower) ||
       conv.guest_email.toLowerCase().includes(searchLower) ||
       conv.guest_phone.includes(searchQuery) ||
-      conv.last_message.toLowerCase().includes(searchLower) ||
-      conv.messages?.some(msg => msg.content.toLowerCase().includes(searchLower))
+      lastMessageText.includes(searchLower) ||
+      conv.messages?.some(msg => {
+        if (!msg) return false;
+        const messageContent = normalizeMessageText(msg.content ?? msg);
+        return messageContent.toLowerCase().includes(searchLower);
+      })
     );
     
     // Status filter - handle 'active' as a special case (unread + read, not resolved)
