@@ -8,7 +8,7 @@
  * @updated 2025-11-20 - Migrado para tabela sessions do SQL
  */
 
-import { getSupabaseClient } from './kv_store.tsx';
+import { getSupabaseClient, del as kvDel } from './kv_store.tsx';
 
 /**
  * Interface Session (compatível com routes-auth.ts)
@@ -46,7 +46,9 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
       .from('sessions')
       .select('*')
       .eq('token', token)
-      .single();
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     console.log(`🔍 [getSessionFromToken] Query result:`, {
       hasSession: !!sessionRow,
@@ -118,7 +120,7 @@ export async function removeSession(token: string | undefined): Promise<boolean>
   }
 
   try {
-    await kv.del(`session:${token}`);
+    await kvDel(`session:${token}`);
     console.log('✅ [removeSession] Sessão removida com sucesso');
     return true;
   } catch (error) {
