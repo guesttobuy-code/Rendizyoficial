@@ -219,8 +219,8 @@ async function apiRequest<T>(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${publicAnonKey}`,
         ...options.headers,
-      },
-      credentials: 'include', // ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Enviar cookies automaticamente
+      }
+      // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
     });
 
     const data = await response.json();
