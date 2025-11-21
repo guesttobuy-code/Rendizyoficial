@@ -399,6 +399,14 @@ export function ChatInbox() {
     loadConversations();
     loadProperties();
     loadTemplates(); // ✅ Carregar templates do backend
+    
+    // ✅ REQUISITO 2: Atualização automática de conversas (polling a cada 30 segundos)
+    const interval = setInterval(() => {
+      console.log('🔄 [ChatInbox] Atualizando conversas automaticamente...');
+      loadConversations();
+    }, 30000); // 30 segundos
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -445,6 +453,15 @@ export function ChatInbox() {
           created_at: new Date(conv.created_at),
           updated_at: new Date(conv.updated_at)
         }));
+        
+        // ✅ REQUISITO 2: Garantir ordenação correta (mais recente primeiro)
+        // Ordenar por last_message_at em ordem decrescente (mais recente primeiro)
+        formattedConversations.sort((a, b) => {
+          const timeA = a.last_message_at?.getTime() || 0;
+          const timeB = b.last_message_at?.getTime() || 0;
+          return timeB - timeA; // Ordem decrescente (mais recente primeiro)
+        });
+        
         setConversations(formattedConversations);
         if (formattedConversations.length > 0 && !selectedConversation) {
           setSelectedConversation(formattedConversations[0]);

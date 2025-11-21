@@ -146,6 +146,62 @@ export function EvolutionContactsList({
     loadContacts();
   }, []);
 
+  // ✅ REQUISITO 2: Sincronização automática ao montar e atualização periódica
+  // Sincroniza conversas automaticamente ao entrar na tela de chat
+  useEffect(() => {
+    let mounted = true;
+    
+    // Sincronizar imediatamente ao montar
+    const syncOnMount = async () => {
+      if (!isSyncing && mounted) {
+        console.log('🔄 [EvolutionContactsList] Sincronizando conversas ao entrar na tela...');
+        setIsSyncing(true);
+        toast.info('Sincronizando contatos da Evolution API...');
+        
+        try {
+          const stats: SyncStats = await service.syncContactsAndChats();
+          
+          if (mounted) {
+            // Reload contacts
+            loadContacts();
+            setLastSync(new Date());
+            
+            // Show success message
+            const message = `✅ ${stats.contactsImported} novos contatos, ${stats.contactsUpdated} atualizados, ${stats.chatsImported} conversas`;
+            toast.success(message);
+            
+            console.log('📊 Estatísticas da sincronização:', stats);
+          }
+        } catch (error) {
+          if (mounted) {
+            console.error('Erro na sincronização:', error);
+            toast.error('Erro ao sincronizar contatos');
+          }
+        } finally {
+          if (mounted) {
+            setIsSyncing(false);
+          }
+        }
+      }
+    };
+    
+    syncOnMount();
+    
+    // ✅ REQUISITO 2: Atualização automática de conversas (polling a cada 30 segundos)
+    const interval = setInterval(() => {
+      if (!isSyncing && mounted) {
+        console.log('🔄 [EvolutionContactsList] Atualizando conversas automaticamente...');
+        handleSync();
+      }
+    }, 30000); // 30 segundos
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /**
    * Get initials for avatar
    */

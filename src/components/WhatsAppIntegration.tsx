@@ -108,6 +108,16 @@ export default function WhatsAppIntegration() {
     loadConfig();
   }, [organizationId]);
 
+  // ✅ REQUISITO 1: Verificar status automaticamente após carregar configurações
+  // Isso garante que o sistema mostre o status correto ao entrar, sem precisar reconectar
+  useEffect(() => {
+    if (config?.whatsapp?.enabled && !loading) {
+      console.log('🔍 [WhatsApp] Verificando status automaticamente ao carregar...');
+      checkWhatsAppStatus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config?.whatsapp?.enabled, loading]);
+
   /**
    * Verificar status real da conexão WhatsApp
    */
@@ -132,20 +142,47 @@ export default function WhatsAppIntegration() {
         if (wasConnected !== isConnected) {
           console.log(`🔄 [WhatsApp] Status mudou: ${wasConnected ? 'Online' : 'Offline'} → ${isConnected ? 'Online' : 'Offline'}`);
           
-          // Atualizar config local
-          setConfig({
+          // ✅ REQUISITO 1: Salvar status no banco quando mudar
+          const updatedConfig = {
             ...config,
             whatsapp: {
               ...config.whatsapp,
               connected: isConnected,
-              connection_status: isConnected ? 'connected' : 'disconnected'
+              connection_status: isConnected ? 'connected' : 'disconnected',
+              last_connected_at: isConnected ? new Date().toISOString() : config.whatsapp?.last_connected_at
             }
-          });
+          };
+          
+          // Atualizar config local
+          setConfig(updatedConfig);
+
+          // Salvar no banco para persistência
+          try {
+            await channelsApi.updateConfig(organizationId, {
+              whatsapp: {
+                ...updatedConfig.whatsapp,
+                enabled: true
+              }
+            });
+            console.log('✅ [WhatsApp] Status salvo no banco de dados');
+          } catch (error) {
+            console.error('❌ [WhatsApp] Erro ao salvar status no banco:', error);
+          }
 
           // Mostrar notificação se conectou
           if (isConnected && !wasConnected) {
             toast.success('✅ WhatsApp conectado com sucesso!', { duration: 3000 });
           }
+        } else if (isConnected && !wasConnected) {
+          // Se já estava conectado mas o status local estava desatualizado, atualizar
+          setConfig({
+            ...config,
+            whatsapp: {
+              ...config.whatsapp,
+              connected: true,
+              connection_status: 'connected'
+            }
+          });
         }
       }
     } catch (error) {
