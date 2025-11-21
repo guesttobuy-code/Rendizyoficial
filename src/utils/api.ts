@@ -213,11 +213,15 @@ async function apiRequest<T>(
   try {
     const url = `${API_BASE_URL}${endpoint}`;
     
+    // ✅ CORREÇÃO: Usar token do usuário do localStorage ao invés de publicAnonKey
+    const userToken = localStorage.getItem('rendizy-token');
+    const authHeader = userToken ? `Bearer ${userToken}` : `Bearer ${publicAnonKey}`;
+    
     const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${publicAnonKey}`,
+        'Authorization': authHeader,
         ...options.headers,
       }
       // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
