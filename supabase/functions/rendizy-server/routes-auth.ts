@@ -335,11 +335,11 @@ app.get('/me', async (c) => {
     }
 
     // ✅ ARQUITETURA SQL: Buscar sessão do SQL
+    // ✅ SOLUÇÃO SIMPLES: Usar SERVICE_ROLE_KEY que bypassa JWT validation
     console.log('🔍 [auth/me] Buscando sessão com token:', token?.substring(0, 20) + '...');
     const supabase = getSupabaseClient();
     
-    // ✅ IMPORTANTE: Usar SERVICE_ROLE_KEY que bypassa validação JWT
-    // Não passar token do usuário no header para evitar validação automática
+    // ✅ IMPORTANTE: SERVICE_ROLE_KEY não valida JWT - query direta na tabela
     const { data: session, error: sessionError } = await supabase
       .from('sessions')
       .select('*')
@@ -350,19 +350,20 @@ app.get('/me', async (c) => {
       hasSession: !!session,
       hasError: !!sessionError,
       errorCode: sessionError?.code,
-      errorMessage: sessionError?.message
+      errorMessage: sessionError?.message,
+      errorDetails: sessionError ? JSON.stringify(sessionError, null, 2) : 'No error'
     });
 
     if (sessionError || !session) {
-      console.log('❌ [auth/me] Sessão não encontrada ou expirada');
-      console.log('❌ [auth/me] Error:', sessionError ? JSON.stringify(sessionError, null, 2) : 'No error object');
-      console.log('❌ [auth/me] Session:', session ? 'Found' : 'Not found');
+      console.log('❌ [auth/me] Sessão não encontrada ou erro na query');
+      console.log('❌ [auth/me] Error completo:', sessionError ? JSON.stringify(sessionError, null, 2) : 'No error object');
       
-      // ✅ Se erro for "Invalid JWT", significa que Supabase está tentando validar como JWT
-      // Isso não deveria acontecer com SERVICE_ROLE_KEY, mas pode ser um bug do Supabase
-      if (sessionError?.message?.includes('JWT') || sessionError?.message?.includes('jwt')) {
-        console.error('❌ [auth/me] ERRO: Supabase está validando token como JWT (não deveria com SERVICE_ROLE_KEY)');
-        console.error('❌ [auth/me] Token é simples, não JWT. Verificar configuração do Supabase Client.');
+      // ✅ Se erro for "Invalid JWT", pode ser que Supabase esteja validando automaticamente
+      // Mas com SERVICE_ROLE_KEY isso não deveria acontecer
+      if (sessionError?.message?.includes('JWT') || sessionError?.message?.includes('jwt') || sessionError?.code === 'PGRST301') {
+        console.error('❌ [auth/me] ERRO: Supabase retornou erro JWT (não deveria com SERVICE_ROLE_KEY)');
+        console.error('❌ [auth/me] Possível causa: Supabase interceptando header Authorization');
+        console.error('❌ [auth/me] Solução: Verificar se SERVICE_ROLE_KEY está configurado corretamente');
       }
       
       return c.json({
@@ -372,6 +373,8 @@ app.get('/me', async (c) => {
         details: sessionError?.hint || undefined
       }, 401);
     }
+    
+    console.log('✅ [auth/me] Sessão encontrada:', session.id);
 
     // Verificar se sessão expirou
     const now = new Date();
