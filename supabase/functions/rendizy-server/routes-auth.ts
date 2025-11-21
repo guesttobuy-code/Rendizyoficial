@@ -387,11 +387,11 @@ app.get('/me', async (c) => {
 
     // ✅ ARQUITETURA SQL: Buscar organização se houver
     let organization = null;
-    if (session.organization_id) {
+    if (user.organization_id) {
       const { data: org } = await supabase
         .from('organizations')
         .select('id, name, slug')
-        .eq('id', session.organization_id)
+        .eq('id', user.organization_id)
         .single();
       
       if (org) {
@@ -408,7 +408,7 @@ app.get('/me', async (c) => {
         email: user.email,
         type: user.type,
         status: user.status,
-        organizationId: session.organization_id || undefined,
+        organizationId: user.organization_id || undefined,
         organization: organization ? {
           id: organization.id,
           name: organization.name,
@@ -416,9 +416,9 @@ app.get('/me', async (c) => {
         } : null
       },
       session: {
-        createdAt: session.created_at,
-        expiresAt: session.expires_at,
-        lastActivity: session.last_activity
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt,
+        lastActivity: session.lastActivity
       }
     });
   } catch (error) {
