@@ -58,12 +58,8 @@ export default function LoginPage() {
         // Aguardar um pouco para garantir que o estado foi atualizado
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Redirecionar baseado no tipo de usuário
-        if (result.user.type === 'superadmin') {
-          navigate('/configuracoes');
-        } else {
-          navigate('/');
-        }
+        // Redirecionar para dashboard inicial (todos os usuários)
+        navigate('/dashboard');
       } else {
         // ✅ CORREÇÃO: Mostrar erro específico se houver
         const errorMsg = result.error || 'Erro ao fazer login';
