@@ -53,23 +53,22 @@ import tenantsApp from './routes-tenants.ts';
 
 const app = new Hono();
 
-// Enable logger
-app.use('*', logger(console.log));
-
-// Enable CORS - OPEN CORS para SaaS Multi-Tenant
-// ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Suportar credentials para cookies
-// Permite TODOS os domínios (necessário pois cada cliente tem seu domínio customizado)
+// ============================================================================
+// CORS CONFIGURATION - DEVE VIR ANTES DE TUDO
+// ============================================================================
+// ✅ SOLUÇÃO SIMPLES - Como estava funcionando ontem
+// origin: "*" funciona quando NÃO usa credentials: true
 app.use(
   "/*",
   cors({
-    origin: "*", // Permite QUALQUER origem (necessário para multi-tenant SaaS)
-    allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "apikey", "Cookie"], // ✅ Adicionar Cookie para suportar cookies
-    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    exposeHeaders: ["Content-Length", "Content-Type", "Set-Cookie"], // ✅ Expor Set-Cookie
-    maxAge: 600,
-    credentials: true, // ✅ MUDANÇA: true para suportar cookies (mesmo com origin "*", funciona para cookies)
+    origin: "*",
+    allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "apikey", "X-Auth-Token"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
   }),
 );
+
+// Enable logger (DEPOIS do CORS)
+app.use('*', logger(console.log));
 
 // ============================================================================
 // HEALTH CHECK
