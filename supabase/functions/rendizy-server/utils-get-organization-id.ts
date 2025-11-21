@@ -245,16 +245,33 @@ export async function getOrganizationIdOrThrow(c: Context): Promise<string> {
 
     // 2. PRIORIDADE 1: Tentar buscar da tabela sessions do SQL (ARQUITETURA SQL)
     // ✅ ARQUITETURA SQL v1.0.103.950 - Buscar sessão da tabela sessions do SQL
-    console.log(`🔍 [getOrganizationIdOrThrow] Buscando sessão na tabela SQL...`);
+    console.log(`🔍 [getOrganizationIdOrThrow] Buscando sessão na tabela SQL com token: ${token?.substring(0, 20)}...`);
     const client = getSupabaseClient();
+    
+    // ✅ IMPORTANTE: SERVICE_ROLE_KEY não valida JWT - query direta na tabela
     const { data: session, error: sessionError } = await client
       .from('sessions')
       .select('*')
       .eq('token', token)
       .single();
     
+    console.log(`🔍 [getOrganizationIdOrThrow] Query result:`, {
+      hasSession: !!session,
+      hasError: !!sessionError,
+      errorCode: sessionError?.code,
+      errorMessage: sessionError?.message,
+      errorDetails: sessionError ? JSON.stringify(sessionError, null, 2) : 'No error'
+    });
+    
     if (sessionError || !session) {
       console.warn(`⚠️ [getOrganizationIdOrThrow] Sessão não encontrada na tabela SQL:`, sessionError?.code || 'NONE');
+      
+      // ✅ Se erro for "Invalid JWT", pode ser que Supabase esteja validando automaticamente
+      if (sessionError?.message?.includes('JWT') || sessionError?.message?.includes('jwt') || sessionError?.code === 'PGRST301') {
+        console.error('❌ [getOrganizationIdOrThrow] ERRO: Supabase retornou erro JWT (não deveria com SERVICE_ROLE_KEY)');
+        console.error('❌ [getOrganizationIdOrThrow] Possível causa: Supabase interceptando header Authorization');
+        console.error('❌ [getOrganizationIdOrThrow] Token é simples, não JWT. Verificar configuração do Supabase Client.');
+      }
     } else {
       // ✅ Verificar se sessão expirou
       const now = new Date();
