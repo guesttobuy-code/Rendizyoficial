@@ -70,6 +70,22 @@ app.use(
 // Enable logger (DEPOIS do CORS)
 app.use('*', logger(console.log));
 
+// ✅ DEBUG GLOBAL: Capturar TODAS as requisições para /make-server-67caf26a/auth/me
+app.use('*', async (c, next) => {
+  const path = c.req.path;
+  if (path.includes('/auth/me') || path.includes('make-server-67caf26a/auth/me')) {
+    console.log('🚨 [DEBUG GLOBAL] Requisição capturada para:', path);
+    console.log('🚨 [DEBUG GLOBAL] URL completa:', c.req.url);
+    console.log('🚨 [DEBUG GLOBAL] Method:', c.req.method);
+    console.log('🚨 [DEBUG GLOBAL] Headers:', {
+      'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present (' + (c.req.header('X-Auth-Token')?.substring(0, 20) || '') + '...)' : 'missing',
+      'Authorization': c.req.header('Authorization') ? 'present' : 'missing',
+      'apikey': c.req.header('apikey') ? 'present' : 'missing'
+    });
+  }
+  await next();
+});
+
 // ============================================================================
 // HEALTH CHECK
 // ============================================================================
@@ -87,22 +103,8 @@ app.get("/rendizy-server/make-server-67caf26a/health", (c) => {
 // Sistema de Login Multi-Tenant: SuperAdmin + Imobiliárias
 // ============================================================================
 
-// ✅ ARQUITETURA SQL: Rota de autenticação sem make-server-67caf26a
-// ✅ DEBUG: Log antes de registrar rota
-app.use('/rendizy-server/auth/*', async (c, next) => {
-  console.log('🔍 [index.ts] Interceptando requisição para:', c.req.path);
-  console.log('🔍 [index.ts] URL completa:', c.req.url);
-  console.log('🔍 [index.ts] Method:', c.req.method);
-  console.log('🔍 [index.ts] Headers:', {
-    'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present (' + (c.req.header('X-Auth-Token')?.substring(0, 20) || '') + '...)' : 'missing',
-    'Authorization': c.req.header('Authorization') ? 'present' : 'missing',
-    'apikey': c.req.header('apikey') ? 'present' : 'missing'
-  });
-  await next();
-});
-app.route('/rendizy-server/auth', authApp);
-
 // ✅ SOLUÇÃO DEFINITIVA: Rota /auth/me usando o mesmo padrão das outras rotas (com make-server-67caf26a)
+// ✅ IMPORTANTE: Registrar ANTES do middleware genérico para garantir que seja capturada primeiro
 // Isso garante que funcione igual às outras rotas que já estão funcionando
 app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
   console.log('🚀 [index.ts] ROTA /make-server-67caf26a/auth/me CHAMADA DIRETAMENTE!');
@@ -124,8 +126,11 @@ app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
     }
     
     console.log('🔍 [index.ts] Token extraído:', token ? token.substring(0, 20) + '...' : 'NONE');
+    console.log('🔍 [index.ts] Token completo (primeiros 50 chars):', token ? token.substring(0, 50) : 'NONE');
+    console.log('🔍 [index.ts] Token length:', token ? token.length : 0);
     
     if (!token) {
+      console.log('❌ [index.ts] Token não fornecido - retornando 401');
       return c.json({
         success: false,
         error: 'Token não fornecido'
@@ -133,10 +138,38 @@ app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
     }
     
     console.log('🔍 [index.ts] Buscando sessão com token:', token?.substring(0, 20) + '...');
+    console.log('🔍 [index.ts] Chamando getSessionFromToken...');
     const session = await getSessionFromToken(token);
+    
+    console.log('🔍 [index.ts] Resultado de getSessionFromToken:', session ? `Sessão encontrada: ${session.userId}` : 'Sessão NÃO encontrada');
     
     if (!session) {
       console.log('❌ [index.ts] Sessão não encontrada ou inválida');
+      console.log('❌ [index.ts] Token usado na busca:', token.substring(0, 30) + '...');
+      
+      // ✅ DEBUG: Verificar se há alguma sessão na tabela (mesmo que não seja a correta)
+      try {
+        const { getSupabaseClient } = await import('./kv_store.tsx');
+        const supabase = getSupabaseClient();
+        const { data: allSessions, error: checkError } = await supabase
+          .from('sessions')
+          .select('token, user_id, created_at, expires_at')
+          .limit(5)
+          .order('created_at', { ascending: false });
+        
+        console.log('🔍 [index.ts] DEBUG: Últimas 5 sessões na tabela:', {
+          count: allSessions?.length || 0,
+          sessions: allSessions?.map(s => ({
+            token: s.token?.substring(0, 20) + '...',
+            userId: s.user_id,
+            createdAt: s.created_at
+          })) || [],
+          error: checkError?.message
+        });
+      } catch (debugError) {
+        console.error('❌ [index.ts] Erro ao verificar sessões na tabela:', debugError);
+      }
+      
       return c.json({
         success: false,
         error: 'Sessão inválida ou expirada',
@@ -206,6 +239,21 @@ app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
     }, 500);
   }
 });
+
+// ✅ ARQUITETURA SQL: Rota de autenticação sem make-server-67caf26a
+// ✅ DEBUG: Log antes de registrar rota
+app.use('/rendizy-server/auth/*', async (c, next) => {
+  console.log('🔍 [index.ts] Interceptando requisição para:', c.req.path);
+  console.log('🔍 [index.ts] URL completa:', c.req.url);
+  console.log('🔍 [index.ts] Method:', c.req.method);
+  console.log('🔍 [index.ts] Headers:', {
+    'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present (' + (c.req.header('X-Auth-Token')?.substring(0, 20) || '') + '...)' : 'missing',
+    'Authorization': c.req.header('Authorization') ? 'present' : 'missing',
+    'apikey': c.req.header('apikey') ? 'present' : 'missing'
+  });
+  await next();
+});
+app.route('/rendizy-server/auth', authApp);
 
 // ============================================================================
 // LOCATIONS ROUTES

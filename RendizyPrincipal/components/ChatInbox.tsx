@@ -558,6 +558,13 @@ export function ChatInbox() {
       // Adicionar novas conversas do WhatsApp
       const updated = [...whatsappChats, ...withoutWhatsApp];
       console.log('✅ Total de conversas após merge:', updated.length);
+      console.log('✅ Primeiras 3 conversas:', updated.slice(0, 3).map(c => ({
+        id: c.id,
+        guest_name: c.guest_name,
+        status: c.status,
+        category: c.category,
+        channel: c.channel
+      })));
       
       return updated;
     });
@@ -923,8 +930,48 @@ export function ChatInbox() {
     const matchesTags = selectedTags.length === 0 || selectedTags.some(tagId => conv.tags?.includes(tagId));
     const matchesProperty = selectedProperties.length === 0 || (conv.property_id && selectedProperties.includes(conv.property_id));
     
-    return matchesSearch && matchesStatus && matchesChannel && matchesTags && matchesProperty;
+    const result = matchesSearch && matchesStatus && matchesChannel && matchesTags && matchesProperty;
+    
+    // ✅ DEBUG: Log quando todas conversas são filtradas
+    if (conversations.length > 0 && !result) {
+      console.log('🔍 [filteredConversations] Conversa filtrada:', {
+        id: conv.id,
+        guest_name: conv.guest_name,
+        status: conv.status,
+        channel: conv.channel,
+        matchesSearch,
+        matchesStatus,
+        matchesChannel,
+        matchesTags,
+        matchesProperty,
+        searchQuery,
+        selectedStatuses,
+        selectedChannels
+      });
+    }
+    
+    return result;
   });
+  
+  // ✅ DEBUG: Log quando todas conversas são filtradas
+  useEffect(() => {
+    if (conversations.length > 0 && filteredConversations.length === 0) {
+      console.warn('⚠️ [filteredConversations] Todas as conversas foram filtradas!', {
+        totalConversations: conversations.length,
+        searchQuery,
+        selectedStatuses,
+        selectedChannels,
+        selectedTags,
+        selectedProperties,
+        firstConversation: conversations[0] ? {
+          id: conversations[0].id,
+          guest_name: conversations[0].guest_name,
+          status: conversations[0].status,
+          channel: conversations[0].channel
+        } : null
+      });
+    }
+  }, [conversations.length, filteredConversations.length, searchQuery, selectedStatuses, selectedChannels, selectedTags, selectedProperties]);
 
   // Separar conversas por categoria e pin
   const pinnedConversations = filteredConversations.filter(c => c.isPinned).sort((a, b) => (a.order || 0) - (b.order || 0));

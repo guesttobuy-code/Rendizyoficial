@@ -213,7 +213,8 @@ app.post('/login', async (c) => {
       }
 
       // Salvar sessão no SQL
-      const { error: sessionError } = await supabase
+      console.log('🔍 [login] Criando sessão com token:', token.substring(0, 30) + '...');
+      const { data: insertedSession, error: sessionError } = await supabase
         .from('sessions')
         .insert({
           token,
@@ -223,13 +224,38 @@ app.post('/login', async (c) => {
           organization_id: user.organization_id || null,
           expires_at: expiresAt.toISOString(),
           last_activity: now.toISOString()
-        });
+        })
+        .select()
+        .single();
 
       if (sessionError) {
-        console.warn('⚠️ Erro ao criar sessão no SQL:', sessionError);
+        console.error('❌ Erro ao criar sessão no SQL:', sessionError);
+        console.error('❌ Detalhes do erro:', {
+          code: sessionError.code,
+          message: sessionError.message,
+          details: sessionError.details,
+          hint: sessionError.hint
+        });
         // Não bloquear login se falhar criar sessão, mas logar para debug
       } else {
         console.log('✅ Sessão criada no SQL com sucesso');
+        console.log('✅ Sessão criada - ID:', insertedSession?.id);
+        console.log('✅ Sessão criada - Token:', insertedSession?.token?.substring(0, 30) + '...');
+        
+        // ✅ VERIFICAÇÃO: Confirmar que a sessão foi realmente criada
+        const { data: verifySession, error: verifyError } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('token', token)
+          .maybeSingle();
+        
+        if (verifyError) {
+          console.error('❌ Erro ao verificar sessão criada:', verifyError);
+        } else if (verifySession) {
+          console.log('✅ Sessão confirmada no banco - ID:', verifySession.id);
+        } else {
+          console.error('❌ Sessão NÃO encontrada após criação!');
+        }
       }
 
       console.log('✅ Login bem-sucedido:', { username, type: user.type });
