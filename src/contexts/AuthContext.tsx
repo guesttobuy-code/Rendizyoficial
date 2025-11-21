@@ -233,45 +233,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('✅ Token salvo no localStorage');
       }
       
-      // ✅ Buscar dados do usuário do backend SQL (fonte da verdade)
-      console.log('🔐 [AuthContext] Buscando dados do usuário do backend SQL...');
-      const meUrl = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/me`;
-      const meResponse = await fetch(meUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // ✅ SOLUÇÃO SIMPLES: Token no header
-        }
-        // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
-      });
-
-      // ✅ ARQUITETURA CORRETA: Ler body apenas UMA vez
-      const meResponseText = await meResponse.text();
-      console.log('🔐 [AuthContext] /auth/me Response status:', meResponse.status, meResponse.statusText);
-      console.log('🔐 [AuthContext] /auth/me Response text (primeiros 500 chars):', meResponseText.substring(0, 500));
-
-      let meData;
-      try {
-        meData = JSON.parse(meResponseText);
-        console.log('🔐 [AuthContext] /auth/me Response data (parsed):', meData);
-      } catch (parseError) {
-        console.error('❌ [AuthContext] Erro ao parsear /auth/me JSON:', parseError);
-        console.error('❌ [AuthContext] Resposta completa:', meResponseText.substring(0, 500));
-        throw new Error(`Erro HTTP ${meResponse.status}: Resposta não é JSON válido - ${meResponseText.substring(0, 200)}`);
+      // ✅ SOLUÇÃO: Usar dados do usuário que já vêm na resposta do login
+      // Não chamar /auth/me para evitar problema de validação JWT do Supabase
+      console.log('✅ [AuthContext] Usando dados do usuário da resposta do login (evita problema JWT)');
+      
+      // ✅ Carregar dados do usuário da resposta do login (já vem completo)
+      const backendUser = data.user || data.data?.user;
+      
+      if (!backendUser) {
+        console.error('❌ [AuthContext] Dados do usuário não encontrados na resposta do login:', data);
+        throw new Error('Dados do usuário não encontrados na resposta do login');
       }
-
-      if (!meResponse.ok) {
-        console.error('❌ [AuthContext] /auth/me falhou - HTTP não OK:', { status: meResponse.status, data: meData });
-        throw new Error(meData?.error || meData?.message || `Erro HTTP ${meResponse.status}: ${meResponse.statusText}`);
-      }
-
-      if (!meData || !meData.success || !meData.user) {
-        console.error('❌ [AuthContext] /auth/me falhou - success=false ou user ausente:', meData);
-        throw new Error(meData?.error || meData?.message || 'Erro ao obter dados do usuário do backend');
-      }
-
-      // ✅ Carregar dados do usuário do backend SQL
-      const backendUser = meData.user;
       const loggedUser: User = {
         id: backendUser.id,
         email: backendUser.email,
