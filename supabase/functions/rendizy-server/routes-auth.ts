@@ -236,26 +236,52 @@ app.post('/login', async (c) => {
           details: sessionError.details,
           hint: sessionError.hint
         });
-        // Não bloquear login se falhar criar sessão, mas logar para debug
-      } else {
-        console.log('✅ Sessão criada no SQL com sucesso');
-        console.log('✅ Sessão criada - ID:', insertedSession?.id);
-        console.log('✅ Sessão criada - Token:', insertedSession?.token?.substring(0, 30) + '...');
+        // ❌ BLOQUEAR LOGIN se falhar criar sessão - sessão é crítica
+        return c.json({
+          success: false,
+          error: 'Erro ao criar sessão. Tente novamente.',
+          details: sessionError.message
+        }, 500);
+      }
+      
+      console.log('✅ Sessão criada no SQL com sucesso');
+      console.log('✅ Sessão criada - ID:', insertedSession?.id);
+      console.log('✅ Sessão criada - Token:', insertedSession?.token?.substring(0, 30) + '...');
+      
+      // ✅ VERIFICAÇÃO CRÍTICA: Confirmar que a sessão foi realmente criada e está acessível
+      let verifyAttempts = 0;
+      let verifySession = null;
+      while (verifyAttempts < 5 && !verifySession) {
+        await new Promise(resolve => setTimeout(resolve, 200)); // Aguardar 200ms entre tentativas
         
-        // ✅ VERIFICAÇÃO: Confirmar que a sessão foi realmente criada
-        const { data: verifySession, error: verifyError } = await supabase
+        const { data: session, error: verifyError } = await supabase
           .from('sessions')
           .select('*')
           .eq('token', token)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
         
         if (verifyError) {
-          console.error('❌ Erro ao verificar sessão criada:', verifyError);
-        } else if (verifySession) {
+          console.error(`❌ Erro ao verificar sessão criada (tentativa ${verifyAttempts + 1}):`, verifyError);
+        } else if (session) {
+          verifySession = session;
           console.log('✅ Sessão confirmada no banco - ID:', verifySession.id);
+          console.log('✅ Token confirmado:', verifySession.token?.substring(0, 30) + '...');
+          break;
         } else {
-          console.error('❌ Sessão NÃO encontrada após criação!');
+          console.warn(`⚠️ Sessão não encontrada (tentativa ${verifyAttempts + 1}/5)`);
         }
+        verifyAttempts++;
+      }
+      
+      if (!verifySession) {
+        console.error('❌ CRÍTICO: Sessão NÃO encontrada após 5 tentativas!');
+        return c.json({
+          success: false,
+          error: 'Erro ao confirmar sessão. Tente novamente.',
+          details: 'Sessão criada mas não encontrada no banco'
+        }, 500);
       }
 
       console.log('✅ Login bem-sucedido:', { username, type: user.type });

@@ -39,26 +39,74 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
   try {
     // ✅ ARQUITETURA SQL: Buscar sessão da tabela sessions do SQL
     console.log(`🔍 [getSessionFromToken] Buscando sessão na tabela SQL com token: ${token.substring(0, 20)}...`);
+    console.log(`🔍 [getSessionFromToken] Token completo (primeiros 50 chars): ${token.substring(0, 50)}...`);
+    console.log(`🔍 [getSessionFromToken] Token length: ${token.length}`);
+    
     const client = getSupabaseClient();
     
-    // ✅ IMPORTANTE: SERVICE_ROLE_KEY não valida JWT - query direta na tabela
-    const { data: sessionRow, error: sessionError } = await client
+    // ✅ DEBUG: Verificar se há alguma sessão na tabela (para debug)
+    const { data: allSessions, error: debugError } = await client
       .from('sessions')
-      .select('*')
-      .eq('token', token)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .select('token, created_at, expires_at')
+      .limit(5)
+      .order('created_at', { ascending: false });
+    
+    if (!debugError && allSessions) {
+      console.log(`🔍 [getSessionFromToken] Total de sessões no banco: ${allSessions.length}`);
+      console.log(`🔍 [getSessionFromToken] Últimas sessões (tokens):`, allSessions.map(s => ({
+        token: s.token?.substring(0, 30) + '...',
+        created: s.created_at,
+        expires: s.expires_at
+      })));
+    }
+    
+    // ✅ IMPORTANTE: SERVICE_ROLE_KEY não valida JWT - query direta na tabela
+    // ✅ TENTATIVAS MÚLTIPLAS: Tentar buscar sessão até 3 vezes (pode haver delay de replicação)
+    let sessionRow = null;
+    let sessionError = null;
+    let attempts = 0;
+    
+    while (attempts < 3 && !sessionRow) {
+      const result = await client
+        .from('sessions')
+        .select('*')
+        .eq('token', token)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      sessionRow = result.data;
+      sessionError = result.error;
+      
+      if (sessionRow) {
+        console.log(`✅ [getSessionFromToken] Sessão encontrada na tentativa ${attempts + 1}`);
+        break;
+      }
+      
+      if (sessionError) {
+        console.error(`❌ [getSessionFromToken] Erro na tentativa ${attempts + 1}:`, sessionError);
+        break; // Se há erro, não adianta tentar novamente
+      }
+      
+      if (attempts < 2) {
+        console.warn(`⚠️ [getSessionFromToken] Sessão não encontrada, tentando novamente... (${attempts + 1}/3)`);
+        await new Promise(resolve => setTimeout(resolve, 300)); // Aguardar 300ms
+      }
+      
+      attempts++;
+    }
 
     console.log(`🔍 [getSessionFromToken] Query result:`, {
       hasSession: !!sessionRow,
       hasError: !!sessionError,
       errorCode: sessionError?.code,
-      errorMessage: sessionError?.message
+      errorMessage: sessionError?.message,
+      attempts: attempts + 1
     });
 
     if (sessionError || !sessionRow) {
       console.log('⚠️ [getSessionFromToken] Sessão não encontrada na tabela SQL');
+      console.log('⚠️ [getSessionFromToken] Token usado na busca:', token.substring(0, 50) + '...');
       
       // ✅ Se erro for "Invalid JWT", pode ser que Supabase esteja validando automaticamente
       if (sessionError?.message?.includes('JWT') || sessionError?.message?.includes('jwt') || sessionError?.code === 'PGRST301') {

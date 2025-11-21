@@ -898,13 +898,13 @@ export function ChatInbox() {
   const filteredConversations = conversations.filter(conv => {
     // Enhanced search: includes guest name, reservation code, property name, email, phone, and message content
     const searchLower = searchQuery.toLowerCase();
-    const lastMessageText = normalizeMessageText(conv.last_message).toLowerCase();
+    const lastMessageText = normalizeMessageText(conv.last_message || '').toLowerCase();
     const matchesSearch = searchQuery === '' || (
-      conv.guest_name.toLowerCase().includes(searchLower) ||
-      conv.reservation_code.toLowerCase().includes(searchLower) ||
-      conv.property_name.toLowerCase().includes(searchLower) ||
-      conv.guest_email.toLowerCase().includes(searchLower) ||
-      conv.guest_phone.includes(searchQuery) ||
+      (conv.guest_name || '').toLowerCase().includes(searchLower) ||
+      (conv.reservation_code || '').toLowerCase().includes(searchLower) ||
+      (conv.property_name || '').toLowerCase().includes(searchLower) ||
+      (conv.guest_email || '').toLowerCase().includes(searchLower) ||
+      (conv.guest_phone || '').includes(searchQuery) ||
       lastMessageText.includes(searchLower) ||
       conv.messages?.some(msg => {
         if (!msg) return false;
@@ -932,8 +932,8 @@ export function ChatInbox() {
     
     const result = matchesSearch && matchesStatus && matchesChannel && matchesTags && matchesProperty;
     
-    // ✅ DEBUG: Log quando todas conversas são filtradas
-    if (conversations.length > 0 && !result) {
+    // ✅ DEBUG: Log quando conversas são filtradas (apenas primeiras 3 para não poluir)
+    if (conversations.length > 0 && !result && conversations.indexOf(conv) < 3) {
       console.log('🔍 [filteredConversations] Conversa filtrada:', {
         id: conv.id,
         guest_name: conv.guest_name,
@@ -952,6 +952,27 @@ export function ChatInbox() {
     
     return result;
   });
+  
+  // ✅ DEBUG: Log resumo do filtro
+  useEffect(() => {
+    if (conversations.length > 0) {
+      console.log('📊 [filteredConversations] Resumo do filtro:', {
+        totalConversations: conversations.length,
+        filteredConversations: filteredConversations.length,
+        searchQuery,
+        selectedStatuses,
+        selectedChannels,
+        selectedTags,
+        selectedProperties,
+        firstConversation: conversations[0] ? {
+          id: conversations[0].id,
+          guest_name: conversations[0].guest_name,
+          status: conversations[0].status,
+          channel: conversations[0].channel
+        } : null
+      });
+    }
+  }, [conversations.length, filteredConversations.length, searchQuery, selectedStatuses, selectedChannels, selectedTags, selectedProperties]);
   
   // ✅ DEBUG: Log quando todas conversas são filtradas
   useEffect(() => {
