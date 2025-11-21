@@ -842,17 +842,38 @@ export function ChatInbox() {
     });
   };
 
+  const normalizeMessageText = (message: any): string => {
+    if (!message) return '';
+    if (typeof message === 'string') return message;
+    if (typeof message === 'object') {
+      return (
+        message.message ||
+        message.conversation ||
+        message.text ||
+        message.body ||
+        message.extendedTextMessage?.text ||
+        ''
+      );
+    }
+    return String(message);
+  };
+
   const filteredConversations = conversations.filter(conv => {
     // Enhanced search: includes guest name, reservation code, property name, email, phone, and message content
     const searchLower = searchQuery.toLowerCase();
+    const lastMessageText = normalizeMessageText(conv.last_message).toLowerCase();
     const matchesSearch = searchQuery === '' || (
       conv.guest_name.toLowerCase().includes(searchLower) ||
       conv.reservation_code.toLowerCase().includes(searchLower) ||
       conv.property_name.toLowerCase().includes(searchLower) ||
       conv.guest_email.toLowerCase().includes(searchLower) ||
       conv.guest_phone.includes(searchQuery) ||
-      conv.last_message.toLowerCase().includes(searchLower) ||
-      conv.messages?.some(msg => msg.content.toLowerCase().includes(searchLower))
+      lastMessageText.includes(searchLower) ||
+      conv.messages?.some(msg => {
+        if (!msg) return false;
+        const messageContent = normalizeMessageText(msg.content ?? msg);
+        return messageContent.toLowerCase().includes(searchLower);
+      })
     );
     
     // Status filter - handle 'active' as a special case (unread + read, not resolved)
@@ -1298,7 +1319,7 @@ export function ChatInbox() {
   const activeCount = conversations.filter(c => c.status !== 'resolved').length;
 
   return (
-    <div className="flex h-full bg-white dark:bg-[#1a1f2e]">
+    <div className="flex h-full min-h-0 bg-white dark:bg-[#1a1f2e]">
       {/* Sidebar de Filtros - Novo Componente Padrão */}
       {!isSidebarCollapsed && (
         <ChatFilterSidebar
@@ -1339,7 +1360,7 @@ export function ChatInbox() {
       )}
 
       {/* Lista de Conversas */}
-      <div className="w-96 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+      <div className="w-96 min-w-[320px] max-w-[420px] border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 min-h-0">
         {/* WhatsApp Integration - Carregamento automático invisível */}
         <WhatsAppChatsImporter 
           onChatsLoaded={handleWhatsAppChatsLoaded}
@@ -1451,7 +1472,7 @@ export function ChatInbox() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           {/* Loading State */}
           {isLoading && (
             <div className="flex items-center justify-center py-12">
@@ -1616,7 +1637,7 @@ export function ChatInbox() {
       </div>
 
       {/* Thread de Mensagens */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {selectedConversation ? (
           <>
             {/* Header do Chat */}
@@ -1803,13 +1824,16 @@ export function ChatInbox() {
                   </div>
                 )}
                 {messages.map((message) => {
+                  const messageText = getMessageContent(message);
+                  const senderType = message.sender_type || (message.from_me ? 'staff' : 'guest');
+                  const messageKey = message.id || message.key || `${message.messageTimestamp}-${Math.random()}`;
                   // Check if it's an internal note (system type)
-                  const isInternalNote = message.sender_type === 'system';
+                  const isInternalNote = senderType === 'system';
                   
                   if (isInternalNote) {
                     // Render internal note differently
                     return (
-                      <div key={message.id} className="flex justify-center">
+                      <div key={messageKey} className="flex justify-center">
                         <div className="max-w-[80%] bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
                           <div className="flex items-center gap-2 mb-1">
                             <StickyNote className="h-3 w-3 text-yellow-600 dark:text-yellow-400" />
@@ -1818,12 +1842,12 @@ export function ChatInbox() {
                             </span>
                           </div>
                           <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                            {message.content}
+                            {messageText || '[Nota interna sem conteúdo]'}
                           </p>
                           <div className="flex items-center gap-1 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            <span>{message.sender_name}</span>
+                            <span>{message.sender_name || 'Sistema'}</span>
                             <span>•</span>
-                            <span>{formatTime(message.sent_at)}</span>
+                            <span>{formatTime(message.sent_at ? new Date(message.sent_at) : undefined)}</span>
                           </div>
                         </div>
                       </div>
@@ -1833,22 +1857,24 @@ export function ChatInbox() {
                   // Regular message
                   return (
                     <div
-                      key={message.id}
-                      className={`flex ${message.sender_type === 'guest' ? 'justify-start' : 'justify-end'}`}
+                      key={messageKey}
+                      className={`flex ${senderType === 'guest' ? 'justify-start' : 'justify-end'}`}
                     >
                       <div
                         className={`max-w-[70%] rounded-lg p-3 ${
-                          message.sender_type === 'guest'
+                          senderType === 'guest'
                             ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
                             : 'bg-[#2563eb] text-white'
                         }`}
                       >
-                        {message.sender_type === 'guest' && (
+                        {senderType === 'guest' && (
                           <div className="text-xs mb-1 opacity-70">
-                            {message.sender_name}
+                            {message.sender_name || message.pushName || 'Convidado'}
                           </div>
                         )}
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        <p className="whitespace-pre-wrap break-words text-sm">
+                          {messageText || '[Mensagem sem texto]'}
+                        </p>
                         
                         {/* Attachments */}
                         {message.attachments && message.attachments.length > 0 && (
@@ -1866,9 +1892,9 @@ export function ChatInbox() {
                         )}
                         
                         <div className={`flex items-center gap-1 mt-1 text-xs ${
-                          message.sender_type === 'staff' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
+                          senderType === 'staff' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
                         }`}>
-                          <span>{formatTime(message.sent_at)}</span>
+                          <span>{formatTime(message.sent_at ? new Date(message.sent_at) : undefined)}</span>
                           {/* 🆕 v1.0.101 - Multi-channel delivery status */}
                           {renderDeliveryStatus(message)}
                         </div>

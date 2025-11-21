@@ -6,7 +6,7 @@ import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
-import { Search, ChevronDown, X, Home, MessageSquare, Tag, Calendar, Circle, Mail, Phone } from 'lucide-react';
+import { Search, ChevronDown, X, Home, MessageSquare, Tag, Calendar, Circle, Mail, Phone, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DateRangePicker } from './DateRangePicker';
 import { ChatTag } from './ChatTagsModal';
 
@@ -43,6 +43,7 @@ export function ChatFilterSidebar({
 }: ChatFilterSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   
   // Collapsible states
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
@@ -101,123 +102,155 @@ export function ChatFilterSidebar({
     (selectedTags.length > 0 ? 1 : 0) +
     (searchQuery !== '' ? 1 : 0);
 
+  const toggleSidebar = () => {
+    setIsCollapsed(prev => !prev);
+  };
+
   return (
-    <div className="border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex flex-col h-full">
-      <h2 className="text-gray-900 dark:text-white mb-3">Filtros</h2>
-      
-      {/* Filter toggle */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setShowFilters(!showFilters)}
-        className="w-full justify-between"
-      >
-        <span className="flex items-center gap-2">
-          Filtros Avançados
-          {activeFiltersCount > 0 && (
-            <span className="bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+    <div
+      className={`border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col h-full transition-all duration-300 ${
+        isCollapsed ? 'px-2 py-4 items-center' : 'p-4'
+      }`}
+      style={{ width: isCollapsed ? '56px' : undefined, minWidth: isCollapsed ? '56px' : '280px' }}
+    >
+      <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} mb-3 gap-2`}>
+        {!isCollapsed && <h2 className="text-gray-900 dark:text-white">Filtros</h2>}
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label={isCollapsed ? 'Expandir filtros' : 'Recolher filtros'}
+          className="relative flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+        >
+          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {isCollapsed && activeFiltersCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] leading-none px-1 py-0.5 rounded-full">
               {activeFiltersCount}
             </span>
           )}
-        </span>
-        {showFilters ? <ChevronDown className="h-4 w-4 rotate-180" /> : <ChevronDown className="h-4 w-4" />}
-      </Button>
+        </button>
+      </div>
 
-      {/* Filters - Área Scrollável */}
-      {showFilters && (
-        <div className="mt-3 space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 400px)' }}>
-          
-          {/* Propriedades - Collapsible */}
-          <Collapsible open={isPropertiesOpen} onOpenChange={setIsPropertiesOpen}>
-            <div className="border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900">
-              <CollapsibleTrigger asChild>
-                <button className="w-full p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <div className="flex-1 text-left">
-                    <Label className="text-xs text-gray-600 dark:text-gray-400 block mb-1 cursor-pointer">
-                      <span className="flex items-center gap-2">
-                        <Home className="h-3.5 w-3.5" />
-                        Propriedades
-                      </span>
-                    </Label>
-                    
-                    {/* Preview quando fechado */}
-                    {!isPropertiesOpen && (selectedProperties.length > 0 && selectedProperties.length < safeProperties.length) && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedPropertiesData.slice(0, 3).map(prop => (
-                          <Badge 
-                            key={prop.id} 
-                            variant="secondary" 
-                            className="text-[10px] px-1.5 py-0 flex items-center gap-1"
-                          >
-                            {(prop.name || 'Sem nome').length > 12 ? (prop.name || 'Sem nome').substring(0, 12) + '...' : (prop.name || 'Sem nome')}
-                            <X 
-                              className="h-2.5 w-2.5 cursor-pointer hover:text-red-600" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onToggleProperty(prop.id);
-                              }}
-                            />
-                          </Badge>
-                        ))}
-                        {selectedPropertiesData.length > 3 && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                            +{selectedPropertiesData.length - 3}
-                          </Badge>
+      {isCollapsed ? (
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-[10px] text-gray-500 dark:text-gray-400 -rotate-90 whitespace-nowrap">
+            Filtros
+          </span>
+        </div>
+      ) : (
+        <React.Fragment>
+          {/* Filter toggle */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="w-full justify-between"
+          >
+            <span className="flex items-center gap-2">
+              Filtros Avançados
+              {activeFiltersCount > 0 && (
+                <span className="bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </span>
+            {showFilters ? <ChevronDown className="h-4 w-4 rotate-180" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+
+          {/* Filters - Área Scrollável */}
+          {showFilters && (
+            <div className="mt-3 space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 400px)' }}>
+              
+              {/* Propriedades - Collapsible */}
+              <Collapsible open={isPropertiesOpen} onOpenChange={setIsPropertiesOpen}>
+                <div className="border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900">
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <div className="flex-1 text-left">
+                        <Label className="text-xs text-gray-600 dark:text-gray-400 block mb-1 cursor-pointer">
+                          <span className="flex items-center gap-2">
+                            <Home className="h-3.5 w-3.5" />
+                            Propriedades
+                          </span>
+                        </Label>
+                        
+                        {/* Preview quando fechado */}
+                        {!isPropertiesOpen && (selectedProperties.length > 0 && selectedProperties.length < safeProperties.length) && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {selectedPropertiesData.slice(0, 3).map(prop => (
+                              <Badge 
+                                key={prop.id} 
+                                variant="secondary" 
+                                className="text-[10px] px-1.5 py-0 flex items-center gap-1"
+                              >
+                                {(prop.name || 'Sem nome').length > 12 ? (prop.name || 'Sem nome').substring(0, 12) + '...' : (prop.name || 'Sem nome')}
+                                <X 
+                                  className="h-2.5 w-2.5 cursor-pointer hover:text-red-600" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleProperty(prop.id);
+                                  }}
+                                />
+                              </Badge>
+                            ))}
+                            {selectedPropertiesData.length > 3 && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                +{selectedPropertiesData.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                        {!isPropertiesOpen && selectedProperties.length === safeProperties.length && (
+                          <span className="text-[10px] text-gray-500 dark:text-gray-400">Todas selecionadas</span>
                         )}
                       </div>
-                    )}
-                    {!isPropertiesOpen && selectedProperties.length === safeProperties.length && (
-                      <span className="text-[10px] text-gray-500 dark:text-gray-400">Todas selecionadas</span>
-                    )}
-                  </div>
-                  <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${isPropertiesOpen ? 'rotate-180' : ''}`} />
-                </button>
-              </CollapsibleTrigger>
-              
-              <CollapsibleContent>
-                <div className="px-3 pb-3 pt-0 border-t border-gray-100 dark:border-gray-800">
-                  {/* Busca */}
-                  <div className="relative mb-3 mt-3">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                    <Input
-                      type="text"
-                      placeholder="Buscar propriedades..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-8 h-8 text-xs"
-                    />
-                  </div>
+                      <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${isPropertiesOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent>
+                    <div className="px-3 pb-3 pt-0 border-t border-gray-100 dark:border-gray-800">
+                      {/* Busca */}
+                      <div className="relative mb-3 mt-3">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                        <Input
+                          type="text"
+                          placeholder="Buscar propriedades..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-8 h-8 text-xs"
+                        />
+                      </div>
 
-                  {/* Controles de Seleção */}
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100 dark:border-gray-800">
-                    <span className="text-[10px] text-gray-600 dark:text-gray-400">
-                      {selectedProperties.length} de {filteredProperties.length} selecionadas
-                    </span>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={selectAll}
-                        disabled={filteredProperties.every(p => selectedProperties.includes(p.id))}
-                        className="h-6 px-2 text-[10px]"
-                      >
-                        Todas
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={deselectAll}
-                        disabled={filteredProperties.every(p => !selectedProperties.includes(p.id))}
-                        className="h-6 px-2 text-[10px]"
-                      >
-                        Nenhuma
-                      </Button>
-                    </div>
-                  </div>
+                      {/* Controles de Seleção */}
+                      <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100 dark:border-gray-800">
+                        <span className="text-[10px] text-gray-600 dark:text-gray-400">
+                          {selectedProperties.length} de {filteredProperties.length} selecionadas
+                        </span>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={selectAll}
+                            disabled={filteredProperties.every(p => selectedProperties.includes(p.id))}
+                            className="h-6 px-2 text-[10px]"
+                          >
+                            Todas
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={deselectAll}
+                            disabled={filteredProperties.every(p => !selectedProperties.includes(p.id))}
+                            className="h-6 px-2 text-[10px]"
+                          >
+                            Nenhuma
+                          </Button>
+                        </div>
+                      </div>
 
-                  {/* Lista de Propriedades */}
-                  <div className="max-h-[250px] overflow-y-auto space-y-1.5">
-                    {filteredProperties.length === 0 ? (
+                      {/* Lista de Propriedades */}
+                      <div className="max-h-[250px] overflow-y-auto space-y-1.5">
+                        {filteredProperties.length === 0 ? (
                       <div className="py-6 text-center text-gray-400 dark:text-gray-500 text-[10px]">
                         Nenhuma propriedade encontrada
                       </div>
@@ -549,6 +582,8 @@ export function ChatFilterSidebar({
             </Button>
           )}
         </div>
+        )}
+        </React.Fragment>
       )}
     </div>
   );
