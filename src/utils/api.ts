@@ -214,16 +214,23 @@ async function apiRequest<T>(
     const url = `${API_BASE_URL}${endpoint}`;
     
     // ✅ CORREÇÃO: Usar token do usuário do localStorage ao invés de publicAnonKey
+    // ✅ SOLUÇÃO: Usar header customizado X-Auth-Token para evitar validação JWT automática do Supabase
     const userToken = localStorage.getItem('rendizy-token');
-    const authHeader = userToken ? `Bearer ${userToken}` : `Bearer ${publicAnonKey}`;
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase Edge Functions
+      ...options.headers,
+    };
+    
+    // ✅ Adicionar token customizado em header separado para evitar validação JWT automática
+    if (userToken) {
+      headers['X-Auth-Token'] = userToken;
+    }
     
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-        ...options.headers,
-      }
+      headers,
       // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
     });
 

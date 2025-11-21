@@ -40,7 +40,13 @@ function parseCookies(cookieHeader: string): Record<string, string> {
  * @returns Token de autenticação ou undefined
  */
 function extractTokenFromContext(c: Context): string | undefined {
-  // ✅ PRIORIDADE 1: Tentar obter do cookie (nova forma)
+  // ✅ PRIORIDADE 1: Tentar obter do header customizado X-Auth-Token (evita validação JWT automática)
+  const customToken = c.req.header('X-Auth-Token');
+  if (customToken) {
+    return customToken;
+  }
+  
+  // ✅ PRIORIDADE 2: Tentar obter do cookie (nova forma)
   const cookieHeader = c.req.header('Cookie') || '';
   const cookies = parseCookies(cookieHeader);
   const tokenFromCookie = cookies['rendizy-token'];
@@ -49,7 +55,7 @@ function extractTokenFromContext(c: Context): string | undefined {
     return tokenFromCookie;
   }
   
-  // ✅ PRIORIDADE 2: Fallback para header Authorization (compatibilidade durante migração)
+  // ✅ PRIORIDADE 3: Fallback para header Authorization (compatibilidade durante migração)
   const authHeader = c.req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return undefined;

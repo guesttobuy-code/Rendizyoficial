@@ -324,8 +324,12 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 // ✅ SOLUÇÃO SIMPLES - Token do header Authorization (como estava funcionando ontem)
 app.get('/me', async (c) => {
   try {
-    // ✅ SOLUÇÃO SIMPLES - Token do header Authorization
-    const token = c.req.header('Authorization')?.split(' ')[1];
+    // ✅ SOLUÇÃO: Token do header customizado X-Auth-Token (evita validação JWT automática)
+    // Fallback para Authorization para compatibilidade
+    let token = c.req.header('X-Auth-Token');
+    if (!token) {
+      token = c.req.header('Authorization')?.split(' ')[1];
+    }
 
     if (!token) {
       return c.json({

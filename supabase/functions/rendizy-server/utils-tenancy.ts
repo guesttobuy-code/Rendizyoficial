@@ -39,11 +39,17 @@ export interface TenantContext {
  */
 export async function tenancyMiddleware(c: Context, next: Next) {
   try {
-    // 1. Extrair token do header Authorization
-    const authHeader = c.req.header('Authorization');
-    const token = authHeader?.startsWith('Bearer ')
-      ? authHeader.split(' ')[1]
-      : undefined;
+    // 1. Extrair token do header customizado X-Auth-Token (evita validação JWT automática do Supabase)
+    // Fallback para Authorization para compatibilidade
+    let token = c.req.header('X-Auth-Token');
+    
+    if (!token) {
+      // Fallback: tentar do header Authorization
+      const authHeader = c.req.header('Authorization');
+      token = authHeader?.startsWith('Bearer ')
+        ? authHeader.split(' ')[1]
+        : undefined;
+    }
 
     if (!token) {
       console.log('⚠️ [tenancyMiddleware] Token ausente');
