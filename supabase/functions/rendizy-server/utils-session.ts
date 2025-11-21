@@ -2,13 +2,13 @@
  * UTILS - Session Helpers
  * 
  * Helpers para gerenciamento de sessões de autenticação
- * ✅ ARQUITETURA SQL v1.0.103.950 - Busca sessões da tabela sessions do SQL
+ * ✅ ARQUITETURA SQL v1.0.103.951 - Busca e remove sessões da tabela sessions do SQL
  * 
- * @version 1.0.103.950
- * @updated 2025-11-20 - Migrado para tabela sessions do SQL
+ * @version 1.0.103.951
+ * @updated 2025-11-20 - Migrado para tabela sessions do SQL (getSessionFromToken e removeSession)
  */
 
-import { getSupabaseClient, del as kvDel } from './kv_store.tsx';
+import { getSupabaseClient } from './kv_store.tsx';
 
 /**
  * Interface Session (compatível com routes-auth.ts)
@@ -22,6 +22,21 @@ export interface Session {
   createdAt: string;
   expiresAt: string;
   lastActivity: string;
+}
+
+/**
+ * Interface SessionRow - Estrutura da sessão no banco SQL
+ */
+interface SessionRow {
+  id: string;
+  token: string;
+  user_id: string;
+  username: string;
+  type: string;
+  organization_id: string | null;
+  created_at: string;
+  expires_at: string;
+  last_activity: string | null;
 }
 
 /**
@@ -62,8 +77,8 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
     
     // ✅ IMPORTANTE: SERVICE_ROLE_KEY não valida JWT - query direta na tabela
     // ✅ TENTATIVAS MÚLTIPLAS: Tentar buscar sessão até 3 vezes (pode haver delay de replicação)
-    let sessionRow = null;
-    let sessionError = null;
+    let sessionRow: SessionRow | null = null;
+    let sessionError: { code?: string; message?: string } | null = null;
     let attempts = 0;
     
     while (attempts < 3 && !sessionRow) {
@@ -188,7 +203,8 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
 }
 
 /**
- * Remove sessão do KV Store (logout)
+ * Remove sessão do SQL (logout)
+ * ✅ ARQUITETURA SQL v1.0.103.950 - Remove sessão da tabela sessions do SQL
  * 
  * @param token - Token de autenticação
  * @returns Promise<boolean> - true se removida com sucesso
@@ -199,8 +215,21 @@ export async function removeSession(token: string | undefined): Promise<boolean>
   }
 
   try {
-    await kvDel(`session:${token}`);
-    console.log('✅ [removeSession] Sessão removida com sucesso');
+    // ✅ ARQUITETURA SQL: Remover sessão da tabela sessions do SQL
+    console.log(`🔍 [removeSession] Removendo sessão do SQL com token: ${token.substring(0, 20)}...`);
+    
+    const client = getSupabaseClient();
+    const { error } = await client
+      .from('sessions')
+      .delete()
+      .eq('token', token);
+
+    if (error) {
+      console.error('❌ [removeSession] Erro ao remover sessão do SQL:', error);
+      return false;
+    }
+
+    console.log('✅ [removeSession] Sessão removida do SQL com sucesso');
     return true;
   } catch (error) {
     console.error('❌ [removeSession] Erro ao remover sessão:', error);
