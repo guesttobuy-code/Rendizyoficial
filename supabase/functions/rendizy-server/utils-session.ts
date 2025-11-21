@@ -76,6 +76,36 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
       return null;
     }
 
+    // ✅ SLIDING EXPIRATION: Atualizar last_activity e estender expires_at se usuário está ativo
+    const INACTIVITY_THRESHOLD = 7 * 24 * 60 * 60 * 1000; // 7 dias de inatividade
+    const lastActivity = new Date(sessionRow.last_activity || sessionRow.created_at);
+    const timeSinceLastActivity = now.getTime() - lastActivity.getTime();
+    
+    // Se usuário está ativo (última atividade há menos de 7 dias), estender sessão
+    if (timeSinceLastActivity < INACTIVITY_THRESHOLD) {
+      const newExpiresAt = new Date(now.getTime() + INACTIVITY_THRESHOLD);
+      
+      // Atualizar last_activity e expires_at no banco (silenciosamente, não bloquear se falhar)
+      client
+        .from('sessions')
+        .update({
+          last_activity: now.toISOString(),
+          expires_at: newExpiresAt.toISOString(),
+          updated_at: now.toISOString()
+        })
+        .eq('token', token)
+        .then(({ error }) => {
+          if (error) {
+            console.warn('⚠️ [getSessionFromToken] Erro ao atualizar sessão (não crítico):', error);
+          } else {
+            console.log('✅ [getSessionFromToken] Sessão estendida automaticamente');
+          }
+        })
+        .catch(err => {
+          console.warn('⚠️ [getSessionFromToken] Erro ao atualizar sessão (não crítico):', err);
+        });
+    }
+
     // ✅ Buscar dados do usuário para montar Session
     const { data: user, error: userError } = await client
       .from('users')
@@ -88,7 +118,7 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
       return null;
     }
 
-    // ✅ Montar Session compatível com interface
+    // ✅ Montar Session compatível com interface (usar valores atualizados se foram atualizados)
     const session: Session = {
       id: sessionRow.id,
       userId: sessionRow.user_id,
@@ -96,8 +126,10 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
       type: user.type === 'superadmin' ? 'superadmin' : 'imobiliaria',
       imobiliariaId: user.organization_id || undefined,
       createdAt: sessionRow.created_at,
-      expiresAt: sessionRow.expires_at,
-      lastActivity: sessionRow.updated_at || sessionRow.created_at
+      expiresAt: timeSinceLastActivity < INACTIVITY_THRESHOLD 
+        ? new Date(now.getTime() + INACTIVITY_THRESHOLD).toISOString()
+        : sessionRow.expires_at,
+      lastActivity: now.toISOString()
     };
 
     console.log(`✅ [getSessionFromToken] Sessão válida encontrada no SQL: ${session.username}`);

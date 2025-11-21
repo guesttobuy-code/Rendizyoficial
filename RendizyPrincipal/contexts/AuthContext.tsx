@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ✅ ARQUITETURA SQL v1.0.103.950 - SEMPRE valida token no backend SQL
   // NÃO usa localStorage como fonte de verdade - sempre busca do banco
   useEffect(() => {
-    const loadUser = async () => {
+    const loadUser = async (retries = 3) => {
       try {
         // ✅ SOLUÇÃO SIMPLES: Token no header Authorization (não cookie)
         console.log('🔐 [AuthContext] Verificando sessão via token no header...');
@@ -80,6 +80,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (parseError) {
           console.error('❌ [AuthContext] Erro ao parsear resposta:', parseError);
           console.error('❌ [AuthContext] Resposta:', responseText.substring(0, 200));
+          
+          // ✅ RETRY: Se erro de parse e ainda há retries, tentar novamente
+          if (retries > 0) {
+            console.warn(`⚠️ [AuthContext] Erro ao parsear JSON, tentando novamente... (${retries} tentativas restantes)`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            return loadUser(retries - 1);
+          }
+          
           // ✅ Se já temos usuário no estado, manter (pode ser problema temporário de rede)
           if (!user) {
             setUser(null);
@@ -90,6 +98,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // ✅ Verificar se sessão é válida
         if (!response.ok || !data || !data.success) {
+          // ✅ RETRY: Se erro 401 e ainda há retries, tentar novamente (pode ser erro transitório)
+          if (response.status === 401 && retries > 0) {
+            console.warn(`⚠️ [AuthContext] Erro 401, tentando novamente... (${retries} tentativas restantes)`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            return loadUser(retries - 1);
+          }
+          
           console.log('❌ [AuthContext] Sessão inválida ou expirada:', data?.error);
           // ✅ Limpar token inválido
           localStorage.removeItem('rendizy-token');

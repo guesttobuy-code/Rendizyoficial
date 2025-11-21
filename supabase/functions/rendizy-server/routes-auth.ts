@@ -197,7 +197,20 @@ app.post('/login', async (c) => {
 
       // ✅ ARQUITETURA SQL: Gerar token e criar sessão no SQL
       const token = generateToken();
-      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 horas
+      const INACTIVITY_THRESHOLD = 7 * 24 * 60 * 60 * 1000; // 7 dias de inatividade
+      const expiresAt = new Date(now.getTime() + INACTIVITY_THRESHOLD);
+
+      // ✅ LIMPEZA: Remover sessões antigas do mesmo usuário antes de criar nova
+      const { error: cleanupError } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('user_id', user.id);
+      
+      if (cleanupError) {
+        console.warn('⚠️ Erro ao limpar sessões antigas (não crítico):', cleanupError);
+      } else {
+        console.log('✅ Sessões antigas do usuário removidas');
+      }
 
       // Salvar sessão no SQL
       const { error: sessionError } = await supabase
