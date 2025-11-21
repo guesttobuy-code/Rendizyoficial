@@ -137,7 +137,7 @@ export function ChatFilterSidebar({
           </span>
         </div>
       ) : (
-        <>
+        <React.Fragment>
           {/* Filter toggle */}
           <Button
             variant="outline"
@@ -582,6 +582,8 @@ export function ChatFilterSidebar({
             </Button>
           )}
         </div>
+        )}
+        </React.Fragment>
       )}
     </div>
   );
