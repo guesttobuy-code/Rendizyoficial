@@ -294,11 +294,17 @@ export function ChatInbox() {
   const organizationId = 'org-demo-001';
   
   // Loading states
-  const [isLoading, setIsLoading] = useState(true);
+  // ✅ SOLUÇÃO SUSTENTÁVEL: Separar loading do backend do loading geral
+  const [isLoadingBackend, setIsLoadingBackend] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // Loading inicial apenas
   const [isSending, setIsSending] = useState(false);
   
   // Data states
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  // ✅ SOLUÇÃO SUSTENTÁVEL: Separar conversas do backend SQL das conversas do WhatsApp
+  const [backendConversations, setBackendConversations] = useState<Conversation[]>([]);
+  const [whatsappConversations, setWhatsappConversations] = useState<Conversation[]>([]);
+  // Computed: combinar ambas as fontes
+  const conversations = [...whatsappConversations, ...backendConversations];
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageContent, setMessageContent] = useState('');
@@ -403,20 +409,100 @@ export function ChatInbox() {
   const [properties, setProperties] = useState<Property[]>([]);
 
   // ============================================
+  // HELPER: Atualizar conversas de forma unificada
+  // ============================================
+  /**
+   * ✅ SOLUÇÃO SUSTENTÁVEL: Helper para atualizar conversas
+   * Atualiza automaticamente a lista correta (WhatsApp ou Backend) baseado no ID
+   */
+  const updateConversation = (conversationId: string, updater: (conv: Conversation) => Conversation) => {
+    if (conversationId.startsWith('wa-')) {
+      // Atualizar conversa do WhatsApp
+      setWhatsappConversations(prev => prev.map(conv => 
+        conv.id === conversationId ? updater(conv) : conv
+      ));
+    } else {
+      // Atualizar conversa do backend
+      setBackendConversations(prev => prev.map(conv => 
+        conv.id === conversationId ? updater(conv) : conv
+      ));
+    }
+  };
+
+  /**
+   * ✅ SOLUÇÃO SUSTENTÁVEL: Helper para atualizar múltiplas conversas
+   */
+  const updateConversations = (updater: (convs: Conversation[]) => Conversation[]) => {
+    const allConvs = [...whatsappConversations, ...backendConversations];
+    const updated = updater(allConvs);
+    
+    // Separar novamente
+    const updatedWhatsApp = updated.filter(c => c.id.startsWith('wa-'));
+    const updatedBackend = updated.filter(c => !c.id.startsWith('wa-'));
+    
+    setWhatsappConversations(updatedWhatsApp);
+    setBackendConversations(updatedBackend);
+  };
+
+  // ============================================
   // API INTEGRATION - Load conversations
   // ============================================
   useEffect(() => {
-    loadConversations();
-    loadProperties();
-    loadTemplates(); // ✅ Carregar templates do backend
+    // ✅ SOLUÇÃO SUSTENTÁVEL: Carregar inicialmente apenas uma vez
+    const initialLoad = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([
+          loadBackendConversations(),
+          loadProperties(),
+          loadTemplates()
+        ]);
+      } catch (error) {
+        console.error('❌ Erro no carregamento inicial:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    // ✅ REQUISITO 2: Atualização automática de conversas (polling a cada 30 segundos)
-    const interval = setInterval(() => {
-      console.log('🔄 [ChatInbox] Atualizando conversas automaticamente...');
-      loadConversations();
-    }, 30000); // 30 segundos
-
-    return () => clearInterval(interval);
+    initialLoad();
+    
+    // ✅ SOLUÇÃO SUSTENTÁVEL: Atualização automática com retry e backoff
+    // Usa loading separado para não afetar UI
+    let retryCount = 0;
+    const maxRetries = 3;
+    const baseInterval = 30000; // 30 segundos
+    
+    const scheduleNextUpdate = () => {
+      const backoffDelay = Math.min(baseInterval * Math.pow(2, retryCount), 300000); // Max 5 minutos
+      setTimeout(() => {
+        console.log(`🔄 [ChatInbox] Atualizando conversas do backend (tentativa ${retryCount + 1}/${maxRetries})...`);
+        setIsLoadingBackend(true);
+        loadBackendConversations().then(() => {
+          retryCount = 0; // Reset retry count on success
+          setIsLoadingBackend(false);
+          scheduleNextUpdate();
+        }).catch(() => {
+          retryCount++;
+          setIsLoadingBackend(false);
+          if (retryCount < maxRetries) {
+            console.warn(`⚠️ [ChatInbox] Erro ao atualizar, tentando novamente em ${backoffDelay}ms...`);
+            scheduleNextUpdate();
+          } else {
+            console.error('❌ [ChatInbox] Máximo de tentativas atingido, aguardando próximo ciclo...');
+            retryCount = 0; // Reset para próxima tentativa
+            // Agendar próxima tentativa após intervalo normal
+            setTimeout(scheduleNextUpdate, baseInterval);
+          }
+        });
+      }, backoffDelay);
+    };
+    
+    // Iniciar ciclo de atualização após carregamento inicial
+    const updateTimer = setTimeout(scheduleNextUpdate, baseInterval);
+    
+    return () => {
+      clearTimeout(updateTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -449,11 +535,15 @@ export function ChatInbox() {
     }
   };
 
-  const loadConversations = async () => {
-    setIsLoading(true);
+  /**
+   * ✅ SOLUÇÃO SUSTENTÁVEL: Carregar apenas conversas do backend SQL
+   * Não afeta conversas do WhatsApp que são gerenciadas separadamente
+   * Retorna Promise para permitir retry logic
+   */
+  const loadBackendConversations = async (): Promise<void> => {
     try {
       const result = await conversationsApi.list(organizationId);
-      if (result.success && result.data) {
+      if (result.success && result.data && Array.isArray(result.data)) {
         // Convert API data to component format
         const formattedConversations = result.data.map((conv: ApiConversation) => ({
           ...conv,
@@ -465,33 +555,33 @@ export function ChatInbox() {
         }));
         
         // ✅ REQUISITO 2: Garantir ordenação correta (mais recente primeiro)
-        // Ordenar por last_message_at em ordem decrescente (mais recente primeiro)
         formattedConversations.sort((a, b) => {
           const timeA = a.last_message_at?.getTime() || 0;
           const timeB = b.last_message_at?.getTime() || 0;
           return timeB - timeA; // Ordem decrescente (mais recente primeiro)
         });
         
-        setConversations(formattedConversations);
+        // ✅ SOLUÇÃO SUSTENTÁVEL: Atualizar apenas conversas do backend
+        // Conversas do WhatsApp são preservadas automaticamente
+        setBackendConversations(formattedConversations);
+        
+        // Selecionar primeira conversa se não houver seleção
         if (formattedConversations.length > 0 && !selectedConversation) {
           setSelectedConversation(formattedConversations[0]);
-        } else {
-          // Se não há conversas, limpar seleção
-          setSelectedConversation(null);
         }
       } else {
-        console.log('⚠️ Nenhuma conversa encontrada no backend');
-        // ✅ Usar apenas dados reais - não usar mocks
-        setConversations([]);
-        setSelectedConversation(null);
+        // ✅ SOLUÇÃO SUSTENTÁVEL: Se não há dados, apenas limpar conversas do backend
+        // Conversas do WhatsApp permanecem intactas
+        setBackendConversations([]);
+        console.log('⚠️ Nenhuma conversa encontrada no backend SQL');
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar conversas:', error);
-      // ✅ Usar apenas dados reais - não usar mocks
-      setConversations([]);
-      setSelectedConversation(null);
-    } finally {
-      setIsLoading(false);
+      // ✅ SOLUÇÃO SUSTENTÁVEL: Em caso de erro, manter conversas do backend existentes
+      // Não limpar tudo, apenas logar o erro e lançar para retry logic
+      console.error('❌ Erro ao carregar conversas do backend:', error);
+      console.warn('⚠️ Mantendo conversas do backend existentes e todas as conversas do WhatsApp');
+      // Lançar erro para permitir retry logic
+      throw error;
     }
   };
 
@@ -513,12 +603,8 @@ export function ChatInbox() {
         }));
         setMessages(formattedMessages);
         
-        // Update conversation messages
-        setConversations(prev => prev.map(conv => 
-          conv.id === conversationId 
-            ? { ...conv, messages: formattedMessages }
-            : conv
-        ));
+        // ✅ SOLUÇÃO SUSTENTÁVEL: Atualizar mensagens da conversa
+        updateConversation(conversationId, conv => ({ ...conv, messages: formattedMessages }));
       } else {
         console.error('Failed to load messages:', result.error);
         // Use messages from conversation if API fails
@@ -541,33 +627,30 @@ export function ChatInbox() {
   // ============================================
 
   /**
-   * Callback para carregar conversas do WhatsApp
+   * ✅ SOLUÇÃO SUSTENTÁVEL: Callback para carregar conversas do WhatsApp
+   * Gerencia conversas do WhatsApp separadamente do backend SQL
    */
   const handleWhatsAppChatsLoaded = (whatsappChats: any[]) => {
     console.log('📥 Conversas do WhatsApp carregadas:', whatsappChats.length);
     console.log('📦 Dados das conversas:', whatsappChats);
     
-    // Adicionar conversas do WhatsApp às conversas existentes
-    setConversations(prev => {
-      console.log('🔄 Conversas anteriores:', prev.length);
-      
-      // Remover conversas antigas do WhatsApp
-      const withoutWhatsApp = prev.filter(c => !c.id.startsWith('wa-'));
-      console.log('🗑️ Conversas sem WhatsApp:', withoutWhatsApp.length);
-      
-      // Adicionar novas conversas do WhatsApp
-      const updated = [...whatsappChats, ...withoutWhatsApp];
-      console.log('✅ Total de conversas após merge:', updated.length);
-      console.log('✅ Primeiras 3 conversas:', updated.slice(0, 3).map(c => ({
-        id: c.id,
-        guest_name: c.guest_name,
-        status: c.status,
-        category: c.category,
-        channel: c.channel
-      })));
-      
-      return updated;
-    });
+    // ✅ SOLUÇÃO SUSTENTÁVEL: Atualizar apenas conversas do WhatsApp
+    // Conversas do backend SQL são preservadas automaticamente
+    setWhatsappConversations(whatsappChats);
+    
+    console.log('✅ Total de conversas após atualização:', whatsappChats.length);
+    console.log('✅ Primeiras 3 conversas do WhatsApp:', whatsappChats.slice(0, 3).map(c => ({
+      id: c.id,
+      guest_name: c.guest_name,
+      status: c.status,
+      category: c.category,
+      channel: c.channel
+    })));
+    
+    // Selecionar primeira conversa do WhatsApp se não houver seleção
+    if (whatsappChats.length > 0 && !selectedConversation) {
+      setSelectedConversation(whatsappChats[0]);
+    }
   };
 
   /**
@@ -648,12 +731,8 @@ export function ChatInbox() {
 
       setMessages(formattedMessages);
       
-      // Atualizar conversa com mensagens
-      setConversations(prev => prev.map(c => 
-        c.id === conversationId 
-          ? { ...c, messages: formattedMessages }
-          : c
-      ));
+      // ✅ SOLUÇÃO SUSTENTÁVEL: Atualizar mensagens da conversa do WhatsApp
+      updateConversation(conversationId, conv => ({ ...conv, messages: formattedMessages }));
 
       console.log('✅ Mensagens do WhatsApp carregadas:', formattedMessages.length);
     } catch (error) {
@@ -809,28 +888,16 @@ export function ChatInbox() {
     try {
       const result = await conversationsApi.togglePin(convId, organizationId);
       if (result.success && result.data) {
-        setConversations(prevConvs =>
-          prevConvs.map(c =>
-            c.id === convId ? { ...c, isPinned: !c.isPinned } : c
-          )
-        );
+        updateConversation(convId, conv => ({ ...conv, isPinned: !conv.isPinned }));
         toast.success(conv.isPinned ? 'Conversa desafixada' : 'Conversa fixada');
       } else {
         // Fallback to local update
-        setConversations(prevConvs =>
-          prevConvs.map(c =>
-            c.id === convId ? { ...c, isPinned: !c.isPinned } : c
-          )
-        );
+        updateConversation(convId, conv => ({ ...conv, isPinned: !conv.isPinned }));
       }
     } catch (error) {
       console.error('Error toggling pin:', error);
       // Fallback to local update
-      setConversations(prevConvs =>
-        prevConvs.map(c =>
-          c.id === convId ? { ...c, isPinned: !c.isPinned } : c
-        )
-      );
+      updateConversation(convId, conv => ({ ...conv, isPinned: !conv.isPinned }));
     }
   };
 
@@ -857,15 +924,13 @@ export function ChatInbox() {
   };
 
   const handleCategoryChange = (convId: string, newCategory: ConversationCategory) => {
-    setConversations(prevConvs =>
-      prevConvs.map(c =>
-        c.id === convId ? { ...c, category: newCategory } : c
-      )
-    );
+    // ✅ SOLUÇÃO SUSTENTÁVEL: Atualizar categoria usando helper
+    updateConversation(convId, conv => ({ ...conv, category: newCategory }));
   };
 
   const handleReorder = (dragId: string, hoverId: string) => {
-    setConversations(prevConvs => {
+    // ✅ SOLUÇÃO SUSTENTÁVEL: Reordenar usando helper
+    updateConversations(prevConvs => {
       const dragIndex = prevConvs.findIndex(c => c.id === dragId);
       const hoverIndex = prevConvs.findIndex(c => c.id === hoverId);
       
@@ -1108,17 +1173,15 @@ export function ChatInbox() {
           
           setMessages(prev => [...prev, newWhatsAppMessage]);
           
-          // Atualizar conversa
-          setConversations(prev => prev.map(conv =>
-            conv.id === selectedConversation.id
-              ? {
-                  ...conv,
-                  last_message: messageContent,
-                  last_message_at: new Date(),
-                  messages: [...(conv.messages || []), newWhatsAppMessage]
-                }
-              : conv
-          ));
+          // ✅ SOLUÇÃO SUSTENTÁVEL: Atualizar conversa do WhatsApp
+          if (selectedConversation) {
+            updateConversation(selectedConversation.id, conv => ({
+              ...conv,
+              last_message: messageContent,
+              last_message_at: new Date(),
+              messages: [...(conv.messages || []), newWhatsAppMessage]
+            }));
+          }
           
           setMessageContent('');
           setAttachments([]);
@@ -1185,17 +1248,15 @@ export function ChatInbox() {
         
         setMessages(prev => [...prev, formattedMessage]);
         
-        // Update conversation's last message
-        setConversations(prev => prev.map(conv =>
-          conv.id === selectedConversation.id
-            ? {
-                ...conv,
-                last_message: messageContent,
-                last_message_at: new Date(),
-                messages: [...(conv.messages || []), formattedMessage]
-              }
-            : conv
-        ));
+        // ✅ SOLUÇÃO SUSTENTÁVEL: Atualizar última mensagem da conversa
+        if (selectedConversation) {
+          updateConversation(selectedConversation.id, conv => ({
+            ...conv,
+            last_message: messageContent,
+            last_message_at: new Date(),
+            messages: [...(conv.messages || []), formattedMessage]
+          }));
+        }
         
         // Clear inputs
         setMessageContent('');
@@ -1327,24 +1388,22 @@ export function ChatInbox() {
     localStorage.setItem('rendizy_chat_tags', JSON.stringify(updatedTags));
     
     // Remove tag de todas as conversas
-    const updatedConversations = conversations.map(conv => ({
+    // ✅ SOLUÇÃO SUSTENTÁVEL: Remover tag de todas as conversas
+    updateConversations(prevConvs => prevConvs.map(conv => ({
       ...conv,
       tags: conv.tags?.filter(tagId => tagId !== id) || []
-    }));
-    setConversations(updatedConversations);
+    })));
   };
 
   const handleToggleConversationTag = (conversationId: string, tagId: string) => {
-    setConversations(prevConvs => prevConvs.map(conv => {
-      if (conv.id === conversationId) {
-        const currentTags = conv.tags || [];
-        const newTags = currentTags.includes(tagId)
-          ? currentTags.filter(t => t !== tagId)
-          : [...currentTags, tagId];
-        return { ...conv, tags: newTags };
-      }
-      return conv;
-    }));
+    // ✅ SOLUÇÃO SUSTENTÁVEL: Toggle tag usando helper
+    updateConversation(conversationId, conv => {
+      const currentTags = conv.tags || [];
+      const newTags = currentTags.includes(tagId)
+        ? currentTags.filter(t => t !== tagId)
+        : [...currentTags, tagId];
+      return { ...conv, tags: newTags };
+    });
 
     // Atualiza contador nas tags
     updateTagCounts();
@@ -1377,7 +1436,8 @@ export function ChatInbox() {
   };
 
   const handleBulkAddTags = (tagIds: string[]) => {
-    setConversations(prevConvs => prevConvs.map(conv => {
+    // ✅ SOLUÇÃO SUSTENTÁVEL: Adicionar tags em lote usando helper
+    updateConversations(prevConvs => prevConvs.map(conv => {
       if (selectedConversationIds.includes(conv.id)) {
         const currentTags = conv.tags || [];
         const newTags = Array.from(new Set([...currentTags, ...tagIds]));
@@ -1396,7 +1456,8 @@ export function ChatInbox() {
   };
 
   const handleBulkRemoveTags = (tagIds: string[]) => {
-    setConversations(prevConvs => prevConvs.map(conv => {
+    // ✅ SOLUÇÃO SUSTENTÁVEL: Remover tags em lote usando helper
+    updateConversations(prevConvs => prevConvs.map(conv => {
       if (selectedConversationIds.includes(conv.id)) {
         const newTags = (conv.tags || []).filter(t => !tagIds.includes(t));
         return { ...conv, tags: newTags };
