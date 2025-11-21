@@ -38,7 +38,9 @@ import {
   Upload,
   Image as ImageIcon,
   File,
-  StickyNote
+  StickyNote,
+  Globe,
+  Building2
 } from 'lucide-react';
 // import { DndProvider, useDrag, useDrop } from 'react-dnd'; // Removido - causando erro
 import { QuickActionsModal } from './QuickActionsModal';
@@ -91,7 +93,7 @@ interface Conversation {
   reservation_code: string;
   property_name: string;
   property_id?: string;
-  channel: 'email' | 'system' | 'whatsapp';
+  channel: 'email' | 'system' | 'whatsapp' | 'airbnb' | 'booking' | 'sms' | 'site';
   status: 'unread' | 'read' | 'resolved';
   category: ConversationCategory;
   conversation_type: 'guest' | 'lead'; // guest = já é hóspede, lead = negociação
@@ -645,32 +647,52 @@ export function ChatInbox() {
     }
   };
 
-  // 🆕 v1.0.101 - Multi-channel icons
+  // 🆕 v1.0.104 - Multi-channel icons com identificação visual clara
+  // Ícones coloridos e reconhecíveis para identificar origem rapidamente
   const getChannelIcon = (channel: string) => {
     switch (channel) {
       case 'whatsapp': 
-        return <MessageCircle className="h-3 w-3" />;
+        // WhatsApp - verde característico
+        return <MessageCircle className="h-4 w-4 text-green-500 fill-green-500" />;
+      case 'airbnb': 
+        // Airbnb - casa (Home icon) em rosa/vermelho
+        return <Home className="h-4 w-4 text-pink-500 fill-pink-500" />;
+      case 'booking': 
+        // Booking.com - prédio/hotel (Building icon) em azul
+        return <Building2 className="h-4 w-4 text-blue-600 fill-blue-600" />;
       case 'sms': 
-        return <Phone className="h-3 w-3" />;
+        // SMS - telefone em azul
+        return <Phone className="h-4 w-4 text-blue-500 fill-blue-500" />;
       case 'email': 
-        return <Mail className="h-3 w-3" />;
+        // Email - envelope em roxo
+        return <Mail className="h-4 w-4 text-purple-500 fill-purple-500" />;
+      case 'site':
+        // Chat do site - globo com mensagem em índigo
+        return <Globe className="h-4 w-4 text-indigo-500 fill-indigo-500" />;
       case 'internal':
       case 'system': 
-        return <MessageSquare className="h-3 w-3" />;
+        // Sistema interno - mensagem em cinza
+        return <MessageSquare className="h-4 w-4 text-gray-500 fill-gray-500" />;
       default: 
-        return <MessageSquare className="h-3 w-3" />;
+        return <MessageSquare className="h-4 w-4 text-gray-500 fill-gray-500" />;
     }
   };
 
-  // 🆕 v1.0.101 - Multi-channel colors
+  // 🆕 v1.0.104 - Multi-channel colors com cores distintivas
   const getChannelColor = (channel: string) => {
     switch (channel) {
       case 'whatsapp': 
-        return 'bg-green-500'; // WhatsApp verde
+        return 'bg-green-500'; // WhatsApp verde - reconhecível
+      case 'airbnb': 
+        return 'bg-pink-500'; // Airbnb rosa/vermelho
+      case 'booking': 
+        return 'bg-blue-600'; // Booking azul escuro
       case 'sms': 
         return 'bg-blue-500'; // SMS azul
       case 'email': 
         return 'bg-purple-500'; // Email roxo
+      case 'site':
+        return 'bg-indigo-500'; // Site índigo
       case 'internal':
       case 'system': 
         return 'bg-gray-500'; // Interno cinza
@@ -1360,7 +1382,7 @@ export function ChatInbox() {
       )}
 
       {/* Lista de Conversas */}
-      <div className="w-96 min-w-[320px] max-w-[420px] border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 min-h-0">
+      <div className="w-96 min-w-[320px] max-w-[420px] border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 h-full overflow-hidden">
         {/* WhatsApp Integration - Carregamento automático invisível */}
         <WhatsAppChatsImporter 
           onChatsLoaded={handleWhatsAppChatsLoaded}
@@ -1472,7 +1494,7 @@ export function ChatInbox() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="flex-1 min-h-0" style={{ maxHeight: 'calc(100vh - 200px)' }}>
           {/* Loading State */}
           {isLoading && (
             <div className="flex items-center justify-center py-12">
