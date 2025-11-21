@@ -511,8 +511,18 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
               onChange={(e) => {
                 const files = e.target.files;
                 if (!files) return;
-                const valid = Array.from(files);
-                setAttachments((prev) => [...prev, ...valid]);
+                const validArr = Array.from(files);
+                const MAX_SIZE = 5 * 1024 * 1024; // 5MB - same as backend
+                const accepted: File[] = [];
+                const rejected: File[] = [];
+                for (const f of validArr) {
+                  if (f.size > MAX_SIZE) rejected.push(f);
+                  else accepted.push(f);
+                }
+                if (rejected.length > 0) {
+                  toast.error(`Arquivos maiores que 5MB foram removidos (${rejected.length})`);
+                }
+                if (accepted.length > 0) setAttachments((prev) => [...prev, ...accepted]);
                 // reset input so same file can be selected again
                 e.currentTarget.value = '';
               }}
@@ -566,7 +576,7 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
             </div>
             <Button
               onClick={handleSendMessage}
-              disabled={(!inputText.trim() && attachments.length === 0) || isSending}
+              disabled={((!inputText.trim() && attachments.length === 0) || isSending) || isUploading}
               size="icon"
               className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
             >
