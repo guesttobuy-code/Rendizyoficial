@@ -55,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!token) {
           console.log('⚠️ [AuthContext] Token não encontrado no localStorage');
           setUser(null);
+          setIsLoading(false);
           return;
         }
         
@@ -64,7 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` // ✅ SOLUÇÃO SIMPLES: Token no header
+            'Authorization': `Bearer ${token}`, // ✅ SOLUÇÃO SIMPLES: Token no header
+            'apikey': publicAnonKey // ✅ Adicionar apikey para Supabase Edge Functions
           }
           // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
         });
@@ -77,15 +79,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (parseError) {
           console.error('❌ [AuthContext] Erro ao parsear resposta:', parseError);
           console.error('❌ [AuthContext] Resposta:', responseText.substring(0, 200));
-          // ✅ MIGRAÇÃO: Cookie será limpo pelo backend se inválido
-          setIsLoading(false);
+          // ✅ Se já temos usuário no estado, manter (pode ser problema temporário de rede)
+          if (!user) {
+            setUser(null);
+            setIsLoading(false);
+          }
           return;
         }
 
         // ✅ Verificar se sessão é válida
         if (!response.ok || !data || !data.success) {
           console.log('❌ [AuthContext] Sessão inválida ou expirada:', data?.error);
-          // ✅ MIGRAÇÃO: Cookie será limpo pelo backend se inválido
+          // ✅ Limpar token inválido
+          localStorage.removeItem('rendizy-token');
+          setUser(null);
           setIsLoading(false);
           return;
         }
