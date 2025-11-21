@@ -4,11 +4,14 @@ import { createHash } from 'node:crypto';
 import { createClient } from 'jsr:@supabase/supabase-js@2.49.8';
 
 // Helper: Obter cliente Supabase
+// ✅ DESABILITADO JWT VALIDATION - Usar SERVICE_ROLE_KEY que bypassa JWT
 function getSupabaseClient() {
-  return createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  
+  // ✅ SOLUÇÃO: SERVICE_ROLE_KEY bypassa completamente validação JWT
+  // Não precisa de configurações especiais - SERVICE_ROLE_KEY já ignora JWT
+  return createClient(supabaseUrl, serviceRoleKey);
 }
 
 const app = new Hono();
@@ -216,18 +219,9 @@ app.post('/login', async (c) => {
 
       console.log('✅ Login bem-sucedido:', { username, type: user.type });
 
-      // ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Definir cookie HttpOnly
-      const cookieValue = [
-        `rendizy-token=${token}`,
-        'HttpOnly',
-        'Secure',
-        'SameSite=Strict',
-        `Max-Age=86400`, // 24 horas
-        'Path=/'
-      ].join('; ');
-      
-      c.header('Set-Cookie', cookieValue);
-      console.log('✅ Cookie HttpOnly definido com sucesso');
+      // ✅ SOLUÇÃO SIMPLES - Token no JSON (como estava funcionando ontem)
+      // Cookie HttpOnly pode ser adicionado depois, por enquanto token no JSON funciona
+      console.log('✅ Login bem-sucedido - token retornado no JSON');
 
       return c.json({
         success: true,
@@ -327,18 +321,11 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 
 // GET /auth/me - Verificar sessão atual
 // ✅ ARQUITETURA SQL: Busca sessão e usuário do SQL
-// ✅ MIGRAÇÃO COOKIES HTTPONLY v1.0.103.980 - Ler token do cookie primeiro
+// ✅ SOLUÇÃO SIMPLES - Token do header Authorization (como estava funcionando ontem)
 app.get('/me', async (c) => {
   try {
-    // ✅ MIGRAÇÃO: Tentar obter token do cookie primeiro, depois do header (compatibilidade)
-    const cookieHeader = c.req.header('Cookie') || '';
-    const cookies = parseCookies(cookieHeader);
-    let token = cookies['rendizy-token'];
-    
-    // Fallback para header (compatibilidade durante migração)
-    if (!token) {
-      token = c.req.header('Authorization')?.split(' ')[1];
-    }
+    // ✅ SOLUÇÃO SIMPLES - Token do header Authorization
+    const token = c.req.header('Authorization')?.split(' ')[1];
 
     if (!token) {
       return c.json({
@@ -348,18 +335,41 @@ app.get('/me', async (c) => {
     }
 
     // ✅ ARQUITETURA SQL: Buscar sessão do SQL
+    console.log('🔍 [auth/me] Buscando sessão com token:', token?.substring(0, 20) + '...');
     const supabase = getSupabaseClient();
+    
+    // ✅ IMPORTANTE: Usar SERVICE_ROLE_KEY que bypassa validação JWT
+    // Não passar token do usuário no header para evitar validação automática
     const { data: session, error: sessionError } = await supabase
       .from('sessions')
       .select('*')
       .eq('token', token)
       .single();
 
+    console.log('🔍 [auth/me] Query result:', {
+      hasSession: !!session,
+      hasError: !!sessionError,
+      errorCode: sessionError?.code,
+      errorMessage: sessionError?.message
+    });
+
     if (sessionError || !session) {
-      console.log('❌ Sessão não encontrada ou expirada:', sessionError);
+      console.log('❌ [auth/me] Sessão não encontrada ou expirada');
+      console.log('❌ [auth/me] Error:', sessionError ? JSON.stringify(sessionError, null, 2) : 'No error object');
+      console.log('❌ [auth/me] Session:', session ? 'Found' : 'Not found');
+      
+      // ✅ Se erro for "Invalid JWT", significa que Supabase está tentando validar como JWT
+      // Isso não deveria acontecer com SERVICE_ROLE_KEY, mas pode ser um bug do Supabase
+      if (sessionError?.message?.includes('JWT') || sessionError?.message?.includes('jwt')) {
+        console.error('❌ [auth/me] ERRO: Supabase está validando token como JWT (não deveria com SERVICE_ROLE_KEY)');
+        console.error('❌ [auth/me] Token é simples, não JWT. Verificar configuração do Supabase Client.');
+      }
+      
       return c.json({
         success: false,
-        error: 'Sessão inválida ou expirada'
+        error: sessionError?.message || 'Sessão inválida ou expirada',
+        code: sessionError?.code || 'SESSION_NOT_FOUND',
+        details: sessionError?.hint || undefined
       }, 401);
     }
 
