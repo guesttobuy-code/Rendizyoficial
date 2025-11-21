@@ -65,7 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`, // ✅ SOLUÇÃO SIMPLES: Token no header
+            'X-Auth-Token': token, // ✅ Usar header customizado para evitar validação JWT automática do Supabase
+            'Authorization': `Bearer ${token}`, // ✅ Fallback para compatibilidade
             'apikey': publicAnonKey // ✅ Adicionar apikey para Supabase Edge Functions
           }
           // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
