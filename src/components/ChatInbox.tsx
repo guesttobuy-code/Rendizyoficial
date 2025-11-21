@@ -1319,7 +1319,7 @@ export function ChatInbox() {
   const activeCount = conversations.filter(c => c.status !== 'resolved').length;
 
   return (
-    <div className="flex h-full bg-white dark:bg-[#1a1f2e]">
+    <div className="flex h-full min-h-0 bg-white dark:bg-[#1a1f2e]">
       {/* Sidebar de Filtros - Novo Componente Padrão */}
       {!isSidebarCollapsed && (
         <ChatFilterSidebar
@@ -1360,7 +1360,7 @@ export function ChatInbox() {
       )}
 
       {/* Lista de Conversas */}
-      <div className="w-96 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+      <div className="w-96 min-w-[320px] max-w-[420px] border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 min-h-0">
         {/* WhatsApp Integration - Carregamento automático invisível */}
         <WhatsAppChatsImporter 
           onChatsLoaded={handleWhatsAppChatsLoaded}
@@ -1472,7 +1472,7 @@ export function ChatInbox() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           {/* Loading State */}
           {isLoading && (
             <div className="flex items-center justify-center py-12">
@@ -1637,7 +1637,7 @@ export function ChatInbox() {
       </div>
 
       {/* Thread de Mensagens */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {selectedConversation ? (
           <>
             {/* Header do Chat */}
