@@ -1502,7 +1502,7 @@ export function ChatInbox() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+        <div className="flex-1 overflow-y-auto min-h-0">
           {/* Loading State */}
           {isLoading && (
             <div className="flex items-center justify-center py-12">
@@ -1663,7 +1663,7 @@ export function ChatInbox() {
               <p className="text-center">Nenhuma conversa encontrada</p>
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Thread de Mensagens */}
