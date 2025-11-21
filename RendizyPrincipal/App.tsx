@@ -81,6 +81,7 @@ import { LoadingProgress } from './components/LoadingProgress';
 import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
 import ErrorBoundary from './components/ErrorBoundary';
+import ProtectedRoute from './components/ProtectedRoute';
 
 import { initAutoRecovery } from './utils/autoRecovery';
 import { ChevronLeft, ChevronRight, Plus, Filter, Download, Tag, Sparkles, TrendingUp, Database, AlertTriangle } from 'lucide-react';
@@ -1085,33 +1086,35 @@ function App() {
           </div>
         } />
         
-        {/* ✅ ROTA CHAT - v1.0.103.253 */}
+        {/* ✅ ROTA CHAT - v1.0.103.253 - PROTEGIDA */}
         <Route path="/chat" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-            <LoadingProgress 
-              isLoading={initialLoading}
-            />
-            
-            <MainSidebar
-              activeModule='central-mensagens'
-              onModuleChange={setActiveModule}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+              <LoadingProgress 
+                isLoading={initialLoading}
+              />
+              
+              <MainSidebar
+                activeModule='central-mensagens'
+                onModuleChange={setActiveModule}
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+                onSearchReservation={handleSearchReservation}
+                onAdvancedSearch={handleAdvancedSearch}
+              />
 
-            <div 
-              className={cn(
-                "flex flex-col min-h-screen transition-all duration-300",
-                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-              )}
-            >
-              <div className="flex-1 overflow-hidden">
-                <ChatInboxWithEvolution />
+              <div 
+                className={cn(
+                  "flex flex-col min-h-screen transition-all duration-300",
+                  sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+                )}
+              >
+                <div className="flex-1 overflow-hidden">
+                  <ChatInboxWithEvolution />
+                </div>
               </div>
             </div>
-          </div>
+          </ProtectedRoute>
         } />
         
         {/* ✅ ROTA LOCATIONS - v1.0.103.253 */}

@@ -105,6 +105,10 @@ interface Conversation {
   order?: number;
   isPinned?: boolean;
   tags?: string[]; // IDs das tags
+  profile_picture_url?: string; // URL da foto de perfil (WhatsApp, etc)
+  channel_metadata?: {
+    whatsapp_profile_pic?: string;
+  };
   // Dados de negociação para leads
   lead_data?: {
     desired_location?: string;
@@ -191,6 +195,10 @@ const ConversationCard: React.FC<ConversationCardProps> = ({
         )}
 
         <Avatar>
+          <AvatarImage 
+            src={conversation.profile_picture_url || conversation.channel_metadata?.whatsapp_profile_pic} 
+            alt={conversation.guest_name}
+          />
           <AvatarFallback>
             {conversation.guest_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
           </AvatarFallback>
@@ -1667,6 +1675,10 @@ export function ChatInbox() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Avatar>
+                    <AvatarImage 
+                      src={selectedConversation.profile_picture_url || selectedConversation.channel_metadata?.whatsapp_profile_pic} 
+                      alt={selectedConversation.guest_name}
+                    />
                     <AvatarFallback>
                       {selectedConversation.guest_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                     </AvatarFallback>
