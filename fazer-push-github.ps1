@@ -5,7 +5,7 @@ Write-Host "Configurando Git e preparando Push para GitHub..." -ForegroundColor 
 Write-Host ""
 
 # URL do repositorio GitHub
-$githubUrl = "https://github.com/suacasarendemais-png/Rendizy2producao.git"
+$githubUrl = "https://github.com/guesttobuy-code/Rendizyoficial.git"
 
 # 1. Verificar se Git esta instalado
 try {

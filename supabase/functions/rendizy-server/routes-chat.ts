@@ -198,7 +198,12 @@ chat.get('/conversations', async (c) => {
 
     if (error) {
       console.error('❌ [GET /conversations] Erro ao buscar conversas do SQL:', error);
-      throw new Error(`Erro ao buscar conversas: ${error.message}`);
+      console.error('❌ [GET /conversations] Stack:', error.stack || 'No stack trace');
+      return c.json({
+        success: false,
+        error: `Erro ao buscar conversas: ${error.message}`,
+        code: error.code || 'QUERY_ERROR'
+      }, 500);
     }
 
     // Map SQL format to frontend format
@@ -234,10 +239,12 @@ chat.get('/conversations', async (c) => {
 
     return c.json({ success: true, data: mappedConversations });
   } catch (error) {
-    console.error('Error fetching conversations:', error);
+    console.error('❌ [GET /conversations] Error fetching conversations:', error);
+    console.error('❌ [GET /conversations] Error stack:', error instanceof Error ? error.stack : 'No stack');
     return c.json({ 
       success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      type: error instanceof Error ? error.constructor.name : typeof error
     }, 500);
   }
 });

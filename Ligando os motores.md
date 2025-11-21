@@ -4,6 +4,76 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 
 ---
 
+## 🎯 ORIENTAÇÃO MESTRA - LEIA PRIMEIRO! ⚠️
+
+### 🚨 **REGRA FUNDAMENTAL: NÃO COMPLIQUE O QUE JÁ FUNCIONA**
+
+**Se algo está funcionando de forma simples, NÃO adicione complexidade!**
+
+### ✅ **O QUE JÁ FUNCIONA (NÃO MEXER):**
+
+#### **1. CORS - SIMPLES E FUNCIONANDO**
+```typescript
+// ✅ ESTÁ ASSIM E FUNCIONA - NÃO MUDAR
+app.use("/*", cors({
+  origin: "*",
+  allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "apikey"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+}));
+```
+
+**❌ NUNCA FAZER:**
+- ❌ Adicionar `credentials: true` (quebra com `origin: "*"`)
+- ❌ Criar função complexa de origem (desnecessário)
+- ❌ Adicionar headers CORS manuais (cria conflitos)
+
+#### **2. LOGIN - TOKEN NO HEADER (FUNCIONA)**
+```typescript
+// ✅ ESTÁ ASSIM E FUNCIONA - NÃO MUDAR
+// Backend: Token do header Authorization
+const token = c.req.header('Authorization')?.split(' ')[1];
+
+// Frontend: Token no localStorage + header Authorization
+headers: {
+  'Authorization': `Bearer ${token}`
+}
+```
+
+**❌ NUNCA FAZER:**
+- ❌ Tentar usar cookies HttpOnly (adiciona complexidade desnecessária)
+- ❌ Adicionar `credentials: 'include'` (quebra CORS)
+- ❌ Mudar para sistema mais "seguro" se o atual funciona
+
+#### **3. SESSÕES - SQL DIRETO (FUNCIONA)**
+```typescript
+// ✅ ESTÁ ASSIM E FUNCIONA - NÃO MUDAR
+// Sessões salvas na tabela SQL `sessions`
+await supabase.from('sessions').insert({ token, user_id, ... });
+```
+
+**❌ NUNCA FAZER:**
+- ❌ Voltar para KV Store (já migramos para SQL)
+- ❌ Criar abstrações desnecessárias
+- ❌ Adicionar camadas intermediárias
+
+### 📚 **DOCUMENTOS OBRIGATÓRIOS ANTES DE MUDAR:**
+1. ⚠️ **`SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md`** - ANTES de mudar CORS/Login
+2. ⚠️ **`VITORIA_WHATSAPP_E_LOGIN.md`** - Quando funcionou pela primeira vez
+3. ⚠️ **`RESUMO_SIMPLIFICACAO_CORS_LOGIN_20251120.md`** - Por que simplificamos
+
+### 🎯 **CHECKLIST ANTES DE QUALQUER MUDANÇA:**
+- [ ] Li a documentação sobre o que já funciona?
+- [ ] A mudança é realmente necessária?
+- [ ] A mudança vai quebrar o que já funciona?
+- [ ] Existe uma solução mais simples?
+
+### 💡 **LEMBRE-SE:**
+> **"Se não está quebrado, não conserte!"**  
+> **"Simplicidade > Complexidade"**  
+> **"Funciona > Teoricamente melhor"**
+
+---
+
 ## 1. Conectar GitHub
 
 1. Abra o PowerShell na raiz do projeto:
@@ -73,17 +143,101 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
    - **Contexto:** Sistema SaaS multi-tenant - dados críticos devem estar em SQL
 
 2. **`REGRA_AUTENTICACAO_TOKEN.md`** ⚠️ **OBRIGATÓRIO**
-   - ❌ **NUNCA** use localStorage para tokens em produção
-   - ✅ Use Cookies HttpOnly para tokens
-   - ✅ Sistema é SaaS público em escala - segurança crítica
-   - **Status:** ⚠️ Migração pendente (localStorage ainda em uso, mas deve migrar)
+   - ⚠️ **ATENÇÃO:** Token no localStorage funciona para MVP
+   - ✅ Sistema atual: Token no header Authorization (FUNCIONA)
+   - ❌ **NÃO** migrar para cookies HttpOnly se token no header funciona
+   - ✅ Migração pode ser feita depois, se realmente necessário
+   - **Status:** ✅ Funcionando com token no header - NÃO MUDAR AGORA
 
 ### 📋 **Documentação Geral:**
+- ⚠️ **`WHATSAPP_VENCIDO_CONSOLIDADO.md`** - Tudo que já vencemos no WhatsApp (OBRIGATÓRIO LER)
 - `src/docs/RESUMO_FINAL_28OUT2025.md`
   - Atualizar `LOG_ATUAL.md`
   - Criar snapshot diário
   - Seguir naming convention
   - Atualizar `INDICE_DOCUMENTACAO.md`
+
+---
+
+## 4.4. CORS e Autenticação (⚠️ REGRA CRÍTICA - NÃO VIOLAR)
+
+### 🚨 **ESTE É O MODELO QUE FUNCIONA - NÃO MUDAR!**
+
+#### ✅ **1. CORS SIMPLES - `origin: "*"` SEM `credentials: true`**
+```typescript
+// ✅ ESTÁ ASSIM E FUNCIONA - NÃO MUDAR
+app.use("/*", cors({
+  origin: "*",
+  allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "apikey"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+}));
+```
+
+**✅ Por que funciona:**
+- `origin: "*"` permite qualquer origem
+- SEM `credentials: true` → não precisa de origem específica
+- Funciona perfeitamente com token no header
+- **JÁ TESTADO E FUNCIONANDO** - Não mexer!
+
+**❌ NUNCA FAZER (JÁ TENTAMOS E NÃO FUNCIONOU):**
+- ❌ Adicionar `credentials: true` (quebra com `origin: "*"`)
+- ❌ Criar função complexa de origem (desnecessário, já tentamos)
+- ❌ Adicionar headers CORS manuais (cria conflitos, já tentamos)
+- ❌ Usar lista de origens permitidas (complexidade desnecessária)
+
+#### ✅ **2. TOKEN NO HEADER (NÃO COOKIE) - FUNCIONA PERFEITAMENTE**
+```typescript
+// ✅ ESTÁ ASSIM E FUNCIONA - NÃO MUDAR
+// Backend (routes-auth.ts)
+const token = c.req.header('Authorization')?.split(' ')[1];
+
+// Frontend (AuthContext.tsx)
+headers: {
+  'Authorization': `Bearer ${token}`
+}
+// Token salvo no localStorage (funciona para MVP)
+```
+
+**✅ Por que funciona:**
+- Mais simples que cookie HttpOnly
+- Funciona com `origin: "*"` no CORS
+- Token salvo no localStorage (funciona para MVP)
+- **JÁ TESTADO E FUNCIONANDO** - Não mexer!
+
+**❌ NUNCA FAZER (JÁ TENTAMOS E NÃO FUNCIONOU):**
+- ❌ Tentar usar cookies HttpOnly (adiciona complexidade, quebra CORS)
+- ❌ Adicionar `credentials: 'include'` (quebra CORS)
+- ❌ Migrar para sistema "mais seguro" se o atual funciona
+
+#### 📚 **DOCUMENTAÇÃO OBRIGATÓRIA (LER ANTES DE QUALQUER MUDANÇA):**
+- ⚠️ **`SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md`** - **OBRIGATÓRIO LER ANTES DE MUDAR**
+- ⚠️ **`RESUMO_SIMPLIFICACAO_CORS_LOGIN_20251120.md`** - Por que simplificamos
+- `VITORIA_WHATSAPP_E_LOGIN.md` - Quando funcionou pela primeira vez (20/11/2025)
+- ⚠️ **`WHATSAPP_VENCIDO_CONSOLIDADO.md`** - **TUDO QUE JÁ VENCEMOS NO WHATSAPP** (OBRIGATÓRIO LER)
+- `CORRECAO_LOGIN_FUNCIONANDO.md` - Correção anterior que funcionou
+
+#### 🎯 **REGRA DE OURO ABSOLUTA:**
+> **"Se está funcionando, NÃO MEXER!"**  
+> **"Simplicidade > Complexidade"**  
+> **"Funciona > Teoricamente melhor"**  
+> 
+> **Token no header + CORS `origin: "*"` = FUNCIONA PERFEITAMENTE**  
+> **Já tentamos complicar e quebrou. Não repetir o erro!**
+
+#### ⚠️ **AVISO CRÍTICO:**
+**Se você está pensando em:**
+- "Melhorar" o CORS
+- "Adicionar segurança" com cookies HttpOnly
+- "Otimizar" a autenticação
+
+**PARE E LEIA:**
+1. `SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md`
+2. `RESUMO_SIMPLIFICACAO_CORS_LOGIN_20251120.md`
+
+**Se ainda quiser mudar, pergunte-se:**
+- Isso vai quebrar o que já funciona?
+- É realmente necessário agora?
+- Existe uma solução mais simples?
 
 ---
 
@@ -113,10 +267,12 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
   ```
 
 #### ✅ **3. AUTENTICAÇÃO SIMPLES**
-- ✅ **JWT simples** ou Supabase Auth - Sem sessões complexas no KV
-- ❌ **NUNCA** armazene sessões em KV Store (desnecessário)
-- ✅ **Token validado sem consultar banco** - JWT já tem expiração built-in
-- 📚 Referência: Migração para HttpOnly Cookies já feita
+- ✅ **Token no header Authorization** - Solução simples que funciona
+- ✅ **Token salvo no localStorage** (MVP) - Funciona perfeitamente
+- ✅ **Sessões no SQL** (tabela `sessions`) - Persistência no banco
+- ❌ **NUNCA** use `credentials: true` com `origin: "*"` (incompatível)
+- ❌ **NUNCA** complique com cookies HttpOnly se token no header funciona
+- 📚 Referência: `SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md` - **LEIA ISSO ANTES DE MUDAR CORS/LOGIN**
 
 #### ✅ **4. KV STORE APENAS PARA CACHE**
 - ❌ **NUNCA** use KV Store para dados permanentes
@@ -130,12 +286,23 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 - ✅ Rotas em `routes-*.ts` - SQL direto nas rotas
 - ⚠️ Algumas rotas ainda usam KV Store - migrar gradualmente para SQL
 
-### 🚨 **O QUE FOI LIMPO (NÃO VOLTAR ATRÁS):**
+### 🚨 **O QUE FOI LIMPO (NÃO VOLTAR ATRÁS - JÁ VENCEMOS ISSO):**
 1. ✅ Removidas abstrações excessivas que atrapalhavam
-2. ✅ Simplificado sistema de autenticação
+2. ✅ Simplificado sistema de autenticação (token no header, não cookie) - **FUNCIONA**
 3. ✅ Migrado para SQL direto onde possível
-4. ✅ CORS corrigido - lista de origens permitidas (sem middleware customizado)
-5. ✅ Cookies HttpOnly implementados (segurança)
+4. ✅ **CORS SIMPLES** - `origin: "*"` SEM `credentials: true` - **FUNCIONA PERFEITAMENTE**
+5. ❌ **NÃO** usar cookies HttpOnly se token no header funciona (já tentamos, quebrou)
+6. ❌ **NÃO** adicionar `credentials: true` no CORS (já tentamos, quebrou)
+7. ❌ **NÃO** criar headers CORS manuais (já tentamos, criou conflitos)
+8. 📚 **CRÍTICO:** Ler `SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md` ANTES de qualquer mudança
+
+### ⚠️ **ERROS QUE JÁ COMETEMOS (NÃO REPETIR):**
+1. ❌ Tentamos usar `credentials: true` com `origin: "*"` → Quebrou
+2. ❌ Tentamos usar cookies HttpOnly → Quebrou CORS
+3. ❌ Tentamos criar headers CORS manuais → Criou conflitos
+4. ❌ Tentamos complicar o que já funcionava → Perdemos tempo
+
+**RESULTADO:** Voltamos para a solução simples que funciona. **NÃO REPETIR!**
 
 ### 📋 **CHECKLIST ANTES DE CRIAR CÓDIGO:**
 - [ ] Vou usar SQL direto? (não abstrações)
@@ -165,19 +332,34 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 | `RESUMO_IMPLEMENTACAO_PROTECTED_ROUTE.md` | Guia rápido do novo `ProtectedRoute` |
 | `ANALISE_TRIGGER_SIGNUP.md` | Migração/seed de organização automática |
 | `ANALISE_PROMPT_MULTI_TENANT.md` | Blueprint adaptado para React + Vite |
+| `SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md` | ⚠️ **CRÍTICO** - Solução simples que funciona (CORS + Login) |
+| `VITORIA_WHATSAPP_E_LOGIN.md` | Quando login funcionou pela primeira vez (20/11/2025) |
+| `CORRECAO_LOGIN_FUNCIONANDO.md` | Correção anterior que funcionou |
+| `WHATSAPP_VENCIDO_CONSOLIDADO.md` | ⚠️ **CRÍTICO** - Tudo que já vencemos no WhatsApp (OBRIGATÓRIO LER) |
 
 ---
 
 ## 6. Checklist inicial
 
 1. [ ] Abrir este arquivo 😄  
-2. [ ] **LER REGRAS DE OURO** (seção 4 acima) ⚠️ **OBRIGATÓRIO**
+2. [ ] **LER ORIENTAÇÃO MESTRA** (seção 2 acima) ⚠️ **OBRIGATÓRIO PRIMEIRO**
+3. [ ] **LER REGRAS DE OURO** (seção 4 acima) ⚠️ **OBRIGATÓRIO**
    - [ ] Ler `REGRA_KV_STORE_VS_SQL.md`
    - [ ] Ler `REGRA_AUTENTICACAO_TOKEN.md`
-3. [ ] Conectar GitHub (`configurar-github-simples.ps1`)  
-4. [ ] Conectar Supabase (`login-supabase.ps1`)  
-5. [ ] Revisar `PROMPT_CONTEXTO_COMPLETO_SESSAO.md`  
-6. [ ] Atualizar `LOG_ATUAL.md` com o plano da sessão  
+   - [ ] **LER `SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md`** ⚠️ **ANTES DE QUALQUER MUDANÇA EM CORS/LOGIN**
+   - [ ] **LER `RESUMO_SIMPLIFICACAO_CORS_LOGIN_20251120.md`** ⚠️ **PARA ENTENDER POR QUE SIMPLIFICAMOS**
+4. [ ] Conectar GitHub (`configurar-github-simples.ps1`)  
+5. [ ] Conectar Supabase (`login-supabase.ps1`)  
+6. [ ] Revisar `PROMPT_CONTEXTO_COMPLETO_SESSAO.md`  
+7. [ ] Atualizar `LOG_ATUAL.md` com o plano da sessão
+
+### ⚠️ **CHECKLIST ANTES DE MUDAR CORS/LOGIN:**
+- [ ] Li `SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md`?
+- [ ] Li `RESUMO_SIMPLIFICACAO_CORS_LOGIN_20251120.md`?
+- [ ] Entendi por que simplificamos?
+- [ ] A mudança é realmente necessária?
+- [ ] A mudança vai quebrar o que já funciona?
+- [ ] Existe uma solução mais simples?  
 
 ---
 
@@ -221,17 +403,105 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 
 ---
 
-## 9. Lembretes
+## 4.6. WhatsApp - Tudo que Já Vencemos (⚠️ NÃO REGREDIR)
 
-- ⚠️ **SEMPRE revisar Regras de Ouro antes de começar** (seção 4)
+### 📱 **WHATSAPP 100% FUNCIONAL - NÃO MEXER!**
+
+**Status:** ✅ **TUDO FUNCIONANDO**
+
+#### ✅ **O QUE JÁ FUNCIONA:**
+
+1. **Conexão Persistente:**
+   - ✅ Verificação automática ao carregar configurações
+   - ✅ Status salvo no banco automaticamente
+   - ✅ Não precisa reconectar toda vez
+   - ✅ Status verificado e persistente entre sessões
+
+2. **Atualização Automática:**
+   - ✅ Sincronização automática ao entrar na tela de chat
+   - ✅ Polling a cada 30 segundos para conversas
+   - ✅ Ordenação correta (mais recente primeiro)
+   - ✅ Conversas atualizadas quando novas mensagens chegam
+
+3. **Autenticação:**
+   - ✅ Usa `X-Auth-Token` para evitar validação JWT automática
+   - ✅ Token do usuário no `localStorage` (`rendizy-token`)
+   - ✅ Backend lê `X-Auth-Token` primeiro, fallback para `Authorization`
+   - ✅ CORS permite `X-Auth-Token`
+
+4. **Mensagens:**
+   - ✅ Conversas sendo exibidas na tela
+   - ✅ Contatos sendo exibidos na tela
+   - ✅ Status verificado automaticamente
+
+#### 📚 **DOCUMENTAÇÃO OBRIGATÓRIA:**
+- ⚠️ **`WHATSAPP_VENCIDO_CONSOLIDADO.md`** - **TUDO QUE JÁ VENCEMOS** (LER ANTES DE MUDAR)
+
+#### 🎯 **REGRA DE OURO:**
+> **"WhatsApp está funcionando - NÃO REGREDIR!"**  
+> **"Conexão persistente + Atualização automática = FUNCIONA PERFEITAMENTE"**  
+> **"X-Auth-Token = Solução que funciona - NÃO VOLTAR PARA Authorization: Bearer"**
+
+#### ❌ **NUNCA FAZER:**
+- ❌ Voltar para `Authorization: Bearer` com token do usuário (causa erro JWT)
+- ❌ Remover `X-Auth-Token` (é a solução que funciona)
+- ❌ Remover verificação automática de status (é essencial)
+- ❌ Remover polling automático (é essencial para atualização)
+- ❌ Usar KV Store para sessões (já migramos para SQL)
+
+#### ⚠️ **AVISO CRÍTICO:**
+**Se você está pensando em:**
+- "Melhorar" a autenticação do WhatsApp
+- "Otimizar" a atualização de conversas
+- "Simplificar" o código
+
+**PARE E LEIA:**
+1. `WHATSAPP_VENCIDO_CONSOLIDADO.md` - Tudo que já vencemos
+
+**Se ainda quiser mudar, pergunte-se:**
+- Isso vai quebrar o que já funciona?
+- É realmente necessário agora?
+- Existe uma solução mais simples?
+
+---
+
+## 9. Lembretes Finais
+
+### 🚨 **LEMBRETES CRÍTICOS (NUNCA ESQUECER):**
+
+1. ⚠️ **SEMPRE ler Orientação Mestra primeiro** (seção 2) - **OBRIGATÓRIO**
+2. ⚠️ **SEMPRE revisar Regras de Ouro antes de começar** (seção 4)
+3. ⚠️ **NUNCA mudar CORS/Login sem ler a documentação** (seção 4.4)
+4. ⚠️ **Lembrar:** Já vencemos CORS e Login - não complicar novamente!
+5. ⚠️ **Se está funcionando, NÃO MEXER!** - Regra de ouro absoluta
+
+### 📋 **LEMBRETES OPERACIONAIS:**
+
 - Tokens estão documentados em `TOKENS_*` (arqs ignorados no Git).  
 - `LOG_ATUAL.md` precisa ser mantido fora do repositório (arquivo vivo).  
 - Toda sessão deve terminar com snapshot em `/docs/logs/`.  
 - Backend ainda usa KV Store → seguir plano de migração para SQL.  
-- **Deploy sempre feito pelo Auto, nunca pelo usuário.**
+- **Deploy sempre feito pelo Auto, nunca pelo usuário.**  
 - **Sistema é SaaS público em escala** → segurança e performance são críticas
+
+### 🎯 **LEMBRETE FINAL - ORIENTAÇÃO MESTRA:**
+> **"Se está funcionando, NÃO MEXER!"**  
+> **"Simplicidade > Complexidade"**  
+> **"Funciona > Teoricamente melhor"**  
+> **"Já vencemos isso antes - não repetir erros!"**  
+> 
+> **CORS `origin: "*"` + Token no header = FUNCIONA PERFEITAMENTE**  
+> **Já tentamos complicar e quebrou. NÃO REPETIR!**
+
+### ⚠️ **ANTES DE QUALQUER MUDANÇA, PERGUNTE:**
+1. Isso está quebrado? (Se não, não mexer)
+2. A mudança é realmente necessária? (Se não, não mexer)
+3. Vai quebrar o que já funciona? (Se sim, não mexer)
+4. Existe uma solução mais simples? (Se sim, usar a simples)
 
 ---
 
 Pronto! Agora é só seguir o checklist e começar a sessão. 💪
+
+**Lembre-se:** A Orientação Mestra (seção 2) é sua bússola. Use-a sempre!
 

@@ -8,4 +8,10 @@
   Run `npm i` to install the dependencies.
 
   Run `npm run dev` to start the development server.
+
+## Structure
+
+- `RendizyPrincipal/`: main frontend application (previously `src`)
+- `supabase/`: backend edge functions and SQL migrations
+- `build/`: generated static bundle (`npm run build`)
   
