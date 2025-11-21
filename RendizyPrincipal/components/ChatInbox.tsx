@@ -1846,7 +1846,11 @@ export function ChatInbox() {
                   </div>
                 )}
                 {messages.map((message) => {
-                  const messageText = getMessageContent(message);
+                  // Extrair texto da mensagem - suporta diferentes formatos
+                  const messageText = message.content || 
+                                     (message as any).text || 
+                                     extractMessageText(message as any) || 
+                                     '[Mensagem sem texto]';
                   const senderType = message.sender_type || (message.from_me ? 'staff' : 'guest');
                   const messageKey = message.id || message.key || `${message.messageTimestamp}-${Math.random()}`;
                   // Check if it's an internal note (system type)
