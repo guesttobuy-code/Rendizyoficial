@@ -16,7 +16,7 @@ https://github.com/guesttobuy-code/Rendizyoficial.git
 - **Owner:** `guesttobuy-code`
 - **Nome:** `Rendizyoficial`
 - **Branch:** `main`
-- **Token configurado:** ✅ `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`
+- **Token configurado:** ✅ `[REMOVIDO POR SEGURANÇA]`
 
 ---
 
@@ -62,7 +62,7 @@ Se preferir remover os tokens do histórico completamente:
 
 ## 📋 **STATUS ATUAL:**
 
-- ✅ **Token configurado:** `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`
+- ✅ **Token configurado:** `[REMOVIDO POR SEGURANÇA]`
 - ✅ **Repositório:** `guesttobuy-code/Rendizyoficial`
 - ✅ **Autenticação:** Funcionando (fetch OK)
 - ❌ **Push:** Bloqueado por tokens em commits antigos
