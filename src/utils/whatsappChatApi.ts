@@ -31,7 +31,8 @@ export async function fetchWhatsAppStatus(): Promise<WhatsAppStatus> {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase
+        'X-Auth-Token': token // ✅ Token do usuário (evita validação JWT automática)
       }
     });
 
@@ -116,7 +117,8 @@ export async function fetchWhatsAppChats(): Promise<WhatsAppChat[]> {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`, // ✅ Token do usuário autenticado
+        'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase
+        'X-Auth-Token': token // ✅ Token do usuário (evita validação JWT automática)
       },
     });
 
@@ -166,7 +168,8 @@ export async function fetchWhatsAppMessages(chatId: string, limit: number = 50):
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`, // ✅ Token do usuário autenticado
+        'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase
+        'X-Auth-Token': token // ✅ Token do usuário (evita validação JWT automática)
       },
     });
 
@@ -212,7 +215,8 @@ export async function sendWhatsAppMessage(number: string, text: string): Promise
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`, // ✅ Token do usuário autenticado
+        'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase
+        'X-Auth-Token': token // ✅ Token do usuário (evita validação JWT automática)
       },
       body: JSON.stringify({ number, text }),
     });

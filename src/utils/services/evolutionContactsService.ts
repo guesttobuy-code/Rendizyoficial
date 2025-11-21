@@ -89,11 +89,15 @@ export class EvolutionContactsService {
       
       console.log('[Evolution] 🔑 Token:', token ? `${token.substring(0, 20)}...` : 'NONE');
       
+      // Import necessário para obter publicAnonKey
+      const { publicAnonKey } = await import('../supabase/info');
+      
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/contacts`,
         {
           headers: {
-            'Authorization': `Bearer ${token}`, // ✅ Token do usuário autenticado
+            'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase
+            'X-Auth-Token': token, // ✅ Token do usuário (evita validação JWT automática)
             'Content-Type': 'application/json'
           }
         }
@@ -142,11 +146,15 @@ export class EvolutionContactsService {
       
       console.log('[Evolution] 🔑 Token:', token ? `${token.substring(0, 20)}...` : 'NONE');
       
+      // Import necessário para obter publicAnonKey
+      const { publicAnonKey } = await import('../supabase/info');
+      
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/chats`,
         {
           headers: {
-            'Authorization': `Bearer ${token}`, // ✅ Token do usuário autenticado
+            'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase
+            'X-Auth-Token': token, // ✅ Token do usuário (evita validação JWT automática)
             'Content-Type': 'application/json'
           }
         }
