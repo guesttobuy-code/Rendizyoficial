@@ -889,9 +889,10 @@ function App() {
         {/* ✅ ROTA LOGIN - v1.0.103.259 - Sistema Multi-Tenant */}
         <Route path="/login" element={<LoginPage />} />
         
-        {/* 🧪 ROTA TESTE FIGMA - v1.0.103.311 - Criação de Imóvel de Teste */}
+        {/* 🧪 ROTA TESTE FIGMA - v1.0.103.311 - Criação de Imóvel de Teste - PROTEGIDA */}
         <Route path="/test/figma-property" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <MainSidebar
               activeModule="test-figma"
               onModuleChange={setActiveModule}
@@ -925,11 +926,13 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA CALENDÁRIO - v1.0.103.249 */}
+        {/* ✅ ROTA CALENDÁRIO - v1.0.103.249 - PROTEGIDA */}
         <Route path="/calendario" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1026,11 +1029,13 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA RESERVAS - v1.0.103.253 */}
+        {/* ✅ ROTA RESERVAS - v1.0.103.253 - PROTEGIDA */}
         <Route path="/reservations" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1055,11 +1060,13 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA ADMIN MASTER - v1.0.103.253 */}
+        {/* ✅ ROTA ADMIN MASTER - v1.0.103.253 - PROTEGIDA (CRÍTICO!) */}
         <Route path="/admin" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1084,6 +1091,7 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
         {/* ✅ ROTA CHAT - v1.0.103.253 - PROTEGIDA */}
@@ -1117,9 +1125,10 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA LOCATIONS - v1.0.103.253 */}
+        {/* ✅ ROTA LOCATIONS - v1.0.103.253 - PROTEGIDA */}
         <Route path="/locations" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1144,11 +1153,13 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA PRICING - v1.0.103.253 */}
+        {/* ✅ ROTA PRICING - v1.0.103.253 - PROTEGIDA */}
         <Route path="/pricing" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1173,11 +1184,13 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA INTEGRATIONS - v1.0.103.253 */}
+        {/* ✅ ROTA INTEGRATIONS - v1.0.103.253 - PROTEGIDA */}
         <Route path="/integrations" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1202,11 +1215,13 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA SITES CLIENTES - v1.0.103.253 */}
+        {/* ✅ ROTA SITES CLIENTES - v1.0.103.253 - PROTEGIDA */}
         <Route path="/sites-clientes" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1231,11 +1246,13 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA GUESTS - v1.0.103.253 */}
+        {/* ✅ ROTA GUESTS - v1.0.103.253 - PROTEGIDA */}
         <Route path="/guests" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1260,11 +1277,13 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA SETTINGS - v1.0.103.253 */}
+        {/* ✅ ROTA SETTINGS - v1.0.103.253 - PROTEGIDA */}
         <Route path="/settings" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1289,10 +1308,15 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* Módulo Financeiro - v1.0.103.234 */}
-        <Route path="/financeiro/*" element={<FinanceiroModule />}>
+        {/* Módulo Financeiro - v1.0.103.234 - PROTEGIDO */}
+        <Route path="/financeiro/*" element={
+          <ProtectedRoute>
+            <FinanceiroModule />
+          </ProtectedRoute>
+        }>
           <Route index element={<FinanceiroDashboard />} />
           <Route path="plano-contas" element={<ModulePlaceholder module="Plano de Contas" />} />
           <Route path="lancamentos" element={<LancamentosPage />} />
@@ -1308,8 +1332,12 @@ function App() {
           <Route path="configuracoes" element={<ModulePlaceholder module="Configurações Financeiras" />} />
         </Route>
         
-        {/* Módulo CRM & Tasks - Unificado */}
-        <Route path="/crm/*" element={<CRMTasksModule />}>
+        {/* Módulo CRM & Tasks - Unificado - PROTEGIDO */}
+        <Route path="/crm/*" element={
+          <ProtectedRoute>
+            <CRMTasksModule />
+          </ProtectedRoute>
+        }>
           <Route index element={<CRMTasksDashboard />} />
           
           {/* Seção Clientes (CRM) */}
@@ -1342,8 +1370,12 @@ function App() {
           <Route path="configuracoes" element={<ModulePlaceholder module="Configurações CRM & Tasks" />} />
         </Route>
         
-        {/* Módulo BI */}
-        <Route path="/bi/*" element={<BIModule />}>
+        {/* Módulo BI - PROTEGIDO */}
+        <Route path="/bi/*" element={
+          <ProtectedRoute>
+            <BIModule />
+          </ProtectedRoute>
+        }>
           <Route index element={<BIDashboard />} />
           <Route path="financeiro" element={<ModulePlaceholder module="Relatório Financeiro" />} />
           <Route path="ocupacao" element={<ModulePlaceholder module="Relatório de Ocupação" />} />
@@ -1359,9 +1391,10 @@ function App() {
           <Route path="configuracoes" element={<ModulePlaceholder module="Configurações BI" />} />
         </Route>
         
-        {/* ✅ REABILITADO v1.0.103.174 - Rotas properties com MainSidebar sempre visível */}
+        {/* ✅ REABILITADO v1.0.103.174 - Rotas properties com MainSidebar sempre visível - PROTEGIDAS */}
         <Route path="/properties/new" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <MainSidebar
               activeModule='imoveis'
               onModuleChange={setActiveModule}
@@ -1380,10 +1413,12 @@ function App() {
               <PropertyWizardPage />
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
         <Route path="/properties/:id/edit" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <MainSidebar
               activeModule='imoveis'
               onModuleChange={setActiveModule}
@@ -1402,10 +1437,12 @@ function App() {
               <PropertyWizardPage />
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
         <Route path="/properties" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1430,11 +1467,13 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* 🔍 ROTA DIAGNÓSTICO DE IMÓVEL - v1.0.103.314 */}
+        {/* 🔍 ROTA DIAGNÓSTICO DE IMÓVEL - v1.0.103.314 - PROTEGIDA */}
         <Route path="/properties/:id/diagnostico" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <MainSidebar
               activeModule='imoveis'
               onModuleChange={setActiveModule}
@@ -1455,13 +1494,15 @@ function App() {
               </div>
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
-        {/* ⭐ ROTA CONVENCIONADA - Dashboard Inicial - v1.0.103.267 */}
+        {/* ⭐ ROTA CONVENCIONADA - Dashboard Inicial - v1.0.103.267 - PROTEGIDA */}
         {/* URL FIXA para troubleshooting: /dashboard */}
         {/* Use esta URL quando precisar de um ponto de partida confiável */}
         <Route path="/dashboard" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1490,6 +1531,7 @@ function App() {
               />
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
         {/* ⚡ Rota raiz - REDIRECT AUTOMÁTICO para /dashboard - v1.0.103.267 */}
@@ -1497,9 +1539,10 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         
         
-        {/* Rota 404 - Catch All - Renderiza Dashboard */}
+        {/* Rota 404 - Catch All - Renderiza Dashboard - PROTEGIDA */}
         <Route path="*" element={
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             <LoadingProgress 
               isLoading={initialLoading}
             />
@@ -1522,6 +1565,7 @@ function App() {
               <EmergencyRecovery />
             </div>
           </div>
+          </ProtectedRoute>
         } />
         
         </Routes>
