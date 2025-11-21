@@ -199,7 +199,7 @@ export async function fetchWhatsAppMessages(chatId: string, limit: number = 50):
 /**
  * Enviar mensagem de texto
  */
-export async function sendWhatsAppMessage(number: string, text: string): Promise<any> {
+export async function sendWhatsAppMessage(number: string, text: string, options?: { isInternal?: boolean; attachments?: string[] }): Promise<any> {
   try {
     // ✅ ARQUITETURA SQL v1.0.103.950 - Usar token do usuário autenticado
     const token = localStorage.getItem('rendizy-token');
@@ -211,6 +211,12 @@ export async function sendWhatsAppMessage(number: string, text: string): Promise
     
     console.log('[WhatsApp Chat API] 📤 Enviando mensagem para:', number);
     
+    const payload: any = { number, text };
+    if (options) {
+      if (typeof options.isInternal !== 'undefined') payload.isInternal = !!options.isInternal;
+      if (Array.isArray(options.attachments) && options.attachments.length > 0) payload.attachments = options.attachments;
+    }
+
     const response = await fetch(`${BASE_URL}/whatsapp/send-message`, {
       method: 'POST',
       headers: {
@@ -218,7 +224,7 @@ export async function sendWhatsAppMessage(number: string, text: string): Promise
         'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase
         'X-Auth-Token': token // ✅ Token do usuário (evita validação JWT automática)
       },
-      body: JSON.stringify({ number, text }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -234,6 +240,49 @@ export async function sendWhatsAppMessage(number: string, text: string): Promise
   } catch (error) {
     console.error('[WhatsApp Chat API] ❌ Erro:', error);
     throw error;
+  }
+}
+
+/**
+ * Upload a single file to the photos upload endpoint and return the signed URL
+ */
+export async function uploadChatAttachment(file: File, propertyId: string, room: string = 'chat'): Promise<{ success: boolean; url?: string; error?: any }> {
+  try {
+    const token = localStorage.getItem('rendizy-token');
+    if (!token) throw new Error('Usuário não autenticado');
+
+    const { projectId, publicAnonKey } = await import('./supabase/info');
+
+    const form = new FormData();
+    form.append('file', file);
+    form.append('propertyId', propertyId);
+    form.append('room', room);
+
+    const resp = await fetch(`https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/photos/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${publicAnonKey}`,
+        'X-Auth-Token': token
+      } as any,
+      body: form
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      console.error('[uploadChatAttachment] erro:', resp.status, txt);
+      return { success: false, error: txt };
+    }
+
+    const result = await resp.json();
+    // expected shape: { success: true, photo: { url, id, path } }
+    if (result && result.success && result.photo && result.photo.url) {
+      return { success: true, url: result.photo.url };
+    }
+
+    return { success: false, error: result };
+  } catch (error) {
+    console.error('[uploadChatAttachment] exception', error);
+    return { success: false, error };
   }
 }
 

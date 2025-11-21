@@ -8,7 +8,7 @@
  * @date 2025-10-31
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   RefreshCw, 
@@ -34,6 +34,7 @@ import {
   LocalContact,
   SyncStats
 } from '../utils/services/evolutionContactsService';
+import { Pin } from 'lucide-react';
 
 interface EvolutionContactsListProps {
   onContactSelect?: (contact: LocalContact) => void;
@@ -57,6 +58,37 @@ export function EvolutionContactsList({
   });
 
   const service = getEvolutionContactsService();
+  const dragOverIndexRef = useRef<number | null>(null);
+
+  // Pinned ids and order map persisted in localStorage
+  const PIN_KEY = 'rendizy_evolution_pinned';
+  const ORDER_KEY = 'rendizy_evolution_order';
+
+  const loadPinned = (): string[] => {
+    try {
+      const raw = localStorage.getItem(PIN_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const savePinned = (ids: string[]) => {
+    localStorage.setItem(PIN_KEY, JSON.stringify(ids));
+  };
+
+  const loadOrder = (): string[] => {
+    try {
+      const raw = localStorage.getItem(ORDER_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const saveOrder = (ids: string[]) => {
+    localStorage.setItem(ORDER_KEY, JSON.stringify(ids));
+  };
 
   /**
    * Load contacts from service
@@ -65,8 +97,33 @@ export function EvolutionContactsList({
     setIsLoading(true);
     try {
       const storedContacts = service.getStoredContacts();
-      setContacts(storedContacts);
-      setFilteredContacts(storedContacts);
+      // Apply saved order and pinned state
+      const pinned = loadPinned();
+      const order = loadOrder();
+
+      // Sort by order first (if exists), otherwise keep existing index
+      const contactsWithOrder = storedContacts.slice();
+      contactsWithOrder.sort((a, b) => {
+        const ia = order.indexOf(a.id);
+        const ib = order.indexOf(b.id);
+        if (ia === -1 && ib === -1) return 0;
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      });
+
+      // Move pinned ids to the top in the order specified by pinned array
+      const pinnedContacts: LocalContact[] = [];
+      const others: LocalContact[] = [];
+      contactsWithOrder.forEach(c => {
+        if (pinned.includes(c.id)) pinnedContacts.push(c);
+        else others.push(c);
+      });
+
+      const combined = [...pinnedContacts, ...others];
+
+      setContacts(combined);
+      setFilteredContacts(combined);
       console.log(`📋 ${storedContacts.length} contatos carregados`);
     } catch (error) {
       console.error('Erro ao carregar contatos:', error);
@@ -145,6 +202,12 @@ export function EvolutionContactsList({
   useEffect(() => {
     loadContacts();
   }, []);
+
+  // Persist order when filteredContacts changes
+  useEffect(() => {
+    const ids = filteredContacts.map(c => c.id);
+    saveOrder(ids);
+  }, [filteredContacts]);
 
   // ✅ REQUISITO 2: Sincronização automática ao montar e atualização periódica
   // Sincroniza conversas automaticamente ao entrar na tela de chat
@@ -330,9 +393,32 @@ export function EvolutionContactsList({
           </div>
         ) : (
           <div className="divide-y">
-            {filteredContacts.map((contact) => (
+            {filteredContacts.map((contact, idx) => (
               <button
                 key={contact.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer?.setData('text/plain', contact.id);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  dragOverIndexRef.current = idx;
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const draggedId = e.dataTransfer?.getData('text/plain');
+                  if (!draggedId) return;
+                  const fromIndex = filteredContacts.findIndex(c => c.id === draggedId);
+                  const toIndex = dragOverIndexRef.current ?? idx;
+                  if (fromIndex === -1) return;
+
+                  const newList = filteredContacts.slice();
+                  const [moved] = newList.splice(fromIndex, 1);
+                  newList.splice(toIndex, 0, moved);
+                  setFilteredContacts(newList);
+                  setContacts(newList);
+                  saveOrder(newList.map(c => c.id));
+                }}
                 onClick={() => onContactSelect?.(contact)}
                 className={`w-full p-4 hover:bg-gray-50 transition-colors text-left ${
                   selectedContactId === contact.id ? 'bg-blue-50' : ''
@@ -390,6 +476,36 @@ export function EvolutionContactsList({
                         </Badge>
                       </div>
                     )}
+
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <div className="text-xs text-gray-500">{contact.lastMessage}</div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const pinned = loadPinned();
+                          const isPinned = pinned.includes(contact.id);
+                          if (!isPinned && pinned.length >= 5) {
+                            toast.error('Máximo de 5 conversas fixadas');
+                            return;
+                          }
+                          const newPinned = isPinned ? pinned.filter(id => id !== contact.id) : [...pinned, contact.id];
+                          savePinned(newPinned);
+                          // Reorder so pinned are on top
+                          const ordered = [...filteredContacts].sort((a, b) => {
+                            const pa = newPinned.includes(a.id) ? 0 : 1;
+                            const pb = newPinned.includes(b.id) ? 0 : 1;
+                            if (pa === pb) return 0;
+                            return pa - pb;
+                          });
+                          setFilteredContacts(ordered);
+                          setContacts(ordered);
+                        }}
+                        title={"Fixar/Desfixar conversa"}
+                        className="p-1 rounded hover:bg-gray-100"
+                      >
+                        <Pin className={`w-4 h-4`} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </button>

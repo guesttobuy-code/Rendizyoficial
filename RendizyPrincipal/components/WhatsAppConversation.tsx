@@ -21,7 +21,9 @@ import {
   Info
 } from 'lucide-react';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { Checkbox } from './ui/checkbox';
+import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { toast } from 'sonner';
@@ -32,6 +34,11 @@ import {
   formatPhoneDisplay,
   formatWhatsAppNumber
 } from '../utils/whatsappChatApi';
+import { uploadChatAttachment } from '../utils/whatsappChatApi';
+import { QuickActionsModal } from './QuickActionsModal';
+import { QuotationModal } from './QuotationModal';
+import { CreateReservationWizard } from './CreateReservationWizard';
+import { TemplateManagerModal, MessageTemplate } from './TemplateManagerModal';
 import { LocalContact } from '../utils/services/evolutionContactsService';
 
 interface WhatsAppConversationProps {
@@ -50,10 +57,20 @@ interface MessageDisplay {
 export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
   const [messages, setMessages] = useState<MessageDisplay[]>([]);
   const [inputText, setInputText] = useState('');
+  const [isInternalNote, setIsInternalNote] = useState(false);
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [showTemplatesDropdown, setShowTemplatesDropdown] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [showQuotation, setShowQuotation] = useState(false);
+  const [showCreateReservation, setShowCreateReservation] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   /**
    * Buscar mensagens do chat
@@ -82,8 +99,15 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
 
       // Ordenar por timestamp (mais antigas primeiro)
       formattedMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-      
-      setMessages(formattedMessages);
+      // Filtrar mensagens de mock/boas-vindas fixas (ex.: 'Bem-vindo', 'Mensagem Fixa')
+      const filtered = formattedMessages.filter(m => {
+        const t = (m.text || '').toLowerCase();
+        if (!t) return true;
+        if (t.includes('bem-vindo') || t.includes('mensagem fixa') || t.includes('boas-vindas')) return false;
+        return true;
+      });
+
+      setMessages(filtered);
       console.log('[WhatsAppConversation] ✅', formattedMessages.length, 'mensagens carregadas');
     } catch (error) {
       console.error('[WhatsAppConversation] ❌ Erro ao carregar mensagens:', error);
@@ -97,12 +121,11 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
    * Enviar mensagem
    */
   const handleSendMessage = async () => {
-    if (!inputText.trim() || isSending) return;
+    if ((!inputText.trim() && attachments.length === 0) || isSending) return;
 
     const messageText = inputText.trim();
     setInputText('');
     setIsSending(true);
-
       // Adicionar mensagem otimista (aparece imediatamente)
       const optimisticMessage: MessageDisplay = {
         id: `temp-${Date.now()}`,
@@ -118,7 +141,38 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
       const phoneNumber = formatWhatsAppNumber(contact.phone);
       console.log('[WhatsAppConversation] 📤 Enviando mensagem para:', phoneNumber);
       
-      const result = await sendWhatsAppMessage(phoneNumber, messageText);
+      // If there are attachments, upload them first and collect URLs
+      let attachmentUrls: string[] = [];
+      if (attachments.length > 0) {
+        setIsUploading(true);
+        // Determine propertyId fallback - try to use contact.id or 'external'
+        const propertyIdFallback = contact.id || 'external';
+        const uploadPromises = attachments.map((file) =>
+          // uploadChatAttachment is defined in utils
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          uploadChatAttachment(file, propertyIdFallback, 'chat')
+        );
+
+        const uploadResults = await Promise.all(uploadPromises);
+        const failed = uploadResults.filter(r => !r.success);
+        if (failed.length > 0) {
+          console.error('[WhatsAppConversation] Alguns uploads falharam', failed);
+          toast.error('Erro ao enviar anexos. Tente novamente.');
+          // restore attachments and abort send
+          setIsSending(false);
+          setIsUploading(false);
+          return;
+        }
+
+        attachmentUrls = uploadResults.map(r => r.url!).filter(Boolean);
+        setIsUploading(false);
+      }
+
+      const result = await sendWhatsAppMessage(phoneNumber, messageText, {
+        isInternal: isInternalNote,
+        attachments: attachmentUrls,
+      });
       
       // Atualizar mensagem otimista com dados reais
       setMessages((prev: MessageDisplay[]) => prev.map((msg: MessageDisplay) => 
@@ -141,6 +195,9 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
       setMessages((prev: MessageDisplay[]) => prev.filter((msg: MessageDisplay) => msg.id !== optimisticMessage.id));
     } finally {
       setIsSending(false);
+      // reset attachments and internal note after send
+      setAttachments([]);
+      setIsInternalNote(false);
     }
   };
 
@@ -152,6 +209,26 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  // Load saved templates from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('rendizy_chat_templates');
+      if (saved) {
+        const parsed = JSON.parse(saved) as MessageTemplate[];
+        // normalize dates
+        const normalized = parsed.map((t) => ({
+          ...t,
+          created_at: t.created_at ? new Date(t.created_at) : new Date(),
+          updated_at: t.updated_at ? new Date(t.updated_at) : new Date(),
+        }));
+        setTemplates(normalized);
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar templates do localStorage', e);
+      setTemplates([]);
+    }
+  }, []);
 
   /**
    * Carregar mensagens ao montar e quando contato mudar
@@ -259,12 +336,58 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
             <Button variant="ghost" size="icon">
               <Info className="w-5 h-5" />
             </Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowQuickActions(true)}>
+              Ações
+            </Button>
             <Button variant="ghost" size="icon">
               <MoreVertical className="w-5 h-5" />
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Quick Actions Modal */}
+      <QuickActionsModal
+        open={showQuickActions}
+        onClose={() => setShowQuickActions(false)}
+        onSelectAction={(action) => {
+          setShowQuickActions(false);
+          if (action === 'quote') {
+            // Need property/date context to open full QuotationModal
+            if (!contact) {
+              toast.error('Selecione uma conversa com propriedade antes de fazer uma cotação');
+              return;
+            }
+            setShowQuotation(true);
+          }
+          if (action === 'reservation') {
+            if (!contact) {
+              toast.error('Selecione uma conversa com propriedade antes de criar reserva');
+              return;
+            }
+            setShowCreateReservation(true);
+          }
+          // other actions handled elsewhere
+        }}
+      />
+
+      <QuotationModal
+        isOpen={showQuotation}
+        onClose={() => setShowQuotation(false)}
+        // no property context here — require user to select inside modal
+        property={undefined as any}
+        startDate={new Date()}
+        endDate={new Date(new Date().getTime() + 1000 * 60 * 60 * 24)}
+      />
+
+      <CreateReservationWizard
+        open={showCreateReservation}
+        onClose={() => setShowCreateReservation(false)}
+        onComplete={() => {
+          setShowCreateReservation(false);
+          toast.success('Reserva criada');
+        }}
+      />
 
       {/* Mensagens */}
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
@@ -341,42 +464,143 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
 
       {/* Input de mensagem */}
       <div className="border-t bg-white dark:bg-gray-800 p-4">
-        <div className="flex items-end gap-2">
-          <Button variant="ghost" size="icon" className="flex-shrink-0">
-            <Smile className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="flex-shrink-0">
-            <Paperclip className="w-5 h-5" />
-          </Button>
-          <div className="flex-1 relative">
-            <Input
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage();
-                }
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => { /* emoji picker placeholder */ }}>
+              <Smile className="w-5 h-5" />
+            </Button>
+
+            <div className="relative">
+              <Button variant="outline" size="sm" onClick={() => setShowTemplatesDropdown(!showTemplatesDropdown)}>
+                Templates
+              </Button>
+              {showTemplatesDropdown && (
+                <div className="absolute left-0 mt-2 w-72 bg-white dark:bg-gray-800 border rounded shadow-lg z-50 max-h-64 overflow-y-auto">
+                  {templates.length === 0 ? (
+                    <div className="p-3 text-sm text-gray-500">Nenhum template</div>
+                  ) : (
+                    templates.map((t) => (
+                      <button
+                        key={t.id}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        onClick={() => {
+                          // insert template at cursor (append for simplicity)
+                          const newText = `${inputText}${inputText ? '\n\n' : ''}${t.content}`;
+                          setInputText(newText);
+                          setShowTemplatesDropdown(false);
+                        }}
+                      >
+                        <div className="font-medium text-sm">{t.name}</div>
+                        <div className="text-xs text-gray-500 line-clamp-2">{t.content}</div>
+                      </button>
+                    ))
+                  )}
+                  <div className="p-2 border-t flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setShowTemplateManager(true)}>Gerenciar</Button>
+                    <Button variant="link" size="sm" onClick={() => { setShowTemplatesDropdown(false); }}>Fechar</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              multiple
+              onChange={(e) => {
+                const files = e.target.files;
+                if (!files) return;
+                const valid = Array.from(files);
+                setAttachments((prev) => [...prev, ...valid]);
+                // reset input so same file can be selected again
+                e.currentTarget.value = '';
               }}
-              placeholder="Digite uma mensagem..."
-              className="pr-12 resize-none"
-              disabled={isSending}
             />
-          </div>
-          <Button
-            onClick={handleSendMessage}
-            disabled={!inputText.trim() || isSending}
-            size="icon"
-            className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {isSending ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Send className="w-5 h-5" />
+
+            <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => fileInputRef.current?.click()}>
+              <Paperclip className="w-5 h-5" />
+            </Button>
+            {isUploading && (
+              <div className="ml-2 text-sm text-gray-500 dark:text-gray-400">Enviando anexos...</div>
             )}
-          </Button>
+
+            <div className="ml-auto flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Checkbox id="internal-note" checked={isInternalNote} onCheckedChange={(v: any) => setIsInternalNote(!!v)} />
+                <Label htmlFor="internal-note" className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer">Nota interna</Label>
+              </div>
+            </div>
+          </div>
+
+          {/* Attachments preview */}
+          {attachments.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {attachments.map((f, idx) => (
+                <div key={`${f.name}-${idx}`} className="p-2 bg-gray-100 dark:bg-gray-800 rounded flex items-center gap-2">
+                  <div className="text-xs max-w-xs truncate">{f.name}</div>
+                  <Button variant="ghost" size="icon" onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}>
+                    <svg className="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-end gap-2">
+            <div className="flex-1 relative">
+              <Textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                placeholder="Digite uma mensagem..."
+                className="pr-12"
+                disabled={isSending}
+                rows={2}
+              />
+            </div>
+            <Button
+              onClick={handleSendMessage}
+              disabled={(!inputText.trim() && attachments.length === 0) || isSending}
+              size="icon"
+              className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isSending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </Button>
+          </div>
         </div>
       </div>
+
+      <TemplateManagerModal
+        open={showTemplateManager}
+        onClose={() => setShowTemplateManager(false)}
+        templates={templates}
+        onSaveTemplate={(t) => {
+          // upsert
+          setTemplates((prev) => {
+            const found = prev.find((p) => p.id === t.id);
+            const updated = found ? prev.map((p) => (p.id === t.id ? t : p)) : [t, ...prev];
+            localStorage.setItem('rendizy_chat_templates', JSON.stringify(updated));
+            return updated;
+          });
+        }}
+        onDeleteTemplate={(id) => {
+          setTemplates((prev) => {
+            const updated = prev.filter((p) => p.id !== id);
+            localStorage.setItem('rendizy_chat_templates', JSON.stringify(updated));
+            return updated;
+          });
+        }}
+      />
     </div>
   );
 }
