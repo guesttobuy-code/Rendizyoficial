@@ -337,6 +337,7 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 // GET /auth/me - Verificar sessão atual
 // ✅ ARQUITETURA SQL: Busca sessão e usuário do SQL
 // ✅ SOLUÇÃO SIMPLES - Token do header Authorization (como estava funcionando ontem)
+// ✅ DEBUG: Adicionar rota alternativa para testar
 app.get('/me', async (c) => {
   console.log('🚀 [auth/me] ROTA CHAMADA - URL:', c.req.url);
   console.log('🚀 [auth/me] MÉTODO:', c.req.method);

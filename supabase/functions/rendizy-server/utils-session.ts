@@ -90,8 +90,7 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
         .from('sessions')
         .update({
           last_activity: now.toISOString(),
-          expires_at: newExpiresAt.toISOString(),
-          updated_at: now.toISOString()
+          expires_at: newExpiresAt.toISOString()
         })
         .eq('token', token)
         .then(({ error }) => {

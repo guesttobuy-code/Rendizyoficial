@@ -88,7 +88,124 @@ app.get("/rendizy-server/make-server-67caf26a/health", (c) => {
 // ============================================================================
 
 // ✅ ARQUITETURA SQL: Rota de autenticação sem make-server-67caf26a
+// ✅ DEBUG: Log antes de registrar rota
+app.use('/rendizy-server/auth/*', async (c, next) => {
+  console.log('🔍 [index.ts] Interceptando requisição para:', c.req.path);
+  console.log('🔍 [index.ts] URL completa:', c.req.url);
+  console.log('🔍 [index.ts] Method:', c.req.method);
+  console.log('🔍 [index.ts] Headers:', {
+    'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present (' + (c.req.header('X-Auth-Token')?.substring(0, 20) || '') + '...)' : 'missing',
+    'Authorization': c.req.header('Authorization') ? 'present' : 'missing',
+    'apikey': c.req.header('apikey') ? 'present' : 'missing'
+  });
+  await next();
+});
 app.route('/rendizy-server/auth', authApp);
+
+// ✅ SOLUÇÃO DEFINITIVA: Rota /auth/me usando o mesmo padrão das outras rotas (com make-server-67caf26a)
+// Isso garante que funcione igual às outras rotas que já estão funcionando
+app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
+  console.log('🚀 [index.ts] ROTA /make-server-67caf26a/auth/me CHAMADA DIRETAMENTE!');
+  console.log('🔍 [index.ts] Headers recebidos:', {
+    'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present (' + (c.req.header('X-Auth-Token')?.substring(0, 20) || '') + '...)' : 'missing',
+    'Authorization': c.req.header('Authorization') ? 'present' : 'missing',
+    'apikey': c.req.header('apikey') ? 'present' : 'missing'
+  });
+  
+  // Importar função diretamente para evitar problemas de roteamento
+  const { getSessionFromToken } = await import('./utils-session.ts');
+  const { getSupabaseClient } = await import('./kv_store.tsx');
+  
+  try {
+    let token = c.req.header('X-Auth-Token');
+    if (!token) {
+      const authHeader = c.req.header('Authorization');
+      token = authHeader?.split(' ')[1];
+    }
+    
+    console.log('🔍 [index.ts] Token extraído:', token ? token.substring(0, 20) + '...' : 'NONE');
+    
+    if (!token) {
+      return c.json({
+        success: false,
+        error: 'Token não fornecido'
+      }, 401);
+    }
+    
+    console.log('🔍 [index.ts] Buscando sessão com token:', token?.substring(0, 20) + '...');
+    const session = await getSessionFromToken(token);
+    
+    if (!session) {
+      console.log('❌ [index.ts] Sessão não encontrada ou inválida');
+      return c.json({
+        success: false,
+        error: 'Sessão inválida ou expirada',
+        code: 'SESSION_NOT_FOUND'
+      }, 401);
+    }
+    
+    console.log('✅ [index.ts] Sessão encontrada:', session.userId);
+    
+    const supabase = getSupabaseClient();
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', session.userId)
+      .single();
+    
+    if (userError || !user) {
+      console.error('❌ [index.ts] Usuário não encontrado:', userError);
+      return c.json({
+        success: false,
+        error: 'Usuário não encontrado'
+      }, 404);
+    }
+    
+    let organization = null;
+    if (user.organization_id) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id, name, slug')
+        .eq('id', user.organization_id)
+        .single();
+      
+      if (org) {
+        organization = org;
+      }
+    }
+    
+    console.log('✅ [index.ts] Retornando dados do usuário:', user.username);
+    
+    return c.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        type: user.type,
+        status: user.status,
+        organizationId: user.organization_id || undefined,
+        organization: organization ? {
+          id: organization.id,
+          name: organization.name,
+          slug: organization.slug
+        } : null
+      },
+      session: {
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt,
+        lastActivity: session.lastActivity
+      }
+    });
+  } catch (error) {
+    console.error('❌ [index.ts] Erro ao verificar sessão:', error);
+    return c.json({
+      success: false,
+      error: 'Erro ao verificar sessão'
+    }, 500);
+  }
+});
 
 // ============================================================================
 // LOCATIONS ROUTES

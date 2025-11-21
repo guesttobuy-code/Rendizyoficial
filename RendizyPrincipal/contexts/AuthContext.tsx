@@ -59,7 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         
-        const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/me`;
+        // ✅ SOLUÇÃO DEFINITIVA: Usar o mesmo padrão das outras rotas (com make-server-67caf26a)
+        // Isso garante que funcione igual às outras rotas que já estão funcionando
+        const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/auth/me`;
         
         const response = await fetch(url, {
           method: 'GET',
