@@ -59,6 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         
+        // ✅ CORREÇÃO CRÍTICA: Aguardar um pouco após login para garantir que sessão foi commitada no banco
+        await new Promise(resolve => setTimeout(resolve, 500)); // Adicionado este delay
+        
         // ✅ SOLUÇÃO DEFINITIVA: Usar o mesmo padrão das outras rotas (com make-server-67caf26a)
         // Isso garante que funcione igual às outras rotas que já estão funcionando
         const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/auth/me`;
@@ -86,12 +89,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // ✅ RETRY: Se erro de parse e ainda há retries, tentar novamente
           if (retries > 0) {
             console.warn(`⚠️ [AuthContext] Erro ao parsear JSON, tentando novamente... (${retries} tentativas restantes)`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Aumentado para 2s
             return loadUser(retries - 1);
           }
           
           // ✅ Se já temos usuário no estado, manter (pode ser problema temporário de rede)
           if (!user) {
+            localStorage.removeItem('rendizy-token');
             setUser(null);
             setIsLoading(false);
           }
@@ -103,14 +107,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // ✅ RETRY: Se erro 401 e ainda há retries, tentar novamente (pode ser erro transitório)
           if (response.status === 401 && retries > 0) {
             console.warn(`⚠️ [AuthContext] Erro 401, tentando novamente... (${retries} tentativas restantes)`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Aumentado para 2s
             return loadUser(retries - 1);
           }
           
           console.log('❌ [AuthContext] Sessão inválida ou expirada:', data?.error);
-          // ✅ Limpar token inválido
-          localStorage.removeItem('rendizy-token');
-          setUser(null);
+          // ✅ Limpar token inválido apenas se não houver usuário no estado (evita limpar após login bem-sucedido)
+          if (!user) {
+            localStorage.removeItem('rendizy-token');
+            setUser(null);
+          }
           setIsLoading(false);
           return;
         }
