@@ -246,44 +246,64 @@ export async function sendWhatsAppMessage(number: string, text: string, options?
 /**
  * Upload a single file to the photos upload endpoint and return the signed URL
  */
-export async function uploadChatAttachment(file: File, propertyId: string, room: string = 'chat'): Promise<{ success: boolean; url?: string; error?: any }> {
-  try {
-    const token = localStorage.getItem('rendizy-token');
-    if (!token) throw new Error('Usuário não autenticado');
+export async function uploadChatAttachment(
+  file: File,
+  propertyId: string,
+  room: string = 'chat',
+  onProgress?: (percent: number) => void
+): Promise<{ success: boolean; url?: string; error?: any }> {
+  return new Promise((resolve) => {
+    try {
+      const token = localStorage.getItem('rendizy-token');
+      if (!token) return resolve({ success: false, error: 'Usuário não autenticado' });
 
-    const { projectId, publicAnonKey } = await import('./supabase/info');
+      const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/photos/upload`;
 
-    const form = new FormData();
-    form.append('file', file);
-    form.append('propertyId', propertyId);
-    form.append('room', room);
+      const form = new FormData();
+      form.append('file', file);
+      form.append('propertyId', propertyId);
+      form.append('room', room);
 
-    const resp = await fetch(`https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/photos/upload`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${publicAnonKey}`,
-        'X-Auth-Token': token
-      } as any,
-      body: form
-    });
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      // set headers that are not related to multipart body
+      try {
+        xhr.setRequestHeader('Authorization', `Bearer ${publicAnonKey}`);
+        xhr.setRequestHeader('X-Auth-Token', token);
+      } catch (e) {
+        // some browsers may restrict setting certain headers for FormData; ignore
+      }
 
-    if (!resp.ok) {
-      const txt = await resp.text();
-      console.error('[uploadChatAttachment] erro:', resp.status, txt);
-      return { success: false, error: txt };
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          onProgress(percent);
+        }
+      };
+
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const result = JSON.parse(xhr.responseText);
+            if (result && result.success && result.photo && result.photo.url) {
+              return resolve({ success: true, url: result.photo.url });
+            }
+            return resolve({ success: false, error: result });
+          } catch (err) {
+            return resolve({ success: false, error: xhr.responseText || err });
+          }
+        }
+        return resolve({ success: false, error: xhr.responseText || `status ${xhr.status}` });
+      };
+
+      xhr.onerror = () => resolve({ success: false, error: 'Network error' });
+      xhr.send(form);
+    } catch (error) {
+      console.error('[uploadChatAttachment] exception', error);
+      return resolve({ success: false, error });
     }
-
-    const result = await resp.json();
-    // expected shape: { success: true, photo: { url, id, path } }
-    if (result && result.success && result.photo && result.photo.url) {
-      return { success: true, url: result.photo.url };
-    }
-
-    return { success: false, error: result };
-  } catch (error) {
-    console.error('[uploadChatAttachment] exception', error);
-    return { success: false, error };
-  }
+  });
 }
 
 /**

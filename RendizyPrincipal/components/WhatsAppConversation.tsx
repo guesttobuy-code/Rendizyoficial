@@ -54,6 +54,14 @@ interface MessageDisplay {
   type?: 'text' | 'image' | 'video' | 'audio' | 'document';
 }
 
+interface AttachmentItem {
+  file: File;
+  progress?: number; // 0-100
+  status?: 'pending' | 'uploading' | 'done' | 'error';
+  url?: string;
+}
+
+
 export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
   const [messages, setMessages] = useState<MessageDisplay[]>([]);
   const [inputText, setInputText] = useState('');
@@ -61,7 +69,7 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [showTemplatesDropdown, setShowTemplatesDropdown] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
-  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
@@ -145,27 +153,58 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
       let attachmentUrls: string[] = [];
       if (attachments.length > 0) {
         setIsUploading(true);
-        // Determine propertyId fallback - try to use contact.id or 'external'
         const propertyIdFallback = contact.id || 'external';
-        const uploadPromises = attachments.map((file) =>
-          // uploadChatAttachment is defined in utils
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          uploadChatAttachment(file, propertyIdFallback, 'chat')
-        );
 
-        const uploadResults = await Promise.all(uploadPromises);
-        const failed = uploadResults.filter(r => !r.success);
-        if (failed.length > 0) {
-          console.error('[WhatsAppConversation] Alguns uploads falharam', failed);
-          toast.error('Erro ao enviar anexos. Tente novamente.');
-          // restore attachments and abort send
-          setIsSending(false);
-          setIsUploading(false);
-          return;
+        // take a snapshot to avoid issues if state updates during uploads
+        const snapshot = attachments.slice();
+
+        for (let i = 0; i < snapshot.length; i++) {
+          const item = snapshot[i];
+
+          // If item already uploaded, reuse URL
+          if (item.status === 'done' && item.url) {
+            attachmentUrls.push(item.url);
+            continue;
+          }
+
+          // mark uploading by id position
+          setAttachments((prev) => {
+            const copy = [...prev];
+            if (copy[i]) copy[i] = { ...copy[i], status: 'uploading', progress: 0 };
+            return copy;
+          });
+
+          const res = await uploadChatAttachment(item.file, propertyIdFallback, 'chat', (pct) => {
+            setAttachments((prev) => {
+              const copy = [...prev];
+              if (copy[i]) copy[i] = { ...copy[i], progress: pct, status: 'uploading' };
+              return copy;
+            });
+          });
+
+          if (!res.success) {
+            console.error('[WhatsAppConversation] Upload falhou para', item.file.name, res.error);
+            setAttachments((prev) => {
+              const copy = [...prev];
+              if (copy[i]) copy[i] = { ...copy[i], status: 'error' };
+              return copy;
+            });
+            toast.error('Erro ao enviar anexos. Tente novamente.');
+            setIsSending(false);
+            setIsUploading(false);
+            return;
+          }
+
+          // mark done and store url
+          setAttachments((prev) => {
+            const copy = [...prev];
+            if (copy[i]) copy[i] = { ...copy[i], status: 'done', progress: 100, url: res.url };
+            return copy;
+          });
+
+          if (res.url) attachmentUrls.push(res.url);
         }
 
-        attachmentUrls = uploadResults.map(r => r.url!).filter(Boolean);
         setIsUploading(false);
       }
 
@@ -292,6 +331,74 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
       .join('')
       .substring(0, 2)
       .toUpperCase();
+  };
+
+  /**
+   * Handle paste events on the textarea to accept images from clipboard
+   */
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    try {
+      const items = e.clipboardData && Array.from(e.clipboardData.items || []);
+      if (!items || items.length === 0) return;
+
+      const imageItems = items.filter(it => it.kind === 'file' && it.type && it.type.startsWith('image/'));
+      if (imageItems.length === 0) return;
+
+      const propertyIdFallback = contact.id || 'external';
+
+      for (const it of imageItems) {
+        const file = it.getAsFile();
+        if (!file) continue;
+
+        const MAX_SIZE = 5 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+          toast.error('Imagem maior que 5MB rejeitada');
+          continue;
+        }
+
+        const newItem: AttachmentItem = { file, progress: 0, status: 'uploading', url: undefined } as AttachmentItem;
+
+        // append to attachments list
+        setAttachments((prev) => [...prev, newItem]);
+
+        // start upload immediately
+        setIsUploading(true);
+
+        const res = await uploadChatAttachment(file, propertyIdFallback, 'chat', (pct) => {
+          setAttachments((prev) => {
+            const copy = [...prev];
+            const index = copy.findIndex(a => a.file === file);
+            const pos = index >= 0 ? index : copy.length - 1;
+            if (copy[pos]) copy[pos] = { ...copy[pos], progress: pct, status: 'uploading' };
+            return copy;
+          });
+        });
+
+        if (!res.success) {
+          setAttachments((prev) => {
+            const copy = [...prev];
+            const index = copy.findIndex(a => a.file === file);
+            if (index >= 0) copy[index] = { ...copy[index], status: 'error' };
+            return copy;
+          });
+          toast.error('Erro ao fazer upload da imagem colada');
+          setIsUploading(false);
+          continue;
+        }
+
+        // mark done and set url
+        setAttachments((prev) => {
+          const copy = [...prev];
+          const index = copy.findIndex(a => a.file === file);
+          if (index >= 0) copy[index] = { ...copy[index], status: 'done', progress: 100, url: res.url };
+          return copy;
+        });
+
+        setIsUploading(false);
+      }
+    } catch (err) {
+      console.error('[WhatsAppConversation] Erro no paste handler', err);
+    }
   };
 
   return (
@@ -513,11 +620,11 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
                 if (!files) return;
                 const validArr = Array.from(files);
                 const MAX_SIZE = 5 * 1024 * 1024; // 5MB - same as backend
-                const accepted: File[] = [];
+                const accepted: AttachmentItem[] = [];
                 const rejected: File[] = [];
                 for (const f of validArr) {
                   if (f.size > MAX_SIZE) rejected.push(f);
-                  else accepted.push(f);
+                  else accepted.push({ file: f, progress: 0, status: 'pending' });
                 }
                 if (rejected.length > 0) {
                   toast.error(`Arquivos maiores que 5MB foram removidos (${rejected.length})`);
@@ -546,12 +653,18 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
           {/* Attachments preview */}
           {attachments.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-1">
-              {attachments.map((f, idx) => (
-                <div key={`${f.name}-${idx}`} className="p-2 bg-gray-100 dark:bg-gray-800 rounded flex items-center gap-2">
-                  <div className="text-xs max-w-xs truncate">{f.name}</div>
-                  <Button variant="ghost" size="icon" onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}>
-                    <svg className="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                  </Button>
+              {attachments.map((item, idx) => (
+                <div key={`${item.file.name}-${idx}`} className="p-2 bg-gray-100 dark:bg-gray-800 rounded flex flex-col items-start gap-2 w-48">
+                  <div className="flex items-center w-full justify-between gap-2">
+                    <div className="text-xs max-w-xs truncate">{item.file.name}</div>
+                    <Button variant="ghost" size="icon" onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}>
+                      <svg className="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </Button>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded h-2 overflow-hidden">
+                    <div className="h-2 bg-blue-600" style={{ width: `${item.progress ?? 0}%` }} />
+                  </div>
+                  <div className="text-[10px] text-gray-500 dark:text-gray-400 w-full text-right">{item.status === 'uploading' ? `Enviando ${item.progress ?? 0}%` : item.status === 'done' ? 'Enviado' : item.status === 'error' ? 'Erro' : ''}</div>
                 </div>
               ))}
             </div>
@@ -562,6 +675,7 @@ export function WhatsAppConversation({ contact }: WhatsAppConversationProps) {
               <Textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
+                onPaste={handlePaste}
                 onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();

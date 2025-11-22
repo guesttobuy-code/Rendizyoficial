@@ -162,7 +162,8 @@ export function whatsappEvolutionRoutes(app: Hono) {
         }, 400);
       }
 
-      const { number, text } = await c.req.json();
+      const payload = await c.req.json();
+      const { number, text, attachments: attachmentsFromClient, isInternal } = payload;
 
       if (!number || !text) {
         return c.json({ error: 'Número e texto são obrigatórios' }, 400);
@@ -187,9 +188,74 @@ export function whatsappEvolutionRoutes(app: Hono) {
 
       const data = await response.json();
       console.log(`[WhatsApp] [${organizationId}] Mensagem enviada com sucesso`);
-      
-      // ✅ CORREÇÃO 6: Salvar mensagem no Supabase (via routes-chat quando apropriado)
-      // TODO: Integrar com routes-chat para salvar mensagens enviadas
+
+      // -------------------------
+      // Persistir conversa + mensagem no banco SQL
+      // -------------------------
+      try {
+        const client = getSupabaseClient();
+
+        // 1) Encontrar ou criar a conversation (external_conversation_id = number)
+        let conversationId: string | null = null;
+        try {
+          const { data: conv } = await client
+            .from('conversations')
+            .select('id')
+            .eq('organization_id', organizationId)
+            .eq('external_conversation_id', number)
+            .maybeSingle();
+
+          if (conv && (conv as any).id) {
+            conversationId = (conv as any).id;
+          } else {
+            // criar conversa mínima
+            const convInsert: any = {
+              organization_id: organizationId,
+              external_conversation_id: number,
+              guest_phone: number.replace(/@.*/, ''),
+              channel: 'whatsapp',
+              last_message: text,
+              last_message_at: new Date().toISOString(),
+            };
+            const { data: newConv } = await client.from('conversations').insert(convInsert).select('id').maybeSingle();
+            conversationId = newConv?.id || null;
+          }
+        } catch (convErr) {
+          console.warn('[WhatsApp] Não foi possível criar/encontrar conversation:', convErr);
+        }
+
+        // 2) Inserir mensagem (tentar salvar attachments e isInternal quando presentes)
+        try {
+          const attachmentsToSave = Array.isArray(attachmentsFromClient) ? attachmentsFromClient : [];
+          const externalId = data?.id || data?.messageId || data?.result?.id || null;
+
+          const msgRow: any = {
+            organization_id: organizationId,
+            conversation_id: conversationId,
+            sender_type: 'staff',
+            sender_name: 'system',
+            sender_id: null,
+            content: text,
+            attachments: attachmentsToSave,
+            channel: 'whatsapp',
+            direction: 'outgoing',
+            external_id: externalId,
+            external_status: 'sent',
+            sent_at: new Date().toISOString(),
+            metadata: { isInternal: !!isInternal },
+          };
+
+          // Insert message. If table or columns don't exist, catch error and continue.
+          const { error: insertErr } = await client.from('messages').insert(msgRow);
+          if (insertErr) {
+            console.warn('[WhatsApp] Erro ao inserir mensagem no DB:', insertErr.message || insertErr);
+          }
+        } catch (msgErr) {
+          console.warn('[WhatsApp] Falha ao persistir mensagem:', msgErr);
+        }
+      } catch (err) {
+        console.warn('[WhatsApp] Erro ao persistir dados no Supabase:', err);
+      }
 
       return c.json({ success: true, data });
     } catch (error) {
