@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -32,7 +32,7 @@ import {
   Download,
   Calendar,
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { StaysNetReservationAnalyzer } from './StaysNetReservationAnalyzer';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
@@ -605,24 +605,24 @@ export default function StaysNetIntegration() {
       </div>
 
       <Tabs defaultValue="config" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="config">
+        <TabsList className="w-full flex flex-wrap gap-3">
+          <TabsTrigger value="config" className="flex-none justify-center px-4 py-2 min-w-[150px]">
             <Key className="w-4 h-4 mr-2" />
             Configuração
           </TabsTrigger>
-          <TabsTrigger value="preview">
+          <TabsTrigger value="preview" className="flex-none justify-center px-4 py-2 min-w-[150px]">
             <Eye className="w-4 h-4 mr-2" />
             Preview Reservas
           </TabsTrigger>
-          <TabsTrigger value="analyzer">
+          <TabsTrigger value="analyzer" className="flex-none justify-center px-4 py-2 min-w-[150px]">
             <Calendar className="w-4 h-4 mr-2" />
             Análise de Reservas
           </TabsTrigger>
-          <TabsTrigger value="mapping">
+          <TabsTrigger value="mapping" className="flex-none justify-center px-4 py-2 min-w-[150px]">
             <Database className="w-4 h-4 mr-2" />
             Mapeamento de Campos
           </TabsTrigger>
-          <TabsTrigger value="test">
+          <TabsTrigger value="test" className="flex-none justify-center px-4 py-2 min-w-[150px]">
             <RefreshCw className="w-4 h-4 mr-2" />
             Ambiente de Teste
           </TabsTrigger>
