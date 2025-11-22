@@ -220,8 +220,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'apikey': publicAnonKey,
           'Authorization': `Bearer ${publicAnonKey}` // ✅ Usar Authorization Bearer com anon key
         },
-        body: JSON.stringify({ username, password })
-        // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
+        body: JSON.stringify({ username, password }),
+        // ✅ GARANTIR que credentials não seja usado
+        credentials: 'omit' // ✅ Explícito: não enviar credentials
       });
       
       // ✅ ARQUITETURA CORRETA: Ler body apenas UMA vez

@@ -228,8 +228,11 @@ async function apiRequest<T>(
       headers['X-Auth-Token'] = userToken;
     }
     
+    // ✅ GARANTIR que credentials não seja passado via options
+    const { credentials, ...restOptions } = options;
+    
     const response = await fetch(url, {
-      ...options,
+      ...restOptions,
       headers,
       // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
     });
