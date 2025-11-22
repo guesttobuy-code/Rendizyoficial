@@ -4,8 +4,9 @@
 
 $ErrorActionPreference = "Stop"
 
-# Define o diretório do projeto
-$projectPath = "C:\Users\rafae\Downloads\Rendizy2producao-main github 15 11 2025\Rendizy2producao-main"
+# Define o diretório do projeto (detecta automaticamente se estiver em worktree)
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+$projectPath = if (Test-Path "$scriptPath\RendizyPrincipal") { $scriptPath } else { "C:\Users\rafae\Downloads\Rendizy2producao-main github 15 11 2025\Rendizy2producao-main" }
 Set-Location $projectPath
 
 Write-Host "`n🌐 Deploy do Frontend (GitHub → Vercel)" -ForegroundColor Cyan

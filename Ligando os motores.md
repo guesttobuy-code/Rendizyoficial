@@ -57,15 +57,27 @@ await supabase.from('sessions').insert({ token, user_id, ... });
 - ❌ Adicionar camadas intermediárias
 
 ### 📚 **DOCUMENTOS OBRIGATÓRIOS ANTES DE MUDAR:**
-1. ⚠️ **`SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md`** - ANTES de mudar CORS/Login
-2. ⚠️ **`VITORIA_WHATSAPP_E_LOGIN.md`** - Quando funcionou pela primeira vez
-3. ⚠️ **`RESUMO_SIMPLIFICACAO_CORS_LOGIN_20251120.md`** - Por que simplificamos
+1. ⚠️ **`CHECKLIST_ANTES_DE_MUDAR_CODIGO.md`** - **OBRIGATÓRIO PRIMEIRO** ⚠️ **SEMPRE LER ANTES DE QUALQUER MUDANÇA**
+2. ⚠️ **`REGRAS_ESTABELECIDAS_REFERENCIA_RAPIDA.md`** - **REFERÊNCIA RÁPIDA** - Consultar sempre
+3. ⚠️ **`SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md`** - ANTES de mudar CORS/Login
+4. ⚠️ **`VITORIA_WHATSAPP_E_LOGIN.md`** - Quando funcionou pela primeira vez
+5. ⚠️ **`RESUMO_SIMPLIFICACAO_CORS_LOGIN_20251120.md`** - Por que simplificamos
 
 ### 🎯 **CHECKLIST ANTES DE QUALQUER MUDANÇA:**
+- [ ] **Li `CHECKLIST_ANTES_DE_MUDAR_CODIGO.md`?** ⚠️ **OBRIGATÓRIO PRIMEIRO**
+- [ ] **Li `REGRAS_ESTABELECIDAS_REFERENCIA_RAPIDA.md`?** ⚠️ **OBRIGATÓRIO**
 - [ ] Li a documentação sobre o que já funciona?
 - [ ] A mudança é realmente necessária?
 - [ ] A mudança vai quebrar o que já funciona?
 - [ ] Existe uma solução mais simples?
+- [ ] **Executei `validar-regras.ps1` antes de commitar?** ⚠️ **OBRIGATÓRIO**
+
+### 🔍 **VALIDAÇÃO AUTOMÁTICA:**
+Antes de commitar, execute:
+```powershell
+.\validar-regras.ps1
+```
+Este script verifica automaticamente se você não violou regras estabelecidas.
 
 ### 💡 **LEMBRE-SE:**
 > **"Se não está quebrado, não conserte!"**  
@@ -343,17 +355,21 @@ headers: {
 
 1. [ ] Abrir este arquivo 😄  
 2. [ ] **LER ORIENTAÇÃO MESTRA** (seção 2 acima) ⚠️ **OBRIGATÓRIO PRIMEIRO**
-3. [ ] **LER REGRAS DE OURO** (seção 4 acima) ⚠️ **OBRIGATÓRIO**
+3. [ ] **LER `CHECKLIST_ANTES_DE_MUDAR_CODIGO.md`** ⚠️ **OBRIGATÓRIO ANTES DE QUALQUER MUDANÇA**
+4. [ ] **LER `REGRAS_ESTABELECIDAS_REFERENCIA_RAPIDA.md`** ⚠️ **OBRIGATÓRIO - REFERÊNCIA RÁPIDA**
+5. [ ] **LER REGRAS DE OURO** (seção 4 acima) ⚠️ **OBRIGATÓRIO**
    - [ ] Ler `REGRA_KV_STORE_VS_SQL.md`
    - [ ] Ler `REGRA_AUTENTICACAO_TOKEN.md`
    - [ ] **LER `SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md`** ⚠️ **ANTES DE QUALQUER MUDANÇA EM CORS/LOGIN**
    - [ ] **LER `RESUMO_SIMPLIFICACAO_CORS_LOGIN_20251120.md`** ⚠️ **PARA ENTENDER POR QUE SIMPLIFICAMOS**
-4. [ ] Conectar GitHub (`configurar-github-simples.ps1`)  
-5. [ ] Conectar Supabase (`login-supabase.ps1`)  
-6. [ ] Revisar `PROMPT_CONTEXTO_COMPLETO_SESSAO.md`  
-7. [ ] Atualizar `LOG_ATUAL.md` com o plano da sessão
+6. [ ] Conectar GitHub (`configurar-github-simples.ps1`)  
+7. [ ] Conectar Supabase (`login-supabase.ps1`)  
+8. [ ] Revisar `PROMPT_CONTEXTO_COMPLETO_SESSAO.md`  
+9. [ ] Atualizar `LOG_ATUAL.md` com o plano da sessão
+10. [ ] **ANTES DE COMMITAR: Executar `validar-regras.ps1`** ⚠️ **OBRIGATÓRIO**
 
 ### ⚠️ **CHECKLIST ANTES DE MUDAR CORS/LOGIN:**
+- [ ] **Li `CHECKLIST_ANTES_DE_MUDAR_CODIGO.md`?** ⚠️ **OBRIGATÓRIO PRIMEIRO**
 - [ ] Li `SOLUCAO_SIMPLES_CORS_LOGIN_20251120.md`?
 - [ ] Li `RESUMO_SIMPLIFICACAO_CORS_LOGIN_20251120.md`?
 - [ ] Entendi por que simplificamos?
@@ -494,10 +510,20 @@ headers: {
 > **Já tentamos complicar e quebrou. NÃO REPETIR!**
 
 ### ⚠️ **ANTES DE QUALQUER MUDANÇA, PERGUNTE:**
-1. Isso está quebrado? (Se não, não mexer)
-2. A mudança é realmente necessária? (Se não, não mexer)
-3. Vai quebrar o que já funciona? (Se sim, não mexer)
-4. Existe uma solução mais simples? (Se sim, usar a simples)
+1. **Li `CHECKLIST_ANTES_DE_MUDAR_CODIGO.md`?** ⚠️ **OBRIGATÓRIO PRIMEIRO**
+2. **Consultei `REGRAS_ESTABELECIDAS_REFERENCIA_RAPIDA.md`?** ⚠️ **OBRIGATÓRIO**
+3. Isso está quebrado? (Se não, não mexer)
+4. A mudança é realmente necessária? (Se não, não mexer)
+5. Vai quebrar o que já funciona? (Se sim, não mexer)
+6. Existe uma solução mais simples? (Se sim, usar a simples)
+7. **Executei `validar-regras.ps1` antes de commitar?** ⚠️ **OBRIGATÓRIO**
+
+### 🔍 **VALIDAÇÃO AUTOMÁTICA:**
+Sempre execute antes de commitar:
+```powershell
+.\validar-regras.ps1
+```
+Este script verifica automaticamente se você não violou regras estabelecidas.
 
 ---
 
