@@ -234,7 +234,7 @@ async function apiRequest<T>(
     const response = await fetch(url, {
       ...restOptions,
       headers,
-      // ❌ REMOVIDO: credentials: 'include' (não funciona com origin: "*")
+      credentials: 'omit', // ✅ Explícito: não enviar credentials
     });
 
     const data = await response.json();

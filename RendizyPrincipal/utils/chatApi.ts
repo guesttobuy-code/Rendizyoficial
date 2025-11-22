@@ -251,13 +251,17 @@ async function fetchAPI<T>(
   }
   
   try {
+    // ✅ GARANTIR que credentials não seja passado via options
+    const { credentials, ...restOptions } = options;
+    
     const response = await fetch(fullUrl, {
-      ...options,
+      ...restOptions,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${publicAnonKey}`,
-        ...options.headers,
+        ...restOptions.headers,
       },
+      credentials: 'omit', // ✅ Explícito: não enviar credentials
     });
 
     const json = await response.json();
