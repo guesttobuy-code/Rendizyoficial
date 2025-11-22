@@ -34,6 +34,7 @@ import {
   LocalContact,
   SyncStats
 } from '../utils/services/evolutionContactsService';
+import { useAuth } from '../contexts/AuthContext';
 
 interface EvolutionContactsListProps {
   onContactSelect?: (contact: LocalContact) => void;
@@ -44,6 +45,9 @@ export function EvolutionContactsList({
   onContactSelect,
   selectedContactId
 }: EvolutionContactsListProps) {
+  const { organization } = useAuth();
+  const organizationId = organization?.id;
+  
   const [contacts, setContacts] = useState<LocalContact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<LocalContact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,15 +63,15 @@ export function EvolutionContactsList({
   const service = getEvolutionContactsService();
 
   /**
-   * Load contacts from service
+   * ✅ CORRIGIDO: Load contacts from service (agora assíncrono e usa SQL)
    */
-  const loadContacts = () => {
+  const loadContacts = async () => {
     setIsLoading(true);
     try {
-      const storedContacts = service.getStoredContacts();
+      const storedContacts = await service.getStoredContacts(organizationId);
       setContacts(storedContacts);
       setFilteredContacts(storedContacts);
-      console.log(`📋 ${storedContacts.length} contatos carregados`);
+      console.log(`📋 ${storedContacts.length} contatos carregados${organizationId ? ' do SQL' : ' do localStorage'}`);
     } catch (error) {
       console.error('Erro ao carregar contatos:', error);
       toast.error('Erro ao carregar contatos');
@@ -77,17 +81,17 @@ export function EvolutionContactsList({
   };
 
   /**
-   * Sync contacts from Evolution API
+   * ✅ CORRIGIDO: Sync contacts from Evolution API (agora passa organizationId)
    */
   const handleSync = async () => {
     setIsSyncing(true);
     toast.info('Sincronizando contatos da Evolution API...');
     
     try {
-      const stats: SyncStats = await service.syncContactsAndChats();
+      const stats: SyncStats = await service.syncContactsAndChats(organizationId);
       
       // Reload contacts
-      loadContacts();
+      await loadContacts();
       setLastSync(new Date());
       
       // Show success message
@@ -140,30 +144,30 @@ export function EvolutionContactsList({
   }, [contacts, searchQuery, filters]);
 
   /**
-   * Load contacts on mount
+   * ✅ CORRIGIDO: Load contacts on mount (agora assíncrono)
    */
   useEffect(() => {
     loadContacts();
-  }, []);
+  }, [organizationId]); // Recarregar quando organizationId mudar
 
   // ✅ REQUISITO 2: Sincronização automática ao montar e atualização periódica
-  // Sincroniza conversas automaticamente ao entrar na tela de chat
+  // ✅ CORRIGIDO: Agora passa organizationId para salvar no SQL
   useEffect(() => {
     let mounted = true;
     
     // Sincronizar imediatamente ao montar
     const syncOnMount = async () => {
-      if (!isSyncing && mounted) {
+      if (!isSyncing && mounted && organizationId) {
         console.log('🔄 [EvolutionContactsList] Sincronizando conversas ao entrar na tela...');
         setIsSyncing(true);
         toast.info('Sincronizando contatos da Evolution API...');
         
         try {
-          const stats: SyncStats = await service.syncContactsAndChats();
+          const stats: SyncStats = await service.syncContactsAndChats(organizationId);
           
           if (mounted) {
             // Reload contacts
-            loadContacts();
+            await loadContacts();
             setLastSync(new Date());
             
             // Show success message
@@ -185,11 +189,13 @@ export function EvolutionContactsList({
       }
     };
     
-    syncOnMount();
+    if (organizationId) {
+      syncOnMount();
+    }
     
     // ✅ REQUISITO 2: Atualização automática de conversas (polling a cada 30 segundos)
     const interval = setInterval(() => {
-      if (!isSyncing && mounted) {
+      if (!isSyncing && mounted && organizationId) {
         console.log('🔄 [EvolutionContactsList] Atualizando conversas automaticamente...');
         handleSync();
       }
@@ -200,7 +206,7 @@ export function EvolutionContactsList({
       clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [organizationId]); // Recarregar quando organizationId mudar
 
   /**
    * Get initials for avatar

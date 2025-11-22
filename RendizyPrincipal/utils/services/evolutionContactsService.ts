@@ -231,8 +231,9 @@ export class EvolutionContactsService {
 
   /**
    * Sync contacts and chats
+   * ✅ RESTAURADO: Salva no SQL primeiro, fallback para localStorage
    */
-  async syncContactsAndChats(): Promise<SyncStats> {
+  async syncContactsAndChats(organizationId?: string): Promise<SyncStats> {
     console.log('🔄 Iniciando sincronização de contatos e conversas...');
     
     const stats: SyncStats = {
@@ -257,8 +258,8 @@ export class EvolutionContactsService {
         stats.chatsImported++;
       });
 
-      // Carregar contatos existentes do localStorage
-      const existingContacts = this.getStoredContacts();
+      // ✅ RESTAURADO: Carregar contatos existentes (SQL primeiro, fallback localStorage)
+      const existingContacts = await this.getStoredContacts(organizationId);
       const existingContactsMap = new Map<string, LocalContact>();
       existingContacts.forEach(contact => {
         existingContactsMap.set(contact.id, contact);
@@ -286,8 +287,8 @@ export class EvolutionContactsService {
         updatedContacts.push(localContact);
       }
 
-      // Salvar no localStorage
-      this.saveContacts(updatedContacts);
+      // ✅ RESTAURADO: Salvar no SQL primeiro, fallback para localStorage
+      await this.saveContacts(updatedContacts, organizationId);
 
       console.log('✅ Sincronização concluída:', stats);
       
@@ -300,9 +301,46 @@ export class EvolutionContactsService {
   }
 
   /**
-   * Get stored contacts from localStorage
+   * ✅ RESTAURADO: Get stored contacts (SQL primeiro, fallback localStorage)
    */
-  getStoredContacts(): LocalContact[] {
+  async getStoredContacts(organizationId?: string): Promise<LocalContact[]> {
+    // ✅ Tentar SQL primeiro se organizationId disponível
+    if (organizationId) {
+      try {
+        const { createClient } = await import('@jsr/supabase__supabase-js');
+        const { projectId, publicAnonKey } = await import('../supabase/info');
+        const supabaseUrl = `https://${projectId}.supabase.co`;
+        const supabase = createClient(supabaseUrl, publicAnonKey);
+        
+        const { data, error } = await supabase
+          .from('evolution_contacts')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .order('updated_at', { ascending: false });
+        
+        if (error) {
+          console.warn(`⚠️ [EvolutionContactsService] Erro ao buscar contatos do SQL para org ${organizationId}:`, error.message);
+          // Fallback para localStorage
+          return this.getStoredContactsFromLocalStorage();
+        }
+        
+        console.log(`✅ [EvolutionContactsService] ${data.length} contatos carregados do SQL para org ${organizationId}`);
+        return data.map(this.mapSqlToLocalContact);
+      } catch (sqlError) {
+        console.error(`❌ [EvolutionContactsService] Erro crítico ao buscar contatos do SQL para org ${organizationId}:`, sqlError);
+        // Fallback para localStorage
+        return this.getStoredContactsFromLocalStorage();
+      }
+    }
+    
+    // Fallback: localStorage se não há organizationId
+    return this.getStoredContactsFromLocalStorage();
+  }
+
+  /**
+   * ✅ RESTAURADO: Get stored contacts from localStorage (fallback)
+   */
+  private getStoredContactsFromLocalStorage(): LocalContact[] {
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY);
       if (!stored) return [];
@@ -317,21 +355,107 @@ export class EvolutionContactsService {
         lastSeen: c.lastSeen ? new Date(c.lastSeen) : undefined
       }));
     } catch (error) {
-      console.error('Error loading contacts from storage:', error);
+      console.error('Error loading contacts from localStorage:', error);
       return [];
     }
   }
 
   /**
-   * Save contacts to localStorage
+   * ✅ RESTAURADO: Save contacts (SQL primeiro, fallback localStorage)
    */
-  private saveContacts(contacts: LocalContact[]): void {
+  private async saveContacts(contacts: LocalContact[], organizationId?: string): Promise<void> {
+    // ✅ Tentar SQL primeiro se organizationId disponível
+    if (organizationId) {
+      try {
+        const { createClient } = await import('@jsr/supabase__supabase-js');
+        const { projectId, publicAnonKey } = await import('../supabase/info');
+        const supabaseUrl = `https://${projectId}.supabase.co`;
+        const supabase = createClient(supabaseUrl, publicAnonKey);
+        
+        const contactsToSave = contacts.map(c => this.mapLocalToSqlContact(c, organizationId));
+        
+        const { error } = await supabase
+          .from('evolution_contacts')
+          .upsert(contactsToSave, { onConflict: 'id,organization_id' });
+        
+        if (error) {
+          console.warn(`⚠️ [EvolutionContactsService] Erro ao salvar contatos no SQL para org ${organizationId}:`, error.message);
+          // Fallback para localStorage
+          this.saveContactsToLocalStorage(contacts);
+          return;
+        }
+        
+        console.log(`💾 [EvolutionContactsService] ${contacts.length} contatos salvos no SQL para org ${organizationId}`);
+        return;
+      } catch (sqlError) {
+        console.error(`❌ [EvolutionContactsService] Erro crítico ao salvar contatos no SQL para org ${organizationId}:`, sqlError);
+        // Fallback para localStorage
+        this.saveContactsToLocalStorage(contacts);
+        return;
+      }
+    }
+    
+    // Fallback: localStorage se não há organizationId
+    this.saveContactsToLocalStorage(contacts);
+  }
+
+  /**
+   * ✅ RESTAURADO: Save contacts to localStorage (fallback)
+   */
+  private saveContactsToLocalStorage(contacts: LocalContact[]): void {
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(contacts));
       console.log(`💾 ${contacts.length} contatos salvos no localStorage`);
     } catch (error) {
-      console.error('Error saving contacts to storage:', error);
+      console.error('Error saving contacts to localStorage:', error);
     }
+  }
+
+  /**
+   * ✅ RESTAURADO: Map SQL contact to LocalContact
+   */
+  private mapSqlToLocalContact(sqlContact: any): LocalContact {
+    return {
+      id: sqlContact.id,
+      name: sqlContact.name,
+      phone: sqlContact.phone,
+      profilePicUrl: sqlContact.profile_pic_url,
+      isBusiness: sqlContact.is_business || false,
+      source: sqlContact.source || 'evolution',
+      lastMessage: sqlContact.last_message,
+      unreadCount: sqlContact.unread_count || 0,
+      isOnline: sqlContact.is_online || false,
+      lastSeen: sqlContact.last_seen ? new Date(sqlContact.last_seen) : undefined,
+      createdAt: new Date(sqlContact.created_at),
+      updatedAt: new Date(sqlContact.updated_at)
+    };
+  }
+
+  /**
+   * ✅ RESTAURADO: Map LocalContact to SQL contact
+   */
+  private mapLocalToSqlContact(localContact: LocalContact, organizationId: string): any {
+    return {
+      id: localContact.id,
+      organization_id: organizationId,
+      name: localContact.name,
+      phone: localContact.phone,
+      phone_raw: localContact.id.replace('@c.us', '').replace('@s.whatsapp.net', ''),
+      pushname: localContact.name,
+      is_business: localContact.isBusiness,
+      is_my_contact: false,
+      is_online: localContact.isOnline,
+      profile_pic_url: localContact.profilePicUrl,
+      last_message: typeof localContact.lastMessage === 'string' 
+        ? localContact.lastMessage 
+        : JSON.stringify(localContact.lastMessage),
+      unread_count: localContact.unreadCount,
+      last_seen: localContact.lastSeen?.toISOString(),
+      source: localContact.source,
+      created_at: localContact.createdAt.toISOString(),
+      updated_at: localContact.updatedAt.toISOString(),
+      last_sync_at: new Date().toISOString()
+    };
   }
 
   /**
@@ -368,9 +492,10 @@ export class EvolutionContactsService {
 
   /**
    * Search contacts by name or phone
+   * ✅ CORRIGIDO: Agora é assíncrono e aceita organizationId
    */
-  searchContacts(query: string): LocalContact[] {
-    const contacts = this.getStoredContacts();
+  async searchContacts(query: string, organizationId?: string): Promise<LocalContact[]> {
+    const contacts = await this.getStoredContacts(organizationId);
     const lowerQuery = query.toLowerCase();
     
     return contacts.filter(contact => 
@@ -381,13 +506,14 @@ export class EvolutionContactsService {
 
   /**
    * Filter contacts by criteria
+   * ✅ CORRIGIDO: Agora é assíncrono e aceita organizationId
    */
-  filterContacts(filters: {
+  async filterContacts(filters: {
     unreadOnly?: boolean;
     businessOnly?: boolean;
     onlineOnly?: boolean;
-  }): LocalContact[] {
-    let contacts = this.getStoredContacts();
+  }, organizationId?: string): Promise<LocalContact[]> {
+    let contacts = await this.getStoredContacts(organizationId);
     
     if (filters.unreadOnly) {
       contacts = contacts.filter(c => c.unreadCount > 0);
@@ -406,9 +532,10 @@ export class EvolutionContactsService {
 
   /**
    * Get contact by ID
+   * ✅ CORRIGIDO: Agora é assíncrono e aceita organizationId
    */
-  getContactById(id: string): LocalContact | undefined {
-    const contacts = this.getStoredContacts();
+  async getContactById(id: string, organizationId?: string): Promise<LocalContact | undefined> {
+    const contacts = await this.getStoredContacts(organizationId);
     return contacts.find(c => c.id === id);
   }
 
