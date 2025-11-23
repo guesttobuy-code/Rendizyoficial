@@ -26,6 +26,32 @@ interface SyncStats {
 }
 
 /**
+ * Converte ObjectId (MongoDB) para UUID v4 válido
+ * ObjectId tem 24 caracteres hexadecimais
+ */
+function objectIdToUUID(objectId: string): string {
+  if (!objectId || objectId.length !== 24) {
+    // Se não for ObjectId válido, gerar UUID novo
+    return crypto.randomUUID();
+  }
+  
+  // ObjectId: 24 caracteres hexadecimais
+  // UUID v4: 8-4-4-4-12 caracteres hexadecimais (32 total)
+  // Formato: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  // onde x é hexadecimal e y é 8, 9, A, ou B
+  
+  const hex = objectId.toLowerCase();
+  
+  // Pegar 32 caracteres (ObjectId tem 24, então vamos repetir alguns)
+  const uuidHex = (hex + hex.substring(0, 8)).substring(0, 32);
+  
+  // Formatar como UUID v4
+  const uuid = `${uuidHex.substring(0, 8)}-${uuidHex.substring(8, 12)}-4${uuidHex.substring(13, 16)}-${(parseInt(uuidHex.substring(16, 18), 16) & 0x3f | 0x80).toString(16)}${uuidHex.substring(18, 20)}-${uuidHex.substring(20, 32)}`;
+  
+  return uuid;
+}
+
+/**
  * Importação completa de dados da Stays.net
  */
 export async function fullSyncStaysNet(
@@ -76,9 +102,12 @@ export async function fullSyncStaysNet(
         try {
           const staysClientId = staysGuest._id || staysGuest.id;
           
+          // ✅ Converter ObjectId (MongoDB) para UUID válido
+          const guestId = objectIdToUUID(staysClientId);
+          
           // Converter para formato Rendizy (simplificado - você pode melhorar isso)
           const guest: Guest = {
-            id: staysClientId || crypto.randomUUID(),
+            id: guestId,
             firstName: staysGuest.firstName || staysGuest.name?.split(' ')[0] || '',
             lastName: staysGuest.lastName || staysGuest.name?.split(' ').slice(1).join(' ') || '',
             fullName: staysGuest.name || `${staysGuest.firstName || ''} ${staysGuest.lastName || ''}`.trim(),
@@ -198,9 +227,12 @@ export async function fullSyncStaysNet(
         try {
           const staysListingId = staysListing._id || staysListing.id;
           
+          // ✅ Converter ObjectId (MongoDB) para UUID válido
+          const propertyId = objectIdToUUID(staysListingId);
+          
           // Converter para formato Rendizy (simplificado - você pode melhorar isso)
           const property: Property = {
-            id: staysListingId || crypto.randomUUID(),
+            id: propertyId,
             name: staysListing._mstitle?.pt_BR || staysListing._mstitle?.en_US || staysListing.internalName || 'Propriedade sem nome',
             code: staysListing.id || staysListing._id || '',
             type: 'apartment', // Você pode mapear melhor baseado em staysListing._t_typeMeta
@@ -316,6 +348,9 @@ export async function fullSyncStaysNet(
           const staysListingId = staysRes._idlisting || staysRes.listingId;
           const staysClientId = staysRes._idclient || staysRes.clientId;
           
+          // ✅ Converter ObjectId (MongoDB) para UUID válido
+          const reservationId = objectIdToUUID(staysResId);
+          
           // Buscar property_id e guest_id usando os maps ou fallback
           let propertyId = propertyIdMap.get(staysListingId);
           if (!propertyId && allProperties && allProperties.length > 0) {
@@ -342,7 +377,7 @@ export async function fullSyncStaysNet(
           
           // Converter para formato Rendizy
           const reservation: Reservation = {
-            id: staysResId || crypto.randomUUID(),
+            id: reservationId,
             propertyId,
             guestId,
             checkIn: checkIn.toISOString(),
