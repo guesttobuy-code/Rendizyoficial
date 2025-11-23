@@ -32,6 +32,8 @@ import propertyWizardApp from './routes-property-wizard.ts';
 import * as locationAmenitiesRoutes from './routes-location-amenities.ts';
 import * as staysnetRoutes from './routes-staysnet.ts';
 import * as amenitiesRoutes from './routes-amenities.ts';
+// ✅ MÓDULO FINANCEIRO v1.0.103.400
+import * as financeiroRoutes from './routes-financeiro.ts';
 // v1.0.103.319: WhatsApp Evolution API COMPLETA (40/40 rotas)
 import { whatsappEvolutionRoutes } from './routes-whatsapp-evolution.ts';
 import { whatsappDataRoutes } from './routes-whatsapp-data.ts';
