@@ -14,11 +14,24 @@ import type { Reservation } from './types.ts';
  * Converte Reservation (TypeScript) para formato SQL (tabela reservations)
  */
 export function reservationToSql(reservation: Reservation, organizationId: string): any {
+  // ✅ Garantir que propertyId e guestId sejam UUIDs válidos (não 'system' ou null)
+  const propertyId = (reservation.propertyId && reservation.propertyId !== 'system' && reservation.propertyId.length === 36) 
+    ? reservation.propertyId 
+    : null;
+  const guestId = (reservation.guestId && reservation.guestId !== 'system' && reservation.guestId.length === 36) 
+    ? reservation.guestId 
+    : null;
+  
+  // ✅ Garantir que organizationId seja UUID válido (não 'system')
+  const orgId = (organizationId && organizationId !== 'system' && organizationId.length === 36) 
+    ? organizationId 
+    : null;
+  
   return {
     id: reservation.id,
-    organization_id: organizationId, // ✅ Multi-tenant: sempre usar organization_id do tenant
-    property_id: reservation.propertyId,
-    guest_id: reservation.guestId,
+    organization_id: orgId, // ✅ Multi-tenant: sempre usar organization_id do tenant
+    property_id: propertyId,
+    guest_id: guestId,
     
     // Datas
     check_in: reservation.checkIn,
