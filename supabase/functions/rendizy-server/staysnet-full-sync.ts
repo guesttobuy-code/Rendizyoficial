@@ -449,10 +449,10 @@ export async function fullSyncStaysNet(
             continue;
           }
           
-          // Calcular noites
+          // Calcular noites (deve ser INTEGER, não decimal)
           const checkIn = new Date(staysRes.checkInDate || staysRes.from || staysRes.check_in);
           const checkOut = new Date(staysRes.checkOutDate || staysRes.to || staysRes.check_out);
-          const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+          const nights = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)); // ✅ Math.round para garantir INTEGER
           
           // ✅ VALIDAÇÃO FINAL: Garantir que propertyId e guestId sejam UUIDs válidos
           if (!propertyId || propertyId === 'system' || propertyId.length !== 36) {
