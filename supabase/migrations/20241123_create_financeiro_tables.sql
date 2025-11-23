@@ -1,28 +1,44 @@
 -- ============================================================================
--- MIGRATION: Criar tabelas do Módulo Financeiro
+-- MIGRATION: Criar tabelas do Módulo Financeiro (VERSÃO IDEMPOTENTE)
 -- Data: 2025-11-23
 -- Versão: 1.0.103.400 - MÓDULO FINANCEIRO
 -- ============================================================================
 -- 
--- OBJETIVO:
--- Criar estrutura SQL completa para módulo financeiro
--- Multi-tenant com isolamento por organization_id
--- Seguindo arquitetura estabelecida do projeto
---
--- ARQUITETURA:
--- - Tabelas SQL normais com foreign keys
--- - Integridade referencial garantida pelo banco
--- - Constraints de validação no banco
--- - RLS (Row Level Security) para multi-tenant
--- - Triggers para updated_at automático
+-- ✅ VERSÃO IDEMPOTENTE: Pode ser executada múltiplas vezes sem erros
+-- ✅ DROP CASCADE: Remove todas as dependências antes de recriar
+-- ✅ DROP FUNCTIONS/TRIGGERS: Remove funções e triggers antes de criar
 -- ============================================================================
+
+-- ============================================================================
+-- LIMPEZA COMPLETA: Dropar tudo que pode existir
+-- ============================================================================
+
+-- Dropar triggers primeiro (dependem de tabelas)
+DROP TRIGGER IF EXISTS trigger_validate_categoria_parent_org ON financeiro_categorias;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_categorias_updated_at ON financeiro_categorias;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_centro_custos_updated_at ON financeiro_centro_custos;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_contas_bancarias_updated_at ON financeiro_contas_bancarias;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_lancamentos_updated_at ON financeiro_lancamentos;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_titulos_updated_at ON financeiro_titulos;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_regras_conciliacao_updated_at ON financeiro_regras_conciliacao;
+
+-- Dropar funções (podem ser usadas por triggers)
+DROP FUNCTION IF EXISTS validate_categoria_parent_org();
+DROP FUNCTION IF EXISTS update_financeiro_updated_at();
+
+-- Dropar tabelas (em ordem reversa de dependências)
+DROP TABLE IF EXISTS financeiro_regras_conciliacao CASCADE;
+DROP TABLE IF EXISTS financeiro_linhas_extrato CASCADE;
+DROP TABLE IF EXISTS financeiro_titulos CASCADE;
+DROP TABLE IF EXISTS financeiro_lancamentos_splits CASCADE;
+DROP TABLE IF EXISTS financeiro_lancamentos CASCADE;
+DROP TABLE IF EXISTS financeiro_contas_bancarias CASCADE;
+DROP TABLE IF EXISTS financeiro_centro_custos CASCADE;
+DROP TABLE IF EXISTS financeiro_categorias CASCADE;
 
 -- ============================================================================
 -- 1. CATEGORIAS (Plano de Contas)
 -- ============================================================================
-
--- Dropar tabela se existir (para recriar com estrutura correta)
-DROP TABLE IF EXISTS financeiro_categorias CASCADE;
 
 CREATE TABLE financeiro_categorias (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
