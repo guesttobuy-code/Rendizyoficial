@@ -15,8 +15,20 @@ import { getSupabaseClient } from './kv_store.tsx';
  * Converte Property (TypeScript) para formato SQL (tabela properties)
  */
 export function propertyToSql(property: Property, organizationId: string): any {
+  // ✅ CORREÇÃO: Remover prefixo do ID se existir (ex: "acc_" -> UUID puro)
+  // O banco SQL espera UUID puro, mas o sistema usa prefixos para compatibilidade
+  let propertyId = property.id;
+  if (propertyId.includes('_')) {
+    // Se tem prefixo (ex: "acc_uuid"), extrair apenas o UUID
+    const parts = propertyId.split('_');
+    if (parts.length > 1) {
+      // Pegar a última parte (UUID) ou todas as partes após o primeiro underscore
+      propertyId = parts.slice(1).join('_');
+    }
+  }
+  
   return {
-    id: property.id,
+    id: propertyId,
     organization_id: organizationId, // ✅ Multi-tenant: sempre usar organization_id do tenant
     owner_id: property.ownerId || 'system', // TODO: Pegar do auth
     location_id: property.locationId || null,
