@@ -521,6 +521,45 @@ app.route("/rendizy-server/make-server-67caf26a/owners", ownersApp);
 app.route("/rendizy-server/make-server-67caf26a/tenants", tenantsApp);
 
 // ============================================================================
+// FINANCEIRO ROUTES (v1.0.103.400)
+// ============================================================================
+
+// Lançamentos
+app.get("/rendizy-server/make-server-67caf26a/financeiro/lancamentos", financeiroRoutes.listLancamentos);
+app.get("/rendizy-server/make-server-67caf26a/financeiro/lancamentos/:id", financeiroRoutes.getLancamento);
+app.post("/rendizy-server/make-server-67caf26a/financeiro/lancamentos", financeiroRoutes.createLancamento);
+app.put("/rendizy-server/make-server-67caf26a/financeiro/lancamentos/:id", financeiroRoutes.updateLancamento);
+app.delete("/rendizy-server/make-server-67caf26a/financeiro/lancamentos/:id", financeiroRoutes.deleteLancamento);
+
+// Títulos
+app.get("/rendizy-server/make-server-67caf26a/financeiro/titulos", financeiroRoutes.listTitulos);
+app.get("/rendizy-server/make-server-67caf26a/financeiro/titulos/:id", financeiroRoutes.getTitulo);
+app.post("/rendizy-server/make-server-67caf26a/financeiro/titulos", financeiroRoutes.createTitulo);
+app.put("/rendizy-server/make-server-67caf26a/financeiro/titulos/:id", financeiroRoutes.updateTitulo);
+app.delete("/rendizy-server/make-server-67caf26a/financeiro/titulos/:id", financeiroRoutes.deleteTitulo);
+
+// Contas Bancárias
+app.get("/rendizy-server/make-server-67caf26a/financeiro/contas-bancarias", financeiroRoutes.listContasBancarias);
+app.get("/rendizy-server/make-server-67caf26a/financeiro/contas-bancarias/:id", financeiroRoutes.getContaBancaria);
+app.post("/rendizy-server/make-server-67caf26a/financeiro/contas-bancarias", financeiroRoutes.createContaBancaria);
+app.put("/rendizy-server/make-server-67caf26a/financeiro/contas-bancarias/:id", financeiroRoutes.updateContaBancaria);
+app.delete("/rendizy-server/make-server-67caf26a/financeiro/contas-bancarias/:id", financeiroRoutes.deleteContaBancaria);
+
+// Categorias
+app.get("/rendizy-server/make-server-67caf26a/financeiro/categorias", financeiroRoutes.listCategorias);
+app.get("/rendizy-server/make-server-67caf26a/financeiro/categorias/:id", financeiroRoutes.getCategoria);
+app.post("/rendizy-server/make-server-67caf26a/financeiro/categorias", financeiroRoutes.createCategoria);
+app.put("/rendizy-server/make-server-67caf26a/financeiro/categorias/:id", financeiroRoutes.updateCategoria);
+app.delete("/rendizy-server/make-server-67caf26a/financeiro/categorias/:id", financeiroRoutes.deleteCategoria);
+
+// Centro de Custos
+app.get("/rendizy-server/make-server-67caf26a/financeiro/centro-custos", financeiroRoutes.listCentroCustos);
+app.get("/rendizy-server/make-server-67caf26a/financeiro/centro-custos/:id", financeiroRoutes.getCentroCusto);
+app.post("/rendizy-server/make-server-67caf26a/financeiro/centro-custos", financeiroRoutes.createCentroCusto);
+app.put("/rendizy-server/make-server-67caf26a/financeiro/centro-custos/:id", financeiroRoutes.updateCentroCusto);
+app.delete("/rendizy-server/make-server-67caf26a/financeiro/centro-custos/:id", financeiroRoutes.deleteCentroCusto);
+
+// ============================================================================
 // DATABASE RESET ROUTES (v1.0.103.267)
 // ⚠️ Sistema de reset do banco de dados - USAR COM CUIDADO
 // ============================================================================
