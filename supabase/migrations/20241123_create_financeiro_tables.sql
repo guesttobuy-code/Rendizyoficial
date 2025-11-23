@@ -109,7 +109,7 @@ CREATE TABLE financeiro_centro_custos (
   created_by UUID REFERENCES users(id),
   
   -- Constraints
-  CONSTRAINT unique_codigo_org UNIQUE (organization_id, codigo)
+  CONSTRAINT unique_codigo_org_centro_custos UNIQUE (organization_id, codigo)
 );
 
 -- Índices
