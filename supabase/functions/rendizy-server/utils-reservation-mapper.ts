@@ -36,7 +36,7 @@ export function reservationToSql(reservation: Reservation, organizationId: strin
     // Datas
     check_in: reservation.checkIn,
     check_out: reservation.checkOut,
-    nights: reservation.nights,
+    nights: Math.round(Number(reservation.nights) || 0), // ✅ Garantir INTEGER (não decimal ou string)
     
     // Hóspedes (flat)
     guests_adults: reservation.guests?.adults || 1,
