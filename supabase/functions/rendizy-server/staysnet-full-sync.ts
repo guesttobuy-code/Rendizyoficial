@@ -451,7 +451,22 @@ export async function fullSyncStaysNet(
             createdBy: 'system',
           };
           
-          const sqlData = reservationToSql(reservation, organizationId);
+          // ✅ Garantir que organizationId seja UUID válido (não 'system')
+          let finalOrgId = (organizationId && organizationId !== 'system' && organizationId.length === 36) 
+            ? organizationId 
+            : null;
+          
+          // Se não tiver organizationId válido, buscar primeira organização disponível
+          if (!finalOrgId) {
+            const { data: firstOrg } = await supabase
+              .from('organizations')
+              .select('id')
+              .limit(1)
+              .maybeSingle();
+            finalOrgId = firstOrg?.id || '00000000-0000-0000-0000-000000000001';
+          }
+          
+          const sqlData = reservationToSql(reservation, finalOrgId);
           
           // ✅ MELHORADO: Verificar se já existe (por external_id ou ID)
           let existing = null;
