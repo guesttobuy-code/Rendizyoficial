@@ -21,7 +21,10 @@
 -- 1. CATEGORIAS (Plano de Contas)
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS financeiro_categorias (
+-- Dropar tabela se existir (para recriar com estrutura correta)
+DROP TABLE IF EXISTS financeiro_categorias CASCADE;
+
+CREATE TABLE financeiro_categorias (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -62,7 +65,10 @@ CREATE INDEX IF NOT EXISTS idx_financeiro_categorias_codigo ON financeiro_catego
 -- 2. CENTRO DE CUSTOS
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS financeiro_centro_custos (
+-- Dropar tabela se existir
+DROP TABLE IF EXISTS financeiro_centro_custos CASCADE;
+
+CREATE TABLE financeiro_centro_custos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -99,7 +105,10 @@ CREATE INDEX IF NOT EXISTS idx_financeiro_centro_custos_tipo ON financeiro_centr
 -- 3. CONTAS BANCÁRIAS
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS financeiro_contas_bancarias (
+-- Dropar tabela se existir
+DROP TABLE IF EXISTS financeiro_contas_bancarias CASCADE;
+
+CREATE TABLE financeiro_contas_bancarias (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -137,7 +146,10 @@ CREATE INDEX IF NOT EXISTS idx_financeiro_contas_bancarias_ativo ON financeiro_c
 -- 4. LANÇAMENTOS CONTÁBEIS
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS financeiro_lancamentos (
+-- Dropar tabela se existir
+DROP TABLE IF EXISTS financeiro_lancamentos CASCADE;
+
+CREATE TABLE financeiro_lancamentos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -211,7 +223,10 @@ CREATE INDEX IF NOT EXISTS idx_financeiro_lancamentos_org_competencia ON finance
 -- 5. SPLIT DE LANÇAMENTOS (Rateio)
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS financeiro_lancamentos_splits (
+-- Dropar tabela se existir
+DROP TABLE IF EXISTS financeiro_lancamentos_splits CASCADE;
+
+CREATE TABLE financeiro_lancamentos_splits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   lancamento_id UUID NOT NULL REFERENCES financeiro_lancamentos(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -247,7 +262,10 @@ CREATE INDEX IF NOT EXISTS idx_financeiro_lancamentos_splits_org ON financeiro_l
 -- 6. TÍTULOS A RECEBER/PAGAR
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS financeiro_titulos (
+-- Dropar tabela se existir
+DROP TABLE IF EXISTS financeiro_titulos CASCADE;
+
+CREATE TABLE financeiro_titulos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
@@ -336,7 +354,10 @@ CREATE INDEX IF NOT EXISTS idx_financeiro_titulos_org_vencimento ON financeiro_t
 -- 7. LINHAS DE EXTRATO BANCÁRIO
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS financeiro_linhas_extrato (
+-- Dropar tabela se existir
+DROP TABLE IF EXISTS financeiro_linhas_extrato CASCADE;
+
+CREATE TABLE financeiro_linhas_extrato (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   conta_id UUID NOT NULL REFERENCES financeiro_contas_bancarias(id) ON DELETE CASCADE,
@@ -386,7 +407,10 @@ CREATE INDEX IF NOT EXISTS idx_financeiro_linhas_extrato_conta_data ON financeir
 -- 8. REGRAS DE CONCILIAÇÃO
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS financeiro_regras_conciliacao (
+-- Dropar tabela se existir
+DROP TABLE IF EXISTS financeiro_regras_conciliacao CASCADE;
+
+CREATE TABLE financeiro_regras_conciliacao (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   
