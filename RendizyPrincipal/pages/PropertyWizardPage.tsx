@@ -70,23 +70,122 @@ export function PropertyWizardPage() {
     loadProperty();
   }, [id, isEditMode, navigate]);
 
+  // ✅ BOAS PRÁTICAS v1.0.103.1000 - Normalizar dados do wizard antes de enviar
+  const normalizeWizardData = (wizardData: any): any => {
+    console.log('🔄 [PropertyWizardPage] Normalizando dados do wizard...');
+    
+    // Extrair campos do wizard (estrutura aninhada)
+    let name = wizardData.contentType?.internalName || 
+               wizardData.name || 
+               null;
+    
+    let code = wizardData.contentType?.code || 
+               wizardData.code || 
+               null;
+    
+    let type = wizardData.contentType?.propertyTypeId || 
+               wizardData.contentType?.accommodationTypeId ||
+               wizardData.type || 
+               null;
+    
+    // Gerar nome a partir do accommodationTypeId se não existir
+    if (!name && wizardData.contentType?.accommodationTypeId) {
+      const accommodationTypeId = wizardData.contentType.accommodationTypeId;
+      const accommodationTypeNames: Record<string, string> = {
+        'acc_casa': 'Casa',
+        'acc_apartamento': 'Apartamento',
+        'acc_chale': 'Chalé',
+        'acc_bangalo': 'Bangalô',
+        'acc_estudio': 'Estúdio',
+        'acc_loft': 'Loft',
+        'acc_suite': 'Suíte',
+        'acc_villa': 'Villa',
+        'acc_quarto_inteiro': 'Quarto Inteiro',
+        'acc_quarto_privado': 'Quarto Privado',
+        'acc_quarto_compartilhado': 'Quarto Compartilhado',
+      };
+      name = accommodationTypeNames[accommodationTypeId] || 
+             accommodationTypeId.replace('acc_', '').replace(/_/g, ' ')
+                                .replace(/\b\w/g, l => l.toUpperCase());
+      console.log('✅ [PropertyWizardPage] Nome gerado:', name);
+    }
+    
+    // Gerar código único se não existir
+    if (!code) {
+      const timestamp = Date.now().toString(36).slice(-6).toUpperCase();
+      const typePrefix = type ? type.replace('loc_', '').replace('acc_', '').substring(0, 3).toUpperCase() : 'PRP';
+      code = `${typePrefix}${timestamp}`;
+      console.log('✅ [PropertyWizardPage] Código gerado:', code);
+    }
+    
+    // Extrair endereço de contentLocation
+    let address = wizardData.contentLocation?.address || wizardData.address || {};
+    
+    // Garantir que address tenha city e state (obrigatórios)
+    if (!address.city && wizardData.contentLocation?.city) {
+      address.city = wizardData.contentLocation.city;
+    }
+    if (!address.state && wizardData.contentLocation?.state) {
+      address.state = wizardData.contentLocation.state;
+    }
+    if (!address.state && wizardData.contentLocation?.stateCode) {
+      address.state = wizardData.contentLocation.stateCode;
+    }
+    
+    // ✅ Se ainda não tiver city/state, usar valores padrão temporários (será atualizado no Step 2)
+    if (!address.city) {
+      address.city = 'Rio de Janeiro';
+    }
+    if (!address.state) {
+      address.state = 'RJ';
+    }
+    if (!address.country) {
+      address.country = 'BR';
+    }
+    
+    // Retornar dados normalizados (mantendo estrutura wizard para compatibilidade)
+    return {
+      ...wizardData,
+      name: name || 'Propriedade',
+      code: code,
+      type: type || wizardData.contentType?.propertyTypeId || 'loc_casa',
+      address: address,
+      // Campos obrigatórios mínimos para criação
+      maxGuests: wizardData.contentRooms?.maxGuests || wizardData.maxGuests || 2,
+      bedrooms: wizardData.contentRooms?.bedrooms || wizardData.bedrooms || 1,
+      beds: wizardData.contentRooms?.beds || wizardData.beds || 1,
+      bathrooms: wizardData.contentRooms?.bathrooms || wizardData.bathrooms || 1,
+      basePrice: wizardData.basePrice || 100,
+      currency: wizardData.currency || 'BRL',
+      // Campos do Step 1
+      propertyType: wizardData.contentType?.propertyType || 'individual',
+      accommodationType: wizardData.contentType?.accommodationTypeId,
+      subtype: wizardData.contentType?.subtipo || wizardData.subtype,
+      modalities: wizardData.contentType?.modalidades || wizardData.modalities || [],
+    };
+  };
+
   // Salvar propriedade
   const handleSave = async (data: any) => {
     console.log('💾 [PropertyWizardPage] handleSave chamado');
-    console.log('📊 [PropertyWizardPage] Dados a salvar:', data);
+    console.log('📊 [PropertyWizardPage] Dados a salvar (brutos):', data);
     console.log('🔧 [PropertyWizardPage] Modo:', isEditMode ? 'EDIÇÃO' : 'CRIAÇÃO');
     
     setSaving(true);
 
     try {
+      // ✅ BOAS PRÁTICAS v1.0.103.1000 - Normalizar dados ANTES de enviar
+      const normalizedData = normalizeWizardData(data);
+      console.log('✅ [PropertyWizardPage] Dados normalizados:', normalizedData);
+      
       let response;
       
       if (isEditMode) {
         console.log('📝 [PropertyWizardPage] Atualizando propriedade ID:', id);
-        response = await propertiesApi.update(id, data);
+        response = await propertiesApi.update(id, normalizedData);
       } else {
         console.log('➕ [PropertyWizardPage] Criando nova propriedade');
-        response = await propertiesApi.create(data);
+        response = await propertiesApi.create(normalizedData as any);
       }
 
       console.log('📡 [PropertyWizardPage] Resposta da API:', response);

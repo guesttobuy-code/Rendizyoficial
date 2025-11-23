@@ -507,22 +507,8 @@ export const propertiesApi = {
   },
 
   // Criar nova propriedade
-  create: async (data: {
-    name: string;
-    code: string;
-    type: string;
-    address: Property['address'];
-    maxGuests: number;
-    bedrooms: number;
-    beds: number;
-    bathrooms: number;
-    basePrice: number;
-    currency?: string;
-    minNights?: number;
-    tags?: string[];
-    amenities?: string[];
-    description?: string;
-  }): Promise<ApiResponse<Property>> => {
+  // ✅ BOAS PRÁTICAS v1.0.103.1000 - Aceitar dados do wizard (estrutura aninhada ou plana)
+  create: async (data: Partial<Property> | any): Promise<ApiResponse<Property>> => {
     return apiRequest<Property>('/properties', {
       method: 'POST',
       body: JSON.stringify(data),
