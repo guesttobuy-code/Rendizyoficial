@@ -69,6 +69,9 @@ import { ContasPagarPage } from './components/financeiro/pages/ContasPagarPage';
 import { LancamentosPage } from './components/financeiro/pages/LancamentosPage';
 import { DREPage } from './components/financeiro/pages/DREPage';
 import { FluxoCaixaPage } from './components/financeiro/pages/FluxoCaixaPage';
+import { PlanoContasPage } from './components/financeiro/pages/PlanoContasPage';
+import { ContasBancariasPage } from './components/financeiro/pages/ContasBancariasPage';
+import { CentroCustosPage } from './components/financeiro/pages/CentroCustosPage';
 import CRMTasksModule from './components/crm/CRMTasksModule';
 import CRMTasksDashboard from './components/crm/CRMTasksDashboard';
 import BIModule from './components/bi/BIModule';
@@ -1318,14 +1321,14 @@ function App() {
           </ProtectedRoute>
         }>
           <Route index element={<FinanceiroDashboard />} />
-          <Route path="plano-contas" element={<ModulePlaceholder module="Plano de Contas" />} />
+          <Route path="plano-contas" element={<PlanoContasPage />} />
           <Route path="lancamentos" element={<LancamentosPage />} />
-          <Route path="centro-custos" element={<ModulePlaceholder module="Centro de Custos" />} />
+          <Route path="centro-custos" element={<CentroCustosPage />} />
           <Route path="contas-receber" element={<ContasReceberPage />} />
           <Route path="contas-pagar" element={<ContasPagarPage />} />
           <Route path="inadimplencia" element={<ModulePlaceholder module="Inadimplência" />} />
           <Route path="conciliacao" element={<ModulePlaceholder module="Conciliação Bancária" />} />
-          <Route path="contas-bancarias" element={<ModulePlaceholder module="Contas Bancárias" />} />
+          <Route path="contas-bancarias" element={<ContasBancariasPage />} />
           <Route path="dre" element={<DREPage />} />
           <Route path="fluxo-caixa" element={<FluxoCaixaPage />} />
           <Route path="relatorios" element={<ModulePlaceholder module="Relatórios Gerenciais" />} />

@@ -17,9 +17,10 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { DollarSign, TrendingDown, Calendar, AlertTriangle, Check, FileText, Upload, Plus, Loader2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
-import type { Titulo } from '../../../types/financeiro';
+import type { Titulo, ContaContabil, ContaBancaria } from '../../../types/financeiro';
 import { financeiroApi } from '../../../utils/api';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 
 export function ContasPagarPage() {
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
@@ -32,6 +33,10 @@ export function ContasPagarPage() {
   const [selectedTitulo, setSelectedTitulo] = useState<Titulo | null>(null);
   const [valorPago, setValorPago] = useState(0);
   const [dataPagamento, setDataPagamento] = useState(format(new Date(), 'yyyy-MM-dd'));
+
+  // Options
+  const [categorias, setCategorias] = useState<ContaContabil[]>([]);
+  const [contasBancarias, setContasBancarias] = useState<ContaBancaria[]>([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -49,6 +54,12 @@ export function ContasPagarPage() {
   useEffect(() => {
     loadTitulos();
   }, [startDate, endDate]);
+
+  // Carregar categorias e contas bancárias
+  useEffect(() => {
+    loadCategorias();
+    loadContasBancarias();
+  }, []);
 
   const loadTitulos = async () => {
     try {
@@ -80,6 +91,28 @@ export function ContasPagarPage() {
       setTitulos([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCategorias = async () => {
+    try {
+      const response = await financeiroApi.categorias.list();
+      if (response.success && response.data) {
+        setCategorias(response.data || []);
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar categorias:', err);
+    }
+  };
+
+  const loadContasBancarias = async () => {
+    try {
+      const response = await financeiroApi.contasBancarias.list();
+      if (response.success && response.data) {
+        setContasBancarias(response.data || []);
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar contas bancárias:', err);
     }
   };
 
@@ -330,6 +363,48 @@ export function ContasPagarPage() {
                         value={formData.vencimento}
                         onChange={(e) => setFormData({ ...formData, vencimento: e.target.value })}
                       />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Categoria</Label>
+                      <Select 
+                        value={formData.categoriaId} 
+                        onValueChange={(value) => setFormData({ ...formData, categoriaId: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma categoria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Nenhuma</SelectItem>
+                          {categorias
+                            .filter((cat: ContaContabil) => cat.tipo === 'despesa')
+                            .map((categoria: ContaContabil) => (
+                              <SelectItem key={categoria.id} value={categoria.id}>
+                                {categoria.codigo} - {categoria.nome}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Conta Bancária</Label>
+                      <Select 
+                        value={formData.contaId} 
+                        onValueChange={(value) => setFormData({ ...formData, contaId: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma conta" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Nenhuma</SelectItem>
+                          {contasBancarias.map((conta: ContaBancaria) => (
+                            <SelectItem key={conta.id} value={conta.id}>
+                              {conta.nome} - {conta.banco}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <div className="flex justify-end gap-2">
