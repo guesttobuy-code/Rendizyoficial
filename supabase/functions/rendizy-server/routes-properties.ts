@@ -374,6 +374,15 @@ export async function createProperty(c: Context) {
     let organizationId: string | undefined;
     if (tenant.type !== 'superadmin') {
       organizationId = await getOrganizationIdOrThrow(c);
+    } else {
+      // Para superadmin, usar organização padrão (00000000-0000-0000-0000-000000000000)
+      // ou buscar a primeira organização disponível
+      const { data: defaultOrg } = await client
+        .from('organizations')
+        .select('id')
+        .limit(1)
+        .single();
+      organizationId = defaultOrg?.id || '00000000-0000-0000-0000-000000000000';
     }
     
     // Criar propriedade
