@@ -18,18 +18,26 @@ export function propertyToSql(property: Property, organizationId: string): any {
   // ✅ CORREÇÃO: Remover prefixo do ID se existir (ex: "acc_" -> UUID puro)
   // O banco SQL espera UUID puro, mas o sistema usa prefixos para compatibilidade
   let propertyId = property.id;
-  if (propertyId.includes('_')) {
+  console.log('🔍 [propertyToSql] ID original:', propertyId);
+  if (propertyId && propertyId.includes('_')) {
     // Se tem prefixo (ex: "acc_uuid"), extrair apenas o UUID
     const parts = propertyId.split('_');
     if (parts.length > 1) {
       // Pegar a última parte (UUID) ou todas as partes após o primeiro underscore
       propertyId = parts.slice(1).join('_');
+      console.log('✅ [propertyToSql] ID após remover prefixo:', propertyId);
     }
+  }
+  
+  // ✅ CORREÇÃO: organizationId deve ser UUID válido ou null (não 'system')
+  let orgId = organizationId;
+  if (orgId === 'system' || !orgId) {
+    orgId = null;
   }
   
   return {
     id: propertyId,
-    organization_id: organizationId, // ✅ Multi-tenant: sempre usar organization_id do tenant
+    organization_id: orgId, // ✅ Multi-tenant: sempre usar organization_id do tenant (ou null para SuperAdmin)
     owner_id: (() => {
       const ownerId = property.ownerId || 'system';
       if (ownerId && typeof ownerId === 'string' && ownerId.includes('_')) {
