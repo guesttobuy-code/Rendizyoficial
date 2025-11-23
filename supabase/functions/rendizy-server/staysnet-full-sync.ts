@@ -434,7 +434,7 @@ export async function fullSyncStaysNet(
             existing = byId;
           }
           
-          let reservationId: string;
+          // reservationId já foi declarado acima (linha 352)
           if (existing) {
             // Atualizar
             const { error } = await supabase
@@ -444,7 +444,6 @@ export async function fullSyncStaysNet(
             
             if (error) throw error;
             stats.reservations.updated++;
-            reservationId = existing.id;
           } else {
             // Criar
             const { error } = await supabase
@@ -453,7 +452,6 @@ export async function fullSyncStaysNet(
             
             if (error) throw error;
             stats.reservations.created++;
-            reservationId = reservation.id;
           }
           
           // ✅ NOVO: Criar block no calendário automaticamente quando reserva é criada/atualizada
