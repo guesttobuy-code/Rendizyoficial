@@ -1421,6 +1421,147 @@ export const photosApi = {
 };
 
 // ============================================================================
+// FINANCEIRO API (MÓDULO FINANCEIRO v1.0.103.400)
+// ============================================================================
+
+import type { 
+  Lancamento, 
+  Titulo, 
+  ContaBancaria, 
+  CentroCusto,
+  ContaContabil,
+  FiltroFinanceiro,
+  PaginatedResponse
+} from '../types/financeiro';
+
+export const financeiroApi = {
+  // ============================================================================
+  // LANÇAMENTOS
+  // ============================================================================
+  
+  lancamentos: {
+    list: async (filtros?: FiltroFinanceiro): Promise<ApiResponse<PaginatedResponse<Lancamento>>> => {
+      const params = new URLSearchParams();
+      if (filtros?.dataInicio) params.append('dataInicio', filtros.dataInicio);
+      if (filtros?.dataFim) params.append('dataFim', filtros.dataFim);
+      if (filtros?.tipo) params.append('tipo', filtros.tipo);
+      if (filtros?.categoriaId) params.append('categoriaId', filtros.categoriaId);
+      if (filtros?.centroCustoId) params.append('centroCustoId', filtros.centroCustoId);
+      if (filtros?.contaId) params.append('contaId', filtros.contaId);
+      if (filtros?.conciliado !== undefined) params.append('conciliado', filtros.conciliado.toString());
+      if (filtros?.busca) params.append('busca', filtros.busca);
+      if (filtros?.page) params.append('page', filtros.page.toString());
+      if (filtros?.limit) params.append('limit', filtros.limit.toString());
+      if (filtros?.orderBy) params.append('orderBy', filtros.orderBy);
+      if (filtros?.order) params.append('order', filtros.order);
+      
+      return apiRequest<PaginatedResponse<Lancamento>>(`/financeiro/lancamentos?${params.toString()}`);
+    },
+    
+    create: async (data: Partial<Lancamento>): Promise<ApiResponse<Lancamento>> => {
+      return apiRequest<Lancamento>('/financeiro/lancamentos', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    
+    update: async (id: string, data: Partial<Lancamento>): Promise<ApiResponse<Lancamento>> => {
+      return apiRequest<Lancamento>(`/financeiro/lancamentos/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+    
+    delete: async (id: string): Promise<ApiResponse<null>> => {
+      return apiRequest<null>(`/financeiro/lancamentos/${id}`, {
+        method: 'DELETE',
+      });
+    },
+  },
+  
+  // ============================================================================
+  // TÍTULOS
+  // ============================================================================
+  
+  titulos: {
+    list: async (filtros?: FiltroFinanceiro): Promise<ApiResponse<PaginatedResponse<Titulo>>> => {
+      const params = new URLSearchParams();
+      if (filtros?.tipo) params.append('tipo', filtros.tipo);
+      if (filtros?.status) params.append('status', filtros.status);
+      if (filtros?.page) params.append('page', filtros.page.toString());
+      if (filtros?.limit) params.append('limit', filtros.limit.toString());
+      
+      return apiRequest<PaginatedResponse<Titulo>>(`/financeiro/titulos?${params.toString()}`);
+    },
+    
+    create: async (data: Partial<Titulo>): Promise<ApiResponse<Titulo>> => {
+      return apiRequest<Titulo>('/financeiro/titulos', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    
+    quitar: async (id: string, data: { valorPago?: number; dataPagamento?: string }): Promise<ApiResponse<Titulo>> => {
+      return apiRequest<Titulo>(`/financeiro/titulos/${id}/quitar`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+  },
+  
+  // ============================================================================
+  // CONTAS BANCÁRIAS
+  // ============================================================================
+  
+  contasBancarias: {
+    list: async (): Promise<ApiResponse<ContaBancaria[]>> => {
+      return apiRequest<ContaBancaria[]>('/financeiro/contas-bancarias');
+    },
+    
+    create: async (data: Partial<ContaBancaria>): Promise<ApiResponse<ContaBancaria>> => {
+      return apiRequest<ContaBancaria>('/financeiro/contas-bancarias', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+  },
+  
+  // ============================================================================
+  // CATEGORIAS (Plano de Contas)
+  // ============================================================================
+  
+  categorias: {
+    list: async (): Promise<ApiResponse<ContaContabil[]>> => {
+      return apiRequest<ContaContabil[]>('/financeiro/categorias');
+    },
+    
+    create: async (data: Partial<ContaContabil>): Promise<ApiResponse<ContaContabil>> => {
+      return apiRequest<ContaContabil>('/financeiro/categorias', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+  },
+  
+  // ============================================================================
+  // CENTRO DE CUSTOS
+  // ============================================================================
+  
+  centroCustos: {
+    list: async (): Promise<ApiResponse<CentroCusto[]>> => {
+      return apiRequest<CentroCusto[]>('/financeiro/centro-custos');
+    },
+    
+    create: async (data: Partial<CentroCusto>): Promise<ApiResponse<CentroCusto>> => {
+      return apiRequest<CentroCusto>('/financeiro/centro-custos', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+  },
+};
+
+// ============================================================================
 // EXPORT DEFAULT
 // ============================================================================
 
@@ -1431,4 +1572,5 @@ export default {
   calendar: calendarApi,
   locations: locationsApi,
   dev: devApi,
+  financeiro: financeiroApi,
 };

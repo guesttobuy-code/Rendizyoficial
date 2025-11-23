@@ -3,7 +3,7 @@
  * Gestão de lançamentos financeiros manuais
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DataTable, DataTableColumn } from '../components/DataTable';
 import { Money } from '../components/Money';
 import { PeriodPicker } from '../components/PeriodPicker';
@@ -15,15 +15,19 @@ import { Label } from '../../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { Textarea } from '../../ui/textarea';
 import { Badge } from '../../ui/badge';
-import { Plus, Download, ArrowUpCircle, ArrowDownCircle, ArrowRightLeft } from 'lucide-react';
+import { Plus, Download, ArrowUpCircle, ArrowDownCircle, ArrowRightLeft, Loader2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import type { Lancamento, SplitDestino } from '../../../types/financeiro';
+import { financeiroApi } from '../../../utils/api';
 
 export function LancamentosPage() {
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLancamento, setEditingLancamento] = useState<Lancamento | null>(null);
+  const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [tipo, setTipo] = useState<'entrada' | 'saida' | 'transferencia'>('entrada');
@@ -31,8 +35,106 @@ export function LancamentosPage() {
   const [splits, setSplits] = useState<SplitDestino[]>([]);
   const [usarSplit, setUsarSplit] = useState(false);
 
-  // Mock data
-  const lancamentos: Lancamento[] = [
+  // Carregar lançamentos do backend
+  useEffect(() => {
+    loadLancamentos();
+  }, [startDate, endDate]);
+
+  const loadLancamentos = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await financeiroApi.lancamentos.list({
+        dataInicio: format(startDate, 'yyyy-MM-dd'),
+        dataFim: format(endDate, 'yyyy-MM-dd'),
+        page: 1,
+        limit: 100,
+        orderBy: 'data',
+        order: 'desc',
+      });
+      
+      if (response.success && response.data) {
+        setLancamentos(response.data.data || []);
+      } else {
+        setError(response.error || 'Erro ao carregar lançamentos');
+        setLancamentos([]);
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar lançamentos:', err);
+      setError(err.message || 'Erro ao carregar lançamentos');
+      setLancamentos([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const lancamentoData: Partial<Lancamento> = {
+        tipo,
+        data: format(new Date(), 'yyyy-MM-dd'),
+        competencia: format(new Date(), 'yyyy-MM-dd'),
+        descricao: '', // TODO: Adicionar campo de descrição no form
+        valor,
+        moeda: 'BRL',
+        hasSplit: usarSplit,
+        splits: usarSplit ? splits : undefined,
+        conciliado: false,
+      };
+
+      let response;
+      if (editingLancamento) {
+        response = await financeiroApi.lancamentos.update(editingLancamento.id, lancamentoData);
+      } else {
+        response = await financeiroApi.lancamentos.create(lancamentoData);
+      }
+
+      if (response.success) {
+        setIsDialogOpen(false);
+        setEditingLancamento(null);
+        // Reset form
+        setTipo('entrada');
+        setValor(0);
+        setSplits([]);
+        setUsarSplit(false);
+        // Recarregar lista
+        await loadLancamentos();
+      } else {
+        setError(response.error || 'Erro ao salvar lançamento');
+      }
+    } catch (err: any) {
+      console.error('Erro ao salvar lançamento:', err);
+      setError(err.message || 'Erro ao salvar lançamento');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este lançamento?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await financeiroApi.lancamentos.delete(id);
+      
+      if (response.success) {
+        await loadLancamentos();
+      } else {
+        setError(response.error || 'Erro ao excluir lançamento');
+      }
+    } catch (err: any) {
+      console.error('Erro ao excluir lançamento:', err);
+      setError(err.message || 'Erro ao excluir lançamento');
+    } finally {
+      setLoading(false);
+    }
+  };
     {
       id: '1',
       tipo: 'entrada',
@@ -231,8 +333,15 @@ export function LancamentosPage() {
                     <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                       Cancelar
                     </Button>
-                    <Button onClick={() => setIsDialogOpen(false)}>
-                      Salvar
+                    <Button onClick={handleSave} disabled={loading}>
+                      {loading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Salvando...
+                        </>
+                      ) : (
+                        'Salvar'
+                      )}
                     </Button>
                   </div>
                 </div>
