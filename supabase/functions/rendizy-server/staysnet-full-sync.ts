@@ -491,11 +491,12 @@ export async function fullSyncStaysNet(
             checkOut: checkOut.toISOString().substring(0, 10), // ✅ Apenas data (YYYY-MM-DD)
             nights: nights, // ✅ Já é INTEGER
             guests: {
-              adults: staysRes._i_maxGuests || staysRes.guests?.adults || 1,
-              children: staysRes.guests?.children || 0,
-              infants: staysRes.guests?.infants || 0,
-              pets: staysRes.guests?.pets || 0,
-              total: staysRes._i_maxGuests || staysRes.guests?.total || 1,
+              // ✅ Garantir que todos os valores sejam INTEGER (não decimal)
+              adults: Math.round(Number(staysRes._i_maxGuests || staysRes.guests?.adults || 1)),
+              children: Math.round(Number(staysRes.guests?.children || 0)),
+              infants: Math.round(Number(staysRes.guests?.infants || 0)),
+              pets: Math.round(Number(staysRes.guests?.pets || 0)),
+              total: Math.round(Number(staysRes._i_maxGuests || staysRes.guests?.total || 1)),
             },
             pricing: {
               pricePerNight: (staysRes.price?.hostingDetails?._f_nightPrice || staysRes._f_nightPrice || 0) / 100, // Converter centavos para reais
@@ -599,7 +600,7 @@ export async function fullSyncStaysNet(
               notes: `Reserva sincronizada do Stays.net - ${reservation.guests.total} hóspede(s)`,
               createdAt: now,
               updatedAt: now,
-              createdBy: 'system',
+              createdBy: createdByUserId, // ✅ UUID válido ao invés de 'system'
             };
             
             const blockSqlData = blockToSql(block, organizationId);
