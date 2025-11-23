@@ -452,7 +452,10 @@ export async function fullSyncStaysNet(
           // Calcular noites (deve ser INTEGER, não decimal)
           const checkIn = new Date(staysRes.checkInDate || staysRes.from || staysRes.check_in);
           const checkOut = new Date(staysRes.checkOutDate || staysRes.to || staysRes.check_out);
-          const nights = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)); // ✅ Math.round para garantir INTEGER
+          const nightsRaw = (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24);
+          const nights = Math.max(1, Math.round(nightsRaw)); // ✅ Math.round + Math.max para garantir INTEGER >= 1
+          
+          console.log(`[StaysNet Full Sync] 📅 Reserva ${staysResId}: ${checkIn.toISOString().substring(0, 10)} → ${checkOut.toISOString().substring(0, 10)} = ${nights} noites`);
           
           // ✅ VALIDAÇÃO FINAL: Garantir que propertyId e guestId sejam UUIDs válidos
           if (!propertyId || propertyId === 'system' || propertyId.length !== 36) {
@@ -484,9 +487,9 @@ export async function fullSyncStaysNet(
             id: reservationId,
             propertyId, // ✅ Já validado acima
             guestId,    // ✅ Já validado acima
-            checkIn: checkIn.toISOString(),
-            checkOut: checkOut.toISOString(),
-            nights,
+            checkIn: checkIn.toISOString().substring(0, 10), // ✅ Apenas data (YYYY-MM-DD)
+            checkOut: checkOut.toISOString().substring(0, 10), // ✅ Apenas data (YYYY-MM-DD)
+            nights: nights, // ✅ Já é INTEGER
             guests: {
               adults: staysRes._i_maxGuests || staysRes.guests?.adults || 1,
               children: staysRes.guests?.children || 0,
