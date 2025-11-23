@@ -385,18 +385,29 @@ export async function fullSyncStaysNet(
           // Buscar property_id e guest_id usando os maps ou fallback
           let propertyId = propertyIdMap.get(staysListingId);
           if (!propertyId && allProperties && allProperties.length > 0) {
-            // Fallback: usar primeira propriedade disponível (você pode melhorar isso)
-            propertyId = allProperties[0].id;
+            // Fallback: buscar propriedade pelo ID da Stays.net (usando ObjectId convertido)
+            const convertedListingId = objectIdToUUID(staysListingId);
+            const foundProperty = allProperties.find(p => p.id === convertedListingId);
+            propertyId = foundProperty?.id || allProperties[0].id;
           }
           
           let guestId = guestIdMap.get(staysClientId);
           if (!guestId && allGuests && allGuests.length > 0) {
-            // Fallback: usar primeiro hóspede disponível (você pode melhorar isso)
-            guestId = allGuests[0].id;
+            // Fallback: buscar hóspede pelo ID da Stays.net (usando ObjectId convertido)
+            const convertedClientId = objectIdToUUID(staysClientId);
+            const foundGuest = allGuests.find(g => g.id === convertedClientId);
+            guestId = foundGuest?.id || allGuests[0].id;
           }
           
-          if (!propertyId || !guestId) {
-            console.warn(`[StaysNet Full Sync] ⚠️ Reserva ${staysResId} sem property_id ou guest_id, pulando...`);
+          // ✅ Garantir que propertyId e guestId sejam UUIDs válidos (não 'system' ou null)
+          if (!propertyId || propertyId === 'system' || propertyId.length !== 36) {
+            console.warn(`[StaysNet Full Sync] ⚠️ Reserva ${staysResId} sem property_id válido, pulando...`);
+            stats.reservations.failed++;
+            continue;
+          }
+          
+          if (!guestId || guestId === 'system' || guestId.length !== 36) {
+            console.warn(`[StaysNet Full Sync] ⚠️ Reserva ${staysResId} sem guest_id válido, pulando...`);
             stats.reservations.failed++;
             continue;
           }
