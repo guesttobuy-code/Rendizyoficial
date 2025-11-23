@@ -524,6 +524,9 @@ app.route("/rendizy-server/make-server-67caf26a/tenants", tenantsApp);
 // FINANCEIRO ROUTES (v1.0.103.400)
 // ============================================================================
 
+// ✅ Middleware de autenticação para todas as rotas financeiras
+app.use('/rendizy-server/make-server-67caf26a/financeiro/*', tenancyMiddleware);
+
 // Lançamentos
 app.get("/rendizy-server/make-server-67caf26a/financeiro/lancamentos", financeiroRoutes.listLancamentos);
 app.get("/rendizy-server/make-server-67caf26a/financeiro/lancamentos/:id", financeiroRoutes.getLancamento);
