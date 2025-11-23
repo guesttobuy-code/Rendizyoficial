@@ -41,9 +41,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // ✅ ARQUITETURA SQL v1.0.103.950 - SEMPRE valida token no backend SQL
+  // ✅ BOAS PRÁTICAS v1.0.103.1000 - Validação periódica + Refresh automático
   // NÃO usa localStorage como fonte de verdade - sempre busca do banco
   useEffect(() => {
-    const loadUser = async (retries = 3) => {
+    let isMounted = true; // Flag para evitar atualizações após desmontar
+    
+    const loadUser = async (retries = 3, skipDelay = false) => {
       try {
         // ✅ SOLUÇÃO SIMPLES: Token no header Authorization (não cookie)
         console.log('🔐 [AuthContext] Verificando sessão via token no header...');
@@ -54,13 +57,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (!token) {
           console.log('⚠️ [AuthContext] Token não encontrado no localStorage');
-          setUser(null);
-          setIsLoading(false);
+          if (isMounted) {
+            setUser(null);
+            setIsLoading(false);
+          }
           return;
         }
         
         // ✅ CORREÇÃO CRÍTICA: Aguardar um pouco após login para garantir que sessão foi commitada no banco
-        await new Promise(resolve => setTimeout(resolve, 500)); // Adicionado este delay
+        // Mas apenas na primeira chamada (não em validações periódicas)
+        if (!skipDelay) {
+          await new Promise(resolve => setTimeout(resolve, 500)); // Adicionado este delay
+        }
         
         // ✅ SOLUÇÃO DEFINITIVA: Usar o mesmo padrão das outras rotas (com make-server-67caf26a)
         // Isso garante que funcione igual às outras rotas que já estão funcionando
@@ -90,13 +98,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (retries > 0) {
             console.warn(`⚠️ [AuthContext] Erro ao parsear JSON, tentando novamente... (${retries} tentativas restantes)`);
             await new Promise(resolve => setTimeout(resolve, 2000)); // Aumentado para 2s
-            return loadUser(retries - 1);
+            return loadUser(retries - 1, true);
           }
           
-          // ✅ Se já temos usuário no estado, manter (pode ser problema temporário de rede)
-          if (!user) {
-            localStorage.removeItem('rendizy-token');
-            setUser(null);
+          // ✅ Se erro de parse, manter estado atual (pode ser problema temporário de rede)
+          // Não limpar token imediatamente - pode ser erro transitório
+          if (isMounted) {
             setIsLoading(false);
           }
           return;
@@ -108,16 +115,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (response.status === 401 && retries > 0) {
             console.warn(`⚠️ [AuthContext] Erro 401, tentando novamente... (${retries} tentativas restantes)`);
             await new Promise(resolve => setTimeout(resolve, 2000)); // Aumentado para 2s
-            return loadUser(retries - 1);
+            return loadUser(retries - 1, true);
           }
           
           console.log('❌ [AuthContext] Sessão inválida ou expirada:', data?.error);
-          // ✅ Limpar token inválido apenas se não houver usuário no estado (evita limpar após login bem-sucedido)
-          if (!user) {
-            localStorage.removeItem('rendizy-token');
-            setUser(null);
+          // ✅ Limpar token inválido apenas se não for validação periódica (evita limpar após login bem-sucedido)
+          if (isMounted) {
+            // Em validação periódica, apenas limpar se realmente inválido (não erro de rede)
+            if (response.status === 401 && data?.code === 'SESSION_NOT_FOUND') {
+              localStorage.removeItem('rendizy-token');
+              setUser(null);
+            }
           }
-          setIsLoading(false);
+          if (isMounted) {
+            setIsLoading(false);
+          }
           return;
         }
 
@@ -139,7 +151,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           organizationId: backendUser.organizationId || backendUser.organization?.id || undefined
         };
 
-        setUser(loggedUser);
+        if (isMounted) {
+          setUser(loggedUser);
+        }
 
         // ✅ Carregar organização do backend SQL se existir
         if (backendUser.organization) {
@@ -152,7 +166,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             createdAt: new Date(),
             updatedAt: new Date()
           };
-          setOrganization(org);
+          if (isMounted) {
+            setOrganization(org);
+          }
           console.log('✅ [AuthContext] Organização carregada do backend SQL:', org);
         } else if (backendUser.organizationId) {
           // Buscar organização se tiver apenas o ID
@@ -179,7 +195,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   createdAt: new Date(orgResult.data.created_at || Date.now()),
                   updatedAt: new Date(orgResult.data.updated_at || Date.now())
                 };
-                setOrganization(org);
+                if (isMounted) {
+                  setOrganization(org);
+                }
               }
             }
           } catch (error) {
@@ -187,16 +205,86 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        // ✅ BOAS PRÁTICAS: Verificar se sessão está próxima de expirar e renovar automaticamente
+        if (data.session && data.session.expiresAt) {
+          const expiresAt = new Date(data.session.expiresAt);
+          const timeUntilExpiry = expiresAt.getTime() - Date.now();
+          const ONE_HOUR = 60 * 60 * 1000;
+          
+          // Se falta menos de 1 hora, sessão será renovada automaticamente pelo backend
+          // (getSessionFromToken já faz isso com sliding expiration)
+          if (timeUntilExpiry < ONE_HOUR) {
+            console.log('✅ [AuthContext] Sessão próxima de expirar - renovada automaticamente pelo backend');
+          }
+        }
+
         console.log('✅ [AuthContext] Usuário carregado do backend SQL:', loggedUser);
       } catch (error) {
         console.error('❌ [AuthContext] Erro ao carregar usuário:', error);
-        // ✅ MIGRAÇÃO: Cookie será limpo pelo backend se inválido
-      } finally {
-        setIsLoading(false);
+        // ✅ Não limpar token em erro de rede - pode ser temporário
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
+    // ✅ BOAS PRÁTICAS: Validar imediatamente ao montar
     loadUser();
+
+    // ✅ BOAS PRÁTICAS: Validação periódica (a cada 5 minutos)
+    const periodicInterval = setInterval(() => {
+      if (isMounted) {
+        console.log('🔄 [AuthContext] Validação periódica da sessão...');
+        loadUser(1, true); // 1 retry apenas, sem delay
+      }
+    }, 5 * 60 * 1000); // 5 minutos
+
+    // ✅ BOAS PRÁTICAS: Verificar e renovar sessão antes de expirar (a cada 30 minutos)
+    const refreshInterval = setInterval(async () => {
+      if (isMounted) {
+        const token = localStorage.getItem('rendizy-token');
+        if (!token) return;
+        
+        try {
+          const { projectId, publicAnonKey } = await import('../utils/supabase/info');
+          const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/auth/me`;
+          
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Auth-Token': token,
+              'apikey': publicAnonKey
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.session?.expiresAt) {
+              const expiresAt = new Date(data.session.expiresAt);
+              const timeUntilExpiry = expiresAt.getTime() - Date.now();
+              const ONE_HOUR = 60 * 60 * 1000;
+              
+              // Se falta menos de 1 hora, renovar automaticamente
+              if (timeUntilExpiry < ONE_HOUR) {
+                console.log('✅ [AuthContext] Sessão renovada automaticamente (próxima de expirar)');
+                // A renovação acontece automaticamente no backend ao chamar /auth/me
+                // (getSessionFromToken já faz isso com sliding expiration)
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ [AuthContext] Erro ao verificar expiração da sessão:', error);
+        }
+      }
+    }, 30 * 60 * 1000); // 30 minutos
+
+    // Cleanup ao desmontar
+    return () => {
+      isMounted = false;
+      clearInterval(periodicInterval);
+      clearInterval(refreshInterval);
+    };
   }, []);
 
   const login = async (username: string, password: string) => {
