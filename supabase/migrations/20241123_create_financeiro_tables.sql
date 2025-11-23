@@ -49,11 +49,7 @@ CREATE TABLE IF NOT EXISTS financeiro_categorias (
   created_by UUID REFERENCES users(id),
   
   -- Constraints
-  CONSTRAINT unique_codigo_org UNIQUE (organization_id, codigo),
-  CONSTRAINT check_parent_same_org CHECK (
-    parent_id IS NULL OR 
-    EXISTS (SELECT 1 FROM financeiro_categorias p WHERE p.id = parent_id AND p.organization_id = organization_id)
-  )
+  CONSTRAINT unique_codigo_org UNIQUE (organization_id, codigo)
 );
 
 -- Índices
@@ -442,6 +438,39 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- ============================================================================
+-- TRIGGER: Validar parent_id na mesma organização (substitui CHECK constraint)
+-- ============================================================================
+
+-- Função para validar que parent_id pertence à mesma organização
+CREATE OR REPLACE FUNCTION validate_categoria_parent_org()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Se parent_id é NULL, permitir (categoria raiz)
+  IF NEW.parent_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+  
+  -- Verificar se parent_id existe e pertence à mesma organização
+  IF NOT EXISTS (
+    SELECT 1 FROM financeiro_categorias p 
+    WHERE p.id = NEW.parent_id 
+    AND p.organization_id = NEW.organization_id
+  ) THEN
+    RAISE EXCEPTION 'parent_id deve pertencer à mesma organização';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Aplicar trigger de validação
+DROP TRIGGER IF EXISTS trigger_validate_categoria_parent_org ON financeiro_categorias;
+CREATE TRIGGER trigger_validate_categoria_parent_org
+  BEFORE INSERT OR UPDATE ON financeiro_categorias
+  FOR EACH ROW
+  EXECUTE FUNCTION validate_categoria_parent_org();
 
 -- Aplicar trigger em todas as tabelas com updated_at
 DROP TRIGGER IF EXISTS trigger_update_financeiro_categorias_updated_at ON financeiro_categorias;
