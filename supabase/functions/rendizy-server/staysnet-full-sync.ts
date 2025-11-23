@@ -106,13 +106,17 @@ export async function fullSyncStaysNet(
           const guestId = objectIdToUUID(staysClientId);
           
           // Converter para formato Rendizy (simplificado - você pode melhorar isso)
+          // ✅ Garantir que email e phone não sejam null (constraint do banco)
+          const guestEmail = staysGuest.email || `guest-${guestId.substring(0, 8)}@staysnet.local`;
+          const guestPhone = staysGuest.phone || staysGuest.telephone || `+55-00-00000-0000`;
+          
           const guest: Guest = {
             id: guestId,
             firstName: staysGuest.firstName || staysGuest.name?.split(' ')[0] || '',
             lastName: staysGuest.lastName || staysGuest.name?.split(' ').slice(1).join(' ') || '',
             fullName: staysGuest.name || `${staysGuest.firstName || ''} ${staysGuest.lastName || ''}`.trim(),
-            email: staysGuest.email || null,
-            phone: staysGuest.phone || staysGuest.telephone || null,
+            email: guestEmail,
+            phone: guestPhone,
             cpf: staysGuest.cpf || staysGuest.document?.cpf || null,
             passport: staysGuest.passport || staysGuest.document?.passport || null,
             language: staysGuest.language || 'pt-BR',
@@ -263,11 +267,16 @@ export async function fullSyncStaysNet(
             },
             createdAt: staysListing.createdAt || new Date().toISOString(),
             updatedAt: staysListing.updatedAt || new Date().toISOString(),
-            ownerId: 'system',
+            ownerId: null, // Não usar 'system', usar null
             isActive: staysListing.status === 'active',
           };
           
-          const sqlData = propertyToSql(property, organizationId);
+          // ✅ Garantir que organizationId seja UUID válido (não 'system')
+          const finalOrgId = (organizationId && organizationId !== 'system' && organizationId.length === 36) 
+            ? organizationId 
+            : null;
+          
+          const sqlData = propertyToSql(property, finalOrgId || '00000000-0000-0000-0000-000000000001');
           
           // Verificar se já existe
           const { data: existing } = await supabase

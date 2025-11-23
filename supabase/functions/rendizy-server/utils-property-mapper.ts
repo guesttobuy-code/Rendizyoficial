@@ -39,8 +39,13 @@ export function propertyToSql(property: Property, organizationId: string): any {
     id: propertyId,
     organization_id: orgId, // ✅ Multi-tenant: sempre usar organization_id do tenant (ou null para SuperAdmin)
     owner_id: (() => {
-      const ownerId = property.ownerId || 'system';
-      if (ownerId && typeof ownerId === 'string' && ownerId.includes('_')) {
+      const ownerId = property.ownerId;
+      // Se ownerId for 'system' ou null, usar null
+      if (!ownerId || ownerId === 'system') {
+        return null;
+      }
+      // Se tiver prefixo, remover
+      if (typeof ownerId === 'string' && ownerId.includes('_')) {
         const parts = ownerId.split('_');
         return parts.length > 1 ? parts.slice(1).join('_') : ownerId;
       }
