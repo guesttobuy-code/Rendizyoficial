@@ -518,6 +518,16 @@ export async function createProperty(c: Context) {
     // ✅ MIGRAÇÃO: Salvar no SQL ao invés de KV Store
     const sqlData = propertyToSql(property, organizationId || 'system');
     
+    // 🔍 DEBUG: Log dos dados antes de inserir
+    console.log('🔍 [createProperty] SQL Data antes de inserir:', {
+      id: sqlData.id,
+      organization_id: sqlData.organization_id,
+      owner_id: sqlData.owner_id,
+      location_id: sqlData.location_id,
+      name: sqlData.name,
+      code: sqlData.code
+    });
+    
     const { data: insertedRow, error } = await client
       .from('properties')
       .insert(sqlData)
@@ -526,6 +536,7 @@ export async function createProperty(c: Context) {
     
     if (error) {
       console.error('❌ [createProperty] SQL error:', error);
+      console.error('❌ [createProperty] SQL Data que causou erro:', JSON.stringify(sqlData, null, 2));
       return c.json(errorResponse('Erro ao criar propriedade', { details: error.message }), 500);
     }
     
