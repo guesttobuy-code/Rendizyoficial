@@ -829,13 +829,33 @@ export async function importFullStaysNet(c: Context) {
       endDate,
     });
     
-    // Obter configuração
-    const config = await kv.get<StaysNetConfig>('settings:staysnet');
+    // ✅ Obter configuração (banco de dados primeiro, depois KV Store)
+    let config: StaysNetConfig | null = null;
+    
+    // Tentar carregar do banco de dados primeiro
+    const dbResult = await staysnetDB.loadStaysNetConfigDB(organizationId);
+    if (dbResult.success && dbResult.data) {
+      config = dbResult.data;
+      console.log('[StaysNet Full Import] ✅ Configuração carregada do banco de dados');
+    } else {
+      // Fallback para KV Store
+      config = await kv.get<StaysNetConfig>('settings:staysnet');
+      if (config) {
+        console.log('[StaysNet Full Import] ⚠️ Configuração carregada do KV Store (fallback)');
+        // Migrar automaticamente para o banco
+        await staysnetDB.saveStaysNetConfigDB(config, organizationId);
+      }
+    }
+    
     if (!config || !config.apiKey) {
       return c.json(errorResponse('Stays.net não configurado. Configure em Configurações → Integrações → Stays.net'), 400);
     }
     
-    console.log('[StaysNet Full Import] ✅ Configuração carregada');
+    console.log('[StaysNet Full Import] ✅ Configuração carregada:', {
+      baseUrl: config.baseUrl,
+      apiKey: config.apiKey.substring(0, 4) + '****',
+      hasApiSecret: !!config.apiSecret,
+    });
     
     // Criar cliente
     const client = new StaysNetClient(config.apiKey, config.baseUrl, config.apiSecret);
