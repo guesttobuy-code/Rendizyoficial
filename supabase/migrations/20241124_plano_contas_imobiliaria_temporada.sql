@@ -14,7 +14,7 @@
 -- FUNÇÃO: Criar plano de contas para uma organização específica
 -- ============================================================================
 CREATE OR REPLACE FUNCTION criar_plano_contas_para_organizacao(org_id UUID)
-RETURNS VOID AS $$
+RETURNS VOID
 LANGUAGE plpgsql
 AS $$
 DECLARE
