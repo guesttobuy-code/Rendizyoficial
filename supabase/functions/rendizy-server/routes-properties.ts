@@ -224,15 +224,39 @@ export async function createProperty(c: Context) {
     const body = await c.req.json<CreatePropertyDTO>();
     logInfo('Creating property', body);
 
-    // Validações
-    if (!body.name || !body.code || !body.type) {
+    // ✅ BOAS PRÁTICAS v1.0.103.1000 - NORMALIZAR ANTES DE VALIDAR
+    // Normalizar dados do wizard (converte estrutura aninhada para plana)
+    const normalized = normalizeWizardData(body);
+    
+    // Usar dados normalizados para validações e criação
+    const dataToValidate = {
+      ...body,
+      name: normalized.name || body.name,
+      code: normalized.code || body.code,
+      type: normalized.type || body.type,
+      address: normalized.address || body.address,
+    };
+
+    // Validações (agora usando dados normalizados)
+    if (!dataToValidate.name || !dataToValidate.code || !dataToValidate.type) {
+      console.error('❌ [createProperty] Validação falhou:', {
+        name: dataToValidate.name,
+        code: dataToValidate.code,
+        type: dataToValidate.type,
+        rawBody: {
+          name: body.name,
+          code: body.code,
+          type: body.type,
+          contentType: body.contentType
+        }
+      });
       return c.json(
         validationErrorResponse('Name, code, and type are required'),
         400
       );
     }
 
-    if (!body.address || !body.address.city || !body.address.state) {
+    if (!dataToValidate.address || !dataToValidate.address.city || !dataToValidate.address.state) {
       return c.json(
         validationErrorResponse('Address with city and state is required'),
         400
@@ -321,23 +345,22 @@ export async function createProperty(c: Context) {
       }
     }
 
-    // Verificar se código já existe
+    // Verificar se código já existe (usando código normalizado)
     const existingProperties = await kv.getByPrefix<Property>('property:');
-    const codeExists = existingProperties.some(p => p.code === body.code);
+    const codeExists = existingProperties.some(p => p.code === dataToValidate.code);
 
     if (codeExists) {
       return c.json(
-        validationErrorResponse(`Property code '${body.code}' already exists`),
+        validationErrorResponse(`Property code '${dataToValidate.code}' already exists`),
         400
       );
     }
 
-    // 🆕 v1.0.103.315 - NORMALIZAR DADOS DO WIZARD
-    const normalized = normalizeWizardData(body);
-    
+    // ✅ Dados já normalizados acima - usar normalized
     console.log('📝 [CREATE] Dados normalizados prontos para criar:', {
       name: normalized.name,
       code: normalized.code,
+      type: normalized.type,
       photos: normalized.photos?.length || 0,
       locationAmenities: normalized.locationAmenities?.length || 0,
       listingAmenities: normalized.listingAmenities?.length || 0,
@@ -364,24 +387,24 @@ export async function createProperty(c: Context) {
     const property: Property = {
       id,
       shortId, // 🆕 v1.0.103.271 - ID curto para exibição
-      name: sanitizeString(normalized.name || body.name),
-      code: (normalized.code || body.code).toUpperCase(),
-      type: normalized.type || body.type,
+      name: sanitizeString(normalized.name || dataToValidate.name),
+      code: (normalized.code || dataToValidate.code).toUpperCase(),
+      type: normalized.type || dataToValidate.type,
       status: 'active',
       propertyType: body.propertyType || 'individual', // 🆕 v1.0.103.262
       locationId: body.locationId, // 🆕 v1.0.103.262
       
-      address: {
-        street: body.address.street || '',
-        number: body.address.number || '',
-        complement: body.address.complement,
-        neighborhood: body.address.neighborhood || '',
-        city: body.address.city,
-        state: body.address.state,
-        stateCode: body.address.stateCode, // 🆕 v1.0.103.262
-        zipCode: body.address.zipCode || '',
-        country: body.address.country || 'BR',
-        coordinates: body.address.coordinates, // 🆕 v1.0.103.262
+      address: normalized.address || {
+        street: body.address?.street || '',
+        number: body.address?.number || '',
+        complement: body.address?.complement,
+        neighborhood: body.address?.neighborhood || '',
+        city: body.address?.city || dataToValidate.address?.city || '',
+        state: body.address?.state || dataToValidate.address?.state || '',
+        stateCode: body.address?.stateCode || dataToValidate.address?.stateCode, // 🆕 v1.0.103.262
+        zipCode: body.address?.zipCode || '',
+        country: body.address?.country || 'BR',
+        coordinates: body.address?.coordinates || dataToValidate.address?.coordinates, // 🆕 v1.0.103.262
       },
       
       maxGuests: body.maxGuests,
@@ -550,20 +573,51 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
   console.log('📊 [NORMALIZAÇÃO] Dados brutos:', wizardData);
   
   // Extrair campos do wizard (estrutura aninhada)
-  const name = wizardData.contentType?.internalName || 
-               wizardData.name || 
-               existing?.name || 
-               null;
+  let name = wizardData.contentType?.internalName || 
+             wizardData.name || 
+             existing?.name || 
+             null;
   
-  const code = wizardData.contentType?.code || 
-               wizardData.code || 
-               existing?.code || 
-               null;
+  let code = wizardData.contentType?.code || 
+             wizardData.code || 
+             existing?.code || 
+             null;
   
-  const type = wizardData.contentType?.propertyTypeId || 
-               wizardData.type || 
-               existing?.type || 
-               null;
+  let type = wizardData.contentType?.propertyTypeId || 
+             wizardData.contentType?.accommodationTypeId || // Fallback para accommodationTypeId
+             wizardData.type || 
+             existing?.type || 
+             null;
+  
+  // ✅ BOAS PRÁTICAS v1.0.103.1000 - Gerar name e code se não existirem
+  // Gerar nome a partir do tipo de acomodação se não existir
+  if (!name && wizardData.contentType?.accommodationTypeId) {
+    const accommodationTypeId = wizardData.contentType.accommodationTypeId;
+    // Mapear IDs para nomes (baseado nos tipos do sistema)
+    const accommodationTypeNames: Record<string, string> = {
+      'acc_casa': 'Casa',
+      'acc_apartamento': 'Apartamento',
+      'acc_chale': 'Chalé',
+      'acc_bangalo': 'Bangalô',
+      'acc_estudio': 'Estúdio',
+      'acc_loft': 'Loft',
+      'acc_suite': 'Suíte',
+      'acc_villa': 'Villa',
+      'acc_quarto_inteiro': 'Quarto Inteiro',
+      'acc_quarto_privado': 'Quarto Privado',
+      'acc_quarto_compartilhado': 'Quarto Compartilhado',
+    };
+    name = accommodationTypeNames[accommodationTypeId] || accommodationTypeId.replace('acc_', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    console.log('✅ [NORMALIZAÇÃO] Nome gerado a partir do accommodationTypeId:', name);
+  }
+  
+  // Gerar código único se não existir
+  if (!code) {
+    const timestamp = Date.now().toString(36).slice(-6).toUpperCase();
+    const typePrefix = type ? type.replace('loc_', '').replace('acc_', '').substring(0, 3).toUpperCase() : 'PRP';
+    code = `${typePrefix}${timestamp}`;
+    console.log('✅ [NORMALIZAÇÃO] Código gerado automaticamente:', code);
+  }
   
   // Fotos: converter de contentPhotos.photos para photos (raiz)
   let photos = wizardData.photos || existing?.photos || [];
