@@ -30,8 +30,22 @@ export function propertyToSql(property: Property, organizationId: string): any {
   return {
     id: propertyId,
     organization_id: organizationId, // ✅ Multi-tenant: sempre usar organization_id do tenant
-    owner_id: property.ownerId || 'system', // TODO: Pegar do auth
-    location_id: property.locationId || null,
+    owner_id: (() => {
+      const ownerId = property.ownerId || 'system';
+      if (ownerId && typeof ownerId === 'string' && ownerId.includes('_')) {
+        const parts = ownerId.split('_');
+        return parts.length > 1 ? parts.slice(1).join('_') : ownerId;
+      }
+      return ownerId;
+    })(),
+    location_id: (() => {
+      const locationId = property.locationId || null;
+      if (locationId && typeof locationId === 'string' && locationId.includes('_')) {
+        const parts = locationId.split('_');
+        return parts.length > 1 ? parts.slice(1).join('_') : locationId;
+      }
+      return locationId;
+    })(),
     
     // Identificação
     name: property.name,
