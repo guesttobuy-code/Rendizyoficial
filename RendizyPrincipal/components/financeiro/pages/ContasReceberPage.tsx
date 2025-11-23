@@ -2,10 +2,10 @@
  * RENDIZY - Contas a Receber Page
  * Gestão completa de contas a receber
  * 
- * @version v1.0.103.234
+ * @version v1.0.103.400
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { KpiCard } from '../components/KpiCard';
 import { Money } from '../components/Money';
 import { PeriodPicker } from '../components/PeriodPicker';
@@ -16,9 +16,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../ui/dialog';
 import { Card } from '../../ui/card';
-import { Plus, Search, Download, DollarSign, TrendingUp, Calendar, AlertTriangle, Check, X, Mail, FileText } from 'lucide-react';
+import { Label } from '../../ui/label';
+import { Textarea } from '../../ui/textarea';
+import { Plus, Search, Download, DollarSign, TrendingUp, Calendar, AlertTriangle, Check, X, Mail, FileText, Loader2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import type { Titulo, Currency } from '../../../types/financeiro';
+import { financeiroApi } from '../../../utils/api';
+import { toast } from 'sonner';
 
 export function ContasReceberPage() {
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
@@ -27,72 +31,159 @@ export function ContasReceberPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [moedaFilter, setMoedaFilter] = useState<Currency | 'all'>('all');
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [titulos, setTitulos] = useState<Titulo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isQuitarDialogOpen, setIsQuitarDialogOpen] = useState(false);
+  const [selectedTitulo, setSelectedTitulo] = useState<Titulo | null>(null);
+  const [valorPago, setValorPago] = useState(0);
+  const [dataPagamento, setDataPagamento] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  // Mock data - substituir por API real
-  const titulos: Titulo[] = [
-    {
-      id: '1',
-      tipo: 'receber',
-      emissao: '2025-10-15',
-      vencimento: '2025-11-15',
-      pessoa: 'João Silva',
-      descricao: 'Aluguel Outubro/2025 - Apt 501',
-      moeda: 'BRL',
-      valorOriginal: 3500,
-      valor: 3500,
-      saldo: 3500,
-      status: 'aberto',
-      diasVencimento: 14,
-      recorrente: true,
-      totalParcelas: 12,
-      parcela: 10,
-      createdAt: '2025-10-15T10:00:00Z',
-      updatedAt: '2025-10-15T10:00:00Z'
-    },
-    {
-      id: '2',
-      tipo: 'receber',
-      emissao: '2025-10-01',
-      vencimento: '2025-10-31',
-      pessoa: 'Maria Santos',
-      descricao: 'Aluguel Outubro/2025 - Casa 12',
-      moeda: 'BRL',
-      valorOriginal: 5000,
-      valor: 5000,
-      saldo: 0,
-      valorPago: 5000,
-      status: 'pago',
-      dataPagamento: '2025-10-29',
-      formaPagamento: 'PIX',
-      recorrente: false,
-      createdAt: '2025-10-01T10:00:00Z',
-      updatedAt: '2025-10-29T14:30:00Z'
-    },
-    {
-      id: '3',
-      tipo: 'receber',
-      emissao: '2025-09-15',
-      vencimento: '2025-10-15',
-      pessoa: 'Carlos Oliveira',
-      descricao: 'Aluguel Setembro/2025 - Apt 302',
-      moeda: 'BRL',
-      valorOriginal: 2800,
-      valor: 2800,
-      saldo: 2800,
-      status: 'vencido',
-      diasVencimento: -17,
-      recorrente: true,
-      createdAt: '2025-09-15T10:00:00Z',
-      updatedAt: '2025-09-15T10:00:00Z'
+  // Form state
+  const [formData, setFormData] = useState({
+    pessoa: '',
+    descricao: '',
+    valor: 0,
+    emissao: format(new Date(), 'yyyy-MM-dd'),
+    vencimento: format(new Date(), 'yyyy-MM-dd'),
+    moeda: 'BRL' as Currency,
+    categoriaId: '',
+    contaId: '',
+  });
+
+  // Carregar títulos do backend
+  useEffect(() => {
+    loadTitulos();
+  }, [startDate, endDate, statusFilter, moedaFilter]);
+
+  const loadTitulos = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await financeiroApi.titulos.list({
+        tipo: 'receber',
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        page: 1,
+        limit: 100,
+      });
+      
+      if (response.success && response.data) {
+        let titulosData = response.data.data || [];
+        
+        // Filtrar por período
+        titulosData = titulosData.filter(t => {
+          const vencimento = new Date(t.vencimento);
+          return vencimento >= startDate && vencimento <= endDate;
+        });
+
+        // Filtrar por moeda
+        if (moedaFilter !== 'all') {
+          titulosData = titulosData.filter(t => t.moeda === moedaFilter);
+        }
+
+        // Filtrar por busca
+        if (searchTerm) {
+          const term = searchTerm.toLowerCase();
+          titulosData = titulosData.filter(t => 
+            t.pessoa?.toLowerCase().includes(term) ||
+            t.descricao?.toLowerCase().includes(term)
+          );
+        }
+
+        setTitulos(titulosData);
+      } else {
+        setError(response.error || 'Erro ao carregar títulos');
+        setTitulos([]);
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar títulos:', err);
+      setError(err.message || 'Erro ao carregar títulos');
+      setTitulos([]);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      const response = await financeiroApi.titulos.create({
+        tipo: 'receber',
+        ...formData,
+        valorOriginal: formData.valor,
+        valor: formData.valor,
+        saldo: formData.valor,
+        status: 'aberto',
+      });
+
+      if (response.success) {
+        toast.success('Título criado com sucesso');
+        setIsDialogOpen(false);
+        resetForm();
+        loadTitulos();
+      } else {
+        toast.error(response.error || 'Erro ao criar título');
+      }
+    } catch (err: any) {
+      console.error('Erro ao criar título:', err);
+      toast.error(err.message || 'Erro ao criar título');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuitar = async () => {
+    if (!selectedTitulo) return;
+    
+    try {
+      setLoading(true);
+      const response = await financeiroApi.titulos.quitar(selectedTitulo.id, {
+        valorPago: valorPago || selectedTitulo.saldo,
+        dataPagamento,
+      });
+
+      if (response.success) {
+        toast.success('Título quitado com sucesso');
+        setIsQuitarDialogOpen(false);
+        setSelectedTitulo(null);
+        loadTitulos();
+      } else {
+        toast.error(response.error || 'Erro ao quitar título');
+      }
+    } catch (err: any) {
+      console.error('Erro ao quitar título:', err);
+      toast.error(err.message || 'Erro ao quitar título');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      pessoa: '',
+      descricao: '',
+      valor: 0,
+      emissao: format(new Date(), 'yyyy-MM-dd'),
+      vencimento: format(new Date(), 'yyyy-MM-dd'),
+      moeda: 'BRL',
+      categoriaId: '',
+      contaId: '',
+    });
+  };
 
   // KPIs calculados
   const kpis = {
     totalReceber: titulos.filter(t => t.status !== 'pago').reduce((sum, t) => sum + t.saldo, 0),
     recebidos: titulos.filter(t => t.status === 'pago').reduce((sum, t) => sum + (t.valorPago || 0), 0),
     vencidos: titulos.filter(t => t.status === 'vencido').reduce((sum, t) => sum + t.saldo, 0),
-    arDays: 28.5 // Mock - calcular média real
+    arDays: titulos.length > 0 
+      ? titulos.filter(t => t.status === 'pago' && t.dataPagamento).reduce((sum, t) => {
+          const venc = new Date(t.vencimento).getTime();
+          const pag = new Date(t.dataPagamento!).getTime();
+          return sum + Math.ceil((pag - venc) / (1000 * 60 * 60 * 24));
+        }, 0) / titulos.filter(t => t.status === 'pago').length || 0
+      : 0
   };
 
   const getStatusBadge = (status: string) => {
@@ -130,21 +221,71 @@ export function ContasReceberPage() {
               <Download className="h-4 w-4 mr-2" />
               Exportar
             </Button>
-            <Dialog>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="h-4 w-4 mr-2" />
                   Novo Título
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Novo Título a Receber</DialogTitle>
                 </DialogHeader>
-                <div className="p-4">
-                  <p className="text-sm text-gray-500">
-                    Formulário de criação será implementado aqui
-                  </p>
+                <div className="space-y-4 p-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Cliente *</Label>
+                      <Input
+                        value={formData.pessoa}
+                        onChange={(e) => setFormData({ ...formData, pessoa: e.target.value })}
+                        placeholder="Nome do cliente"
+                      />
+                    </div>
+                    <div>
+                      <Label>Valor *</Label>
+                      <Input
+                        type="number"
+                        value={formData.valor}
+                        onChange={(e) => setFormData({ ...formData, valor: parseFloat(e.target.value) || 0 })}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Descrição *</Label>
+                    <Textarea
+                      value={formData.descricao}
+                      onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                      placeholder="Descrição do título"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Data de Emissão *</Label>
+                      <Input
+                        type="date"
+                        value={formData.emissao}
+                        onChange={(e) => setFormData({ ...formData, emissao: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Data de Vencimento *</Label>
+                      <Input
+                        type="date"
+                        value={formData.vencimento}
+                        onChange={(e) => setFormData({ ...formData, vencimento: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleSave} disabled={loading}>
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+                    </Button>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
@@ -180,7 +321,6 @@ export function ContasReceberPage() {
             hint="AR Days (média)"
             icon={<TrendingUp className="h-5 w-5" />}
             tone="neutral"
-            trend={{ direction: 'down', pct: -5.2 }}
           />
         </div>
 
@@ -235,83 +375,153 @@ export function ContasReceberPage() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto p-6">
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">
-                  <input type="checkbox" className="rounded" />
-                </TableHead>
-                <TableHead>Emissão</TableHead>
-                <TableHead>Vencimento</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead className="text-right">Saldo</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {titulos.map((titulo) => (
-                <TableRow key={titulo.id}>
-                  <TableCell>
+        {loading && !titulos.length ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : error ? (
+          <Card className="p-6">
+            <p className="text-red-600">{error}</p>
+          </Card>
+        ) : (
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
                     <input type="checkbox" className="rounded" />
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {format(new Date(titulo.emissao), 'dd/MM/yyyy')}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    <div className="flex flex-col">
-                      <span>{format(new Date(titulo.vencimento), 'dd/MM/yyyy')}</span>
-                      {titulo.diasVencimento !== undefined && titulo.diasVencimento < 0 && (
-                        <span className="text-xs text-red-600 dark:text-red-400">
-                          {Math.abs(titulo.diasVencimento)} dias vencido
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="text-sm">{titulo.pessoa}</span>
-                      {titulo.recorrente && (
-                        <span className="text-xs text-gray-500">
-                          {titulo.parcela}/{titulo.totalParcelas}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm max-w-xs truncate">
-                    {titulo.descricao}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Money amount={titulo.valor} currency={titulo.moeda} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Money amount={titulo.saldo} currency={titulo.moeda} colorize />
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(titulo.status)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" title="Receber">
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" title="Enviar cobrança">
-                        <Mail className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" title="Detalhes">
-                        <FileText className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  </TableHead>
+                  <TableHead>Emissão</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-right">Saldo</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+              </TableHeader>
+              <TableBody>
+                {titulos.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                      Nenhum título encontrado
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  titulos.map((titulo) => {
+                    const diasVencimento = titulo.vencimento 
+                      ? Math.ceil((new Date(titulo.vencimento).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                      : 0;
+                    
+                    return (
+                      <TableRow key={titulo.id}>
+                        <TableCell>
+                          <input type="checkbox" className="rounded" />
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {titulo.emissao ? format(new Date(titulo.emissao), 'dd/MM/yyyy') : '-'}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex flex-col">
+                            <span>{titulo.vencimento ? format(new Date(titulo.vencimento), 'dd/MM/yyyy') : '-'}</span>
+                            {diasVencimento < 0 && (
+                              <span className="text-xs text-red-600 dark:text-red-400">
+                                {Math.abs(diasVencimento)} dias vencido
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="text-sm">{titulo.pessoa || '-'}</span>
+                            {titulo.recorrente && (
+                              <span className="text-xs text-gray-500">
+                                {titulo.parcela}/{titulo.totalParcelas}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm max-w-xs truncate">
+                          {titulo.descricao || '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Money amount={titulo.valor} currency={titulo.moeda} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Money amount={titulo.saldo} currency={titulo.moeda} colorize />
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(titulo.status)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {titulo.status !== 'pago' && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                title="Receber"
+                                onClick={() => {
+                                  setSelectedTitulo(titulo);
+                                  setValorPago(titulo.saldo);
+                                  setIsQuitarDialogOpen(true);
+                                }}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" title="Enviar cobrança">
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" title="Detalhes">
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
       </div>
+
+      {/* Dialog Quitar */}
+      <Dialog open={isQuitarDialogOpen} onOpenChange={setIsQuitarDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Quitar Título</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 p-4">
+            <div>
+              <Label>Valor a Receber</Label>
+              <Input
+                type="number"
+                value={valorPago}
+                onChange={(e) => setValorPago(parseFloat(e.target.value) || 0)}
+              />
+            </div>
+            <div>
+              <Label>Data de Pagamento</Label>
+              <Input
+                type="date"
+                value={dataPagamento}
+                onChange={(e) => setDataPagamento(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsQuitarDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleQuitar} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Quitar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

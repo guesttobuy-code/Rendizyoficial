@@ -481,7 +481,46 @@ headers: {
 
 ---
 
-## 9. Lembretes Finais
+## 9. Histórico de Migrations SQL (⚠️ IMPORTANTE)
+
+### 📋 **MIGRATIONS APLICADAS:**
+
+#### **2025-11-23: Correção de Migrations Users e Sessions**
+
+**Problema identificado:**
+- Script anterior (`APLICAR_MIGRATIONS_AGORA.sql`) tinha estrutura simplificada e incompleta
+- Hash de senha diferente da migration original
+- Sessions sem RLS (Row Level Security)
+- Não forçava recriação de tabelas (usava `IF NOT EXISTS`)
+
+**Solução aplicada:**
+- ✅ Criado `APLICAR_MIGRATIONS_E_TESTAR.sql` baseado nas migrations originais
+- ✅ Estrutura completa igual às migrations oficiais (`20241120_create_users_table.sql` e `20241121_create_sessions_table.sql`)
+- ✅ Hash SHA256 direto (igual migration original)
+- ✅ RLS configurado para users E sessions
+- ✅ DROP TABLE antes de criar (força recriação)
+
+**Arquivos relacionados:**
+- `COMPARACAO_MIGRATIONS_O_QUE_ERREI.md` - Análise detalhada dos erros
+- `APLICAR_MIGRATIONS_E_TESTAR.sql` - Script corrigido para aplicar
+- `supabase/migrations/20241120_create_users_table.sql` - Migration original (referência)
+- `supabase/migrations/20241121_create_sessions_table.sql` - Migration original (referência)
+
+**Como aplicar:**
+1. Acessar: https://supabase.com/dashboard/project/odcgnzfremrqnvtitpcc/sql/new
+2. Copiar TODO o conteúdo de `APLICAR_MIGRATIONS_E_TESTAR.sql`
+3. Colar e executar (Ctrl+Enter)
+4. Verificar se as tabelas foram criadas corretamente
+
+**⚠️ IMPORTANTE:**
+- ✅ **SEMPRE** usar migrations baseadas nas originais (`supabase/migrations/`)
+- ✅ **NUNCA** simplificar estrutura sem justificativa
+- ✅ **SEMPRE** incluir RLS para tabelas críticas
+- ✅ **SEMPRE** usar hash de senha igual à migration original
+
+---
+
+## 10. Lembretes Finais
 
 ### 🚨 **LEMBRETES CRÍTICOS (NUNCA ESQUECER):**
 
@@ -490,6 +529,7 @@ headers: {
 3. ⚠️ **NUNCA mudar CORS/Login sem ler a documentação** (seção 4.4)
 4. ⚠️ **Lembrar:** Já vencemos CORS e Login - não complicar novamente!
 5. ⚠️ **Se está funcionando, NÃO MEXER!** - Regra de ouro absoluta
+6. ⚠️ **SEMPRE** usar migrations baseadas nas originais (seção 9)
 
 ### 📋 **LEMBRETES OPERACIONAIS:**
 

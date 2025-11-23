@@ -375,14 +375,24 @@ export async function createProperty(c: Context) {
     if (tenant.type !== 'superadmin') {
       organizationId = await getOrganizationIdOrThrow(c);
     } else {
-      // Para superadmin, usar organização padrão (00000000-0000-0000-0000-000000000000)
-      // ou buscar a primeira organização disponível
-      const { data: defaultOrg } = await client
-        .from('organizations')
-        .select('id')
-        .limit(1)
-        .single();
-      organizationId = defaultOrg?.id || '00000000-0000-0000-0000-000000000000';
+      // Para superadmin, buscar a primeira organização disponível ou usar UUID fixo
+      try {
+        const { data: defaultOrg, error: orgError } = await client
+          .from('organizations')
+          .select('id')
+          .limit(1)
+          .maybeSingle();
+        
+        if (orgError) {
+          console.warn('⚠️ [createProperty] Erro ao buscar organização padrão:', orgError);
+        }
+        
+        organizationId = defaultOrg?.id || '00000000-0000-0000-0000-000000000001';
+        console.log('✅ [createProperty] Usando organization_id para superadmin:', organizationId);
+      } catch (error) {
+        console.warn('⚠️ [createProperty] Erro ao buscar organização, usando fallback:', error);
+        organizationId = '00000000-0000-0000-0000-000000000001';
+      }
     }
     
     // Criar propriedade
@@ -525,7 +535,10 @@ export async function createProperty(c: Context) {
     };
 
     // ✅ MIGRAÇÃO: Salvar no SQL ao invés de KV Store
-    const sqlData = propertyToSql(property, organizationId || 'system');
+    // Garantir que organizationId sempre tenha um valor válido
+    const finalOrganizationId = organizationId || '00000000-0000-0000-0000-000000000001';
+    console.log('🔍 [createProperty] Usando organization_id:', finalOrganizationId);
+    const sqlData = propertyToSql(property, finalOrganizationId);
     
     // 🔍 DEBUG: Log dos dados antes de inserir
     console.log('🔍 [createProperty] SQL Data antes de inserir:', {

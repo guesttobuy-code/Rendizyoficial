@@ -28,8 +28,8 @@ SET
   instance_name = EXCLUDED.instance_name,
   instance_api_key = EXCLUDED.instance_api_key,
   global_api_key = COALESCE(EXCLUDED.global_api_key, evolution_instances.global_api_key),  -- Mantém o valor antigo se novo for NULL
-  base_url = EXCLUDED.base_url,
-  updated_at = NOW();
+  base_url = EXCLUDED.base_url;
+  -- ✅ REMOVIDO: updated_at = NOW(); (coluna foi removida na migration 20241116)
 
 -- Verificar resultado
 SELECT 
@@ -44,8 +44,8 @@ SELECT
     THEN '⚠️ Falta Global API Key (mas pode usar do secret)'
     ELSE '❌ Não configurado'
   END AS status_credenciais,
-  created_at,
-  updated_at
+  created_at
+  -- ✅ REMOVIDO: updated_at (coluna foi removida na migration 20241116)
 FROM evolution_instances
 WHERE user_id = 1;
 

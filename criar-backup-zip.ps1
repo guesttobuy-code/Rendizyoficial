@@ -28,14 +28,7 @@ if (Test-Path $zipFilePath) {
     Remove-Item $zipFilePath -Force
 }
 
-# Criar pasta temporaria para o backup
-$tempFolder = Join-Path $env:TEMP "rendizy_backup_$timestamp"
-if (Test-Path $tempFolder) {
-    Remove-Item $tempFolder -Recurse -Force
-}
-New-Item -ItemType Directory -Path $tempFolder -Force | Out-Null
-
-Write-Host "Copiando arquivos..." -ForegroundColor Yellow
+Write-Host "Listando arquivos (excluindo desnecessarios)..." -ForegroundColor Yellow
 
 # Lista de pastas/arquivos para EXCLUIR
 $excludePatterns = @(
@@ -58,12 +51,13 @@ $excludePatterns = @(
     ".tmp"
 )
 
-# Copiar arquivos excluindo itens
-$itemsCopied = 0
-Get-ChildItem -Path $projectPath -Recurse | ForEach-Object {
-    $relativePath = $_.FullName.Substring($projectPath.Length + 1)
+# Obter arquivos excluindo os desnecessarios
+$files = Get-ChildItem -Path $projectPath -Recurse -File | Where-Object {
+    $file = $_
+    $relativePath = $file.FullName.Replace($projectPath, '').TrimStart('\')
     $shouldExclude = $false
     
+    # Verificar padroes de exclusao
     foreach ($pattern in $excludePatterns) {
         if ($relativePath -like "*\$pattern\*" -or 
             $relativePath -like "$pattern\*" -or 
@@ -73,73 +67,39 @@ Get-ChildItem -Path $projectPath -Recurse | ForEach-Object {
         }
     }
     
-    # Excluir arquivos .log, .DS_Store, Thumbs.db
-    if ($_.Name -like "*.log" -or 
-        $_.Name -eq ".DS_Store" -or 
-        $_.Name -eq "Thumbs.db" -or
-        $_.Name -eq "desktop.ini") {
+    # Excluir arquivos especificos
+    if ($file.Name -like "*.log" -or 
+        $file.Name -eq ".DS_Store" -or 
+        $file.Name -eq "Thumbs.db" -or
+        $file.Name -eq "desktop.ini" -or
+        $file.Name -like "*.zip") {
         $shouldExclude = $true
     }
     
-    if (-not $shouldExclude) {
-        $destPath = Join-Path $tempFolder $relativePath
-        $destDir = Split-Path $destPath -Parent
-        
-        if (-not (Test-Path $destDir)) {
-            New-Item -ItemType Directory -Path $destDir -Force | Out-Null
-        }
-        
-        if (-not $_.PSIsContainer) {
-            try {
-                Copy-Item $_.FullName -Destination $destPath -Force -ErrorAction Stop
-                $itemsCopied++
-            } catch {
-                # Ignorar erros de arquivos bloqueados
-            }
-        }
-    }
+    return -not $shouldExclude
 }
 
-Write-Host "Arquivos copiados: $itemsCopied" -ForegroundColor Green
+$fileCount = $files.Count
+$totalSize = ($files | Measure-Object -Property Length -Sum).Sum
+$totalSizeMB = [math]::Round($totalSize / 1MB, 2)
+
+Write-Host "   Arquivos encontrados: $fileCount" -ForegroundColor Green
+Write-Host "   Tamanho total: $totalSizeMB MB" -ForegroundColor Green
 
 # Criar ZIP
 Write-Host ""
 Write-Host "Compactando arquivos..." -ForegroundColor Yellow
+Write-Host "   Aguarde, isso pode levar alguns segundos..." -ForegroundColor DarkGray
 
 try {
-    # Usar Compress-Archive
-    $zipItems = Get-ChildItem -Path $tempFolder -Recurse
-    if ($zipItems.Count -gt 0) {
-        Compress-Archive -Path "$tempFolder\*" -DestinationPath $zipFilePath -Force -CompressionLevel Optimal
-        Write-Host "ZIP criado com sucesso!" -ForegroundColor Green
-    } else {
-        Write-Host "Nenhum arquivo para compactar" -ForegroundColor Yellow
-        Remove-Item $tempFolder -Recurse -Force -ErrorAction SilentlyContinue
-        exit 1
-    }
+    # Usar Compress-Archive diretamente (mais simples e eficiente)
+    $filesToZip = $files | ForEach-Object { $_.FullName }
+    Compress-Archive -Path $filesToZip -DestinationPath $zipFilePath -Force -CompressionLevel Optimal
+    Write-Host "ZIP criado com sucesso!" -ForegroundColor Green
 } catch {
     Write-Host "Erro ao criar ZIP: $_" -ForegroundColor Red
-    Write-Host "Tentando metodo alternativo..." -ForegroundColor Yellow
-    
-    # Metodo alternativo usando .NET
-    try {
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        if (Test-Path $zipFilePath) {
-            Remove-Item $zipFilePath -Force
-        }
-        [System.IO.Compression.ZipFile]::CreateFromDirectory($tempFolder, $zipFilePath)
-        Write-Host "ZIP criado com sucesso (metodo alternativo)!" -ForegroundColor Green
-    } catch {
-        Write-Host "Erro ao criar ZIP: $_" -ForegroundColor Red
-        Remove-Item $tempFolder -Recurse -Force -ErrorAction SilentlyContinue
-        exit 1
-    }
+    exit 1
 }
-
-# Limpar pasta temporaria
-Write-Host ""
-Write-Host "Limpando arquivos temporarios..." -ForegroundColor Yellow
-Remove-Item $tempFolder -Recurse -Force -ErrorAction SilentlyContinue
 
 # Calcular tamanho do arquivo
 if (Test-Path $zipFilePath) {

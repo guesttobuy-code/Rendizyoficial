@@ -540,6 +540,7 @@ app.get("/rendizy-server/make-server-67caf26a/financeiro/titulos/:id", financeir
 app.post("/rendizy-server/make-server-67caf26a/financeiro/titulos", financeiroRoutes.createTitulo);
 app.put("/rendizy-server/make-server-67caf26a/financeiro/titulos/:id", financeiroRoutes.updateTitulo);
 app.delete("/rendizy-server/make-server-67caf26a/financeiro/titulos/:id", financeiroRoutes.deleteTitulo);
+app.post("/rendizy-server/make-server-67caf26a/financeiro/titulos/:id/quitar", financeiroRoutes.quitarTitulo);
 
 // Contas Bancárias
 app.get("/rendizy-server/make-server-67caf26a/financeiro/contas-bancarias", financeiroRoutes.listContasBancarias);
