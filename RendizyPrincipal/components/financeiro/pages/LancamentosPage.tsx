@@ -17,8 +17,9 @@ import { Textarea } from '../../ui/textarea';
 import { Badge } from '../../ui/badge';
 import { Plus, Download, ArrowUpCircle, ArrowDownCircle, ArrowRightLeft, Loader2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
-import type { Lancamento, SplitDestino } from '../../../types/financeiro';
+import type { Lancamento, SplitDestino, ContaContabil, ContaBancaria } from '../../../types/financeiro';
 import { financeiroApi } from '../../../utils/api';
+import { toast } from 'sonner';
 
 export function LancamentosPage() {
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
@@ -27,18 +28,32 @@ export function LancamentosPage() {
   const [editingLancamento, setEditingLancamento] = useState<Lancamento | null>(null);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   // Form state
   const [tipo, setTipo] = useState<'entrada' | 'saida' | 'transferencia'>('entrada');
+  const [data, setData] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState(0);
+  const [categoriaId, setCategoriaId] = useState<string>('');
+  const [contaId, setContaId] = useState<string>('');
   const [splits, setSplits] = useState<SplitDestino[]>([]);
   const [usarSplit, setUsarSplit] = useState(false);
+
+  // Options
+  const [categorias, setCategorias] = useState<ContaContabil[]>([]);
+  const [contasBancarias, setContasBancarias] = useState<ContaBancaria[]>([]);
 
   // Carregar lançamentos do backend
   useEffect(() => {
     loadLancamentos();
   }, [startDate, endDate]);
+
+  // Carregar categorias e contas bancárias
+  useEffect(() => {
+    loadCategorias();
+    loadContasBancarias();
+  }, []);
 
   const loadLancamentos = async () => {
     try {
@@ -68,18 +83,51 @@ export function LancamentosPage() {
     }
   };
 
+  const loadCategorias = async () => {
+    try {
+      const response = await financeiroApi.categorias.list();
+      if (response.success && response.data) {
+        setCategorias(response.data || []);
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar categorias:', err);
+    }
+  };
+
+  const loadContasBancarias = async () => {
+    try {
+      const response = await financeiroApi.contasBancarias.list();
+      if (response.success && response.data) {
+        setContasBancarias(response.data || []);
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar contas bancárias:', err);
+    }
+  };
+
   const handleSave = async () => {
+    if (!descricao.trim()) {
+      toast.error('Descrição é obrigatória');
+      return;
+    }
+    if (valor <= 0) {
+      toast.error('Valor deve ser maior que zero');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
       
       const lancamentoData: Partial<Lancamento> = {
         tipo,
-        data: format(new Date(), 'yyyy-MM-dd'),
-        competencia: format(new Date(), 'yyyy-MM-dd'),
-        descricao: '', // TODO: Adicionar campo de descrição no form
+        data,
+        competencia: data,
+        descricao: descricao.trim(),
         valor,
         moeda: 'BRL',
+        categoriaId: categoriaId || undefined,
+        contaId: contaId || undefined,
         hasSplit: usarSplit,
         splits: usarSplit ? splits : undefined,
         conciliado: false,
@@ -93,92 +141,54 @@ export function LancamentosPage() {
       }
 
       if (response.success) {
+        toast.success('Lançamento salvo com sucesso!');
         setIsDialogOpen(false);
         setEditingLancamento(null);
         // Reset form
         setTipo('entrada');
+        setData(format(new Date(), 'yyyy-MM-dd'));
+        setDescricao('');
         setValor(0);
+        setCategoriaId('');
+        setContaId('');
         setSplits([]);
         setUsarSplit(false);
         // Recarregar lista
         await loadLancamentos();
       } else {
         setError(response.error || 'Erro ao salvar lançamento');
+        toast.error(response.error || 'Erro ao salvar lançamento');
       }
     } catch (err: any) {
       console.error('Erro ao salvar lançamento:', err);
       setError(err.message || 'Erro ao salvar lançamento');
+      toast.error(err.message || 'Erro ao salvar lançamento');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este lançamento?')) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await financeiroApi.lancamentos.delete(id);
-      
-      if (response.success) {
-        await loadLancamentos();
-      } else {
-        setError(response.error || 'Erro ao excluir lançamento');
-      }
-    } catch (err: any) {
-      console.error('Erro ao excluir lançamento:', err);
-      setError(err.message || 'Erro ao excluir lançamento');
-    } finally {
-      setLoading(false);
-    }
-  };
-    {
-      id: '1',
-      tipo: 'entrada',
-      data: '2025-11-01',
-      descricao: 'Aluguel recebido - Apt 501',
-      valor: 3500,
-      moeda: 'BRL',
-      categoriaId: 'cat1',
-      categoriaNome: 'Receita de Aluguéis',
-      conciliado: true,
-      hasSplit: false,
-      createdBy: 'user1',
-      createdAt: '2025-11-01T10:00:00Z',
-      updatedAt: '2025-11-01T10:00:00Z'
-    },
-    {
-      id: '2',
-      tipo: 'saida',
-      data: '2025-11-05',
-      descricao: 'Manutenção preventiva - Casa 12',
-      valor: 1250,
-      moeda: 'BRL',
-      categoriaId: 'cat2',
-      categoriaNome: 'Manutenção',
-      conciliado: false,
-      hasSplit: false,
-      createdBy: 'user1',
-      createdAt: '2025-11-05T14:30:00Z',
-      updatedAt: '2025-11-05T14:30:00Z'
-    },
-    {
-      id: '3',
-      tipo: 'transferencia',
-      data: '2025-11-10',
-      descricao: 'Transferência entre contas',
-      valor: 5000,
-      moeda: 'BRL',
-      conciliado: true,
-      hasSplit: false,
-      createdBy: 'user1',
-      createdAt: '2025-11-10T09:15:00Z',
-      updatedAt: '2025-11-10T09:15:00Z'
-    }
-  ];
+  // TODO: Implementar handleDelete quando necessário
+  // const handleDelete = async (id: string) => {
+  //   if (!confirm('Tem certeza que deseja excluir este lançamento?')) {
+  //     return;
+  //   }
+  //   try {
+  //     setLoading(true);
+  //     setError(null);
+  //     const response = await financeiroApi.lancamentos.delete(id);
+  //     if (response.success) {
+  //       await loadLancamentos();
+  //     } else {
+  //       setError(response.error || 'Erro ao excluir lançamento');
+  //     }
+  //   } catch (err: any) {
+  //     console.error('Erro ao excluir lançamento:', err);
+  //     setError(err.message || 'Erro ao excluir lançamento');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const getTipoIcon = (tipo: string) => {
     if (tipo === 'entrada') return <ArrowUpCircle className="h-4 w-4 text-green-600" />;
@@ -276,8 +286,8 @@ export function LancamentosPage() {
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
-                  {/* Tipo e Valor */}
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Tipo, Data e Valor */}
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <Label>Tipo</Label>
                       <Select value={tipo} onValueChange={(v: any) => setTipo(v)}>
@@ -290,6 +300,14 @@ export function LancamentosPage() {
                           <SelectItem value="transferencia">Transferência</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div>
+                      <Label>Data</Label>
+                      <Input
+                        type="date"
+                        value={data}
+                        onChange={(e) => setData(e.target.value)}
+                      />
                     </div>
                     <div>
                       <Label>Valor</Label>
@@ -305,8 +323,56 @@ export function LancamentosPage() {
 
                   {/* Descrição */}
                   <div>
-                    <Label>Descrição</Label>
-                    <Textarea placeholder="Descreva o lançamento..." rows={2} />
+                    <Label>Descrição *</Label>
+                    <Textarea 
+                      placeholder="Descreva o lançamento..." 
+                      rows={2}
+                      value={descricao}
+                      onChange={(e) => setDescricao(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Categoria e Conta Bancária */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Categoria</Label>
+                      <Select value={categoriaId} onValueChange={setCategoriaId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma categoria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Nenhuma</SelectItem>
+                          {categorias
+                            .filter((cat: ContaContabil) => {
+                              // Filtrar categorias baseado no tipo de lançamento
+                              if (tipo === 'entrada') return cat.tipo === 'receita';
+                              if (tipo === 'saida') return cat.tipo === 'despesa';
+                              return true; // Transferências podem usar qualquer categoria
+                            })
+                            .map((categoria: ContaContabil) => (
+                              <SelectItem key={categoria.id} value={categoria.id}>
+                                {categoria.codigo} - {categoria.nome}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Conta Bancária</Label>
+                      <Select value={contaId} onValueChange={setContaId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma conta" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Nenhuma</SelectItem>
+                          {contasBancarias.map((conta: ContaBancaria) => (
+                            <SelectItem key={conta.id} value={conta.id}>
+                              {conta.nome} - {conta.banco}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   {/* Split */}
