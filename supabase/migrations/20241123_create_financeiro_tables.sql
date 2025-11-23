@@ -451,6 +451,20 @@ CREATE INDEX IF NOT EXISTS idx_financeiro_regras_conciliacao_ativo ON financeiro
 CREATE INDEX IF NOT EXISTS idx_financeiro_regras_conciliacao_prioridade ON financeiro_regras_conciliacao(prioridade DESC);
 
 -- ============================================================================
+-- DROPAR FUNÇÕES E TRIGGERS EXISTENTES (se houver)
+-- ============================================================================
+
+DROP TRIGGER IF EXISTS trigger_validate_categoria_parent_org ON financeiro_categorias;
+DROP FUNCTION IF EXISTS validate_categoria_parent_org();
+DROP TRIGGER IF EXISTS trigger_update_financeiro_categorias_updated_at ON financeiro_categorias;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_centro_custos_updated_at ON financeiro_centro_custos;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_contas_bancarias_updated_at ON financeiro_contas_bancarias;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_lancamentos_updated_at ON financeiro_lancamentos;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_titulos_updated_at ON financeiro_titulos;
+DROP TRIGGER IF EXISTS trigger_update_financeiro_regras_conciliacao_updated_at ON financeiro_regras_conciliacao;
+DROP FUNCTION IF EXISTS update_financeiro_updated_at();
+
+-- ============================================================================
 -- TRIGGERS: Atualizar updated_at automaticamente
 -- ============================================================================
 
