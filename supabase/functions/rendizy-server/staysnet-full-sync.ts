@@ -454,11 +454,36 @@ export async function fullSyncStaysNet(
           const checkOut = new Date(staysRes.checkOutDate || staysRes.to || staysRes.check_out);
           const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
           
+          // ✅ VALIDAÇÃO FINAL: Garantir que propertyId e guestId sejam UUIDs válidos
+          if (!propertyId || propertyId === 'system' || propertyId.length !== 36) {
+            console.error(`[StaysNet Full Sync] ❌ propertyId inválido antes de criar reserva: ${propertyId}`);
+            stats.reservations.failed++;
+            stats.errors.push(`Reserva ${staysResId}: propertyId inválido (${propertyId})`);
+            continue;
+          }
+          
+          if (!guestId || guestId === 'system' || guestId.length !== 36) {
+            console.error(`[StaysNet Full Sync] ❌ guestId inválido antes de criar reserva: ${guestId}`);
+            stats.reservations.failed++;
+            stats.errors.push(`Reserva ${staysResId}: guestId inválido (${guestId})`);
+            continue;
+          }
+          
+          console.log(`[StaysNet Full Sync] ✅ IDs válidos para reserva ${staysResId}: property=${propertyId.substring(0, 8)}..., guest=${guestId.substring(0, 8)}...`);
+          
+          // ✅ Buscar primeiro usuário para created_by (não usar 'system')
+          const { data: firstUser } = await supabase
+            .from('users')
+            .select('id')
+            .limit(1)
+            .maybeSingle();
+          const createdByUserId = firstUser?.id || '00000000-0000-0000-0000-000000000001';
+          
           // Converter para formato Rendizy
           const reservation: Reservation = {
             id: reservationId,
-            propertyId,
-            guestId,
+            propertyId, // ✅ Já validado acima
+            guestId,    // ✅ Já validado acima
             checkIn: checkIn.toISOString(),
             checkOut: checkOut.toISOString(),
             nights,
@@ -485,7 +510,7 @@ export async function fullSyncStaysNet(
             notes: staysRes.notes || staysRes.specialRequests,
             createdAt: staysRes.creationDate || staysRes.createdAt || new Date().toISOString(),
             updatedAt: staysRes.updatedAt || new Date().toISOString(),
-            createdBy: 'system',
+            createdBy: createdByUserId, // ✅ UUID válido ao invés de 'system'
           };
           
           // ✅ Garantir que organizationId seja UUID válido (não 'system')

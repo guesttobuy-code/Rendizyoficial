@@ -90,7 +90,10 @@ export function reservationToSql(reservation: Reservation, organizationId: strin
     // Metadata
     created_at: reservation.createdAt || new Date().toISOString(),
     updated_at: reservation.updatedAt || new Date().toISOString(),
-    created_by: reservation.createdBy || 'system',
+    // ✅ Garantir que created_by seja UUID válido (não 'system')
+    created_by: (reservation.createdBy && reservation.createdBy !== 'system' && reservation.createdBy.length === 36)
+      ? reservation.createdBy
+      : '00000000-0000-0000-0000-000000000001', // UUID fallback ao invés de 'system'
     confirmed_at: reservation.confirmedAt || null,
   };
 }
