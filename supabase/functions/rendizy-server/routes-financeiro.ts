@@ -247,8 +247,8 @@ export async function createLancamento(c: Context) {
       }
     }
 
-    // Gerar ID
-    const id = `lancamento_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Gerar ID (UUID)
+    const id = crypto.randomUUID();
 
     // Criar objeto Lancamento
     const lancamento: Lancamento = {
@@ -616,8 +616,8 @@ export async function createTitulo(c: Context) {
       return c.json(validationErrorResponse('Emissão e vencimento são obrigatórios'), 400);
     }
 
-    // Gerar ID
-    const id = `titulo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Gerar ID (UUID)
+    const id = crypto.randomUUID();
 
     // Criar objeto Titulo
     const titulo: Titulo = {
@@ -847,8 +847,8 @@ export async function createContaBancaria(c: Context) {
       return c.json(validationErrorResponse('Tipo de conta inválido'), 400);
     }
 
-    // Gerar ID
-    const id = `conta_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Gerar ID (UUID)
+    const id = crypto.randomUUID();
 
     // Criar objeto ContaBancaria
     const conta: ContaBancaria = {
@@ -999,8 +999,8 @@ export async function createCategoria(c: Context) {
     // Calcular nível
     const nivel = body.codigo.split('.').length;
 
-    // Gerar ID
-    const id = `categoria_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Gerar ID (UUID)
+    const id = crypto.randomUUID();
 
     // Criar objeto ContaContabil
     const categoria: ContaContabil = {
@@ -1126,8 +1126,8 @@ export async function createCentroCusto(c: Context) {
       return c.json(validationErrorResponse('Tipo de centro de custo inválido'), 400);
     }
 
-    // Gerar ID
-    const id = `centro_custo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Gerar ID (UUID)
+    const id = crypto.randomUUID();
 
     // Criar objeto CentroCusto
     const centroCusto: CentroCusto = {
