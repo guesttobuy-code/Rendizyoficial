@@ -1,24 +1,24 @@
-# ‚úÖ VALIDA√á√ÉO DE REGRAS - RENDIZY
+# ? VALIDA«√O DE REGRAS - RENDIZY
 # 
-# Este script valida se o c√≥digo n√£o viola regras estabelecidas
+# Este script valida se o cÛdigo n„o viola regras estabelecidas
 # Execute ANTES de cada commit
 #
 # Regras validadas:
 # 1. localStorage/KV Store para dados permanentes
-# 2. M√∫ltiplos setInterval
+# 2. M˙ltiplos setInterval
 # 3. CORS com credentials: true
-# 4. Campos da Stays.net sem convers√£o (NOVO)
+# 4. Campos da Stays.net sem convers„o (NOVO)
 
-Write-Host "`nüîç VALIDANDO REGRAS DO RENDIZY..." -ForegroundColor Cyan
+Write-Host "`n?? VALIDANDO REGRAS DO RENDIZY..." -ForegroundColor Cyan
 Write-Host "=" * 60
 
 $errors = @()
 $warnings = @()
 
 # ============================================================================
-# REGRA 1: Campos da Stays.net sem convers√£o
+# REGRA 1: Campos da Stays.net sem convers„o
 # ============================================================================
-Write-Host "`nüìã Verificando nomenclatura de campos (Stays.net)..." -ForegroundColor Yellow
+Write-Host "`n?? Verificando nomenclatura de campos (Stays.net)..." -ForegroundColor Yellow
 
 $staysNetPatterns = @(
     '_idlisting',
@@ -43,21 +43,21 @@ $filesToCheck = Get-ChildItem -Path "supabase/functions/rendizy-server" -Recurse
 foreach ($file in $filesToCheck) {
     $content = Get-Content $file.FullName -Raw
     
-    # Verificar se n√£o √© um mapper (mappers podem ter campos da Stays.net)
+    # Verificar se n„o È um mapper (mappers podem ter campos da Stays.net)
     $isMapper = $file.FullName -match "mapper|staysnet.*mapper"
     
     foreach ($pattern in $staysNetPatterns) {
         if ($content -match $pattern) {
-            # Se n√£o for mapper, √© erro
+            # Se n„o for mapper, È erro
             if (-not $isMapper) {
-                $errors += "‚ùå $($file.Name): Usa campo da Stays.net '$pattern' sem convers√£o"
+                $errors += "? $($file.Name): Usa campo da Stays.net '$pattern' sem convers„o"
             }
-            # Se for mapper, verificar se est√° convertendo
+            # Se for mapper, verificar se est· convertendo
             elseif ($content -match "function.*staysNet.*To.*Rendizy|function.*staysNet.*To.*Rendizy") {
-                # OK - est√° em mapper de convers√£o
+                # OK - est· em mapper de convers„o
             }
             else {
-                $warnings += "‚ö†Ô∏è  $($file.Name): Campo '$pattern' encontrado - verificar se est√° convertendo"
+                $warnings += "??  $($file.Name): Campo '$pattern' encontrado - verificar se est· convertendo"
             }
         }
     }
@@ -66,7 +66,7 @@ foreach ($file in $filesToCheck) {
 # ============================================================================
 # REGRA 2: localStorage para dados permanentes
 # ============================================================================
-Write-Host "`nüìã Verificando localStorage..." -ForegroundColor Yellow
+Write-Host "`n?? Verificando localStorage..." -ForegroundColor Yellow
 
 $localStorageFiles = Get-ChildItem -Path "RendizyPrincipal" -Recurse -Include "*.ts","*.tsx" -ErrorAction SilentlyContinue
 
@@ -74,7 +74,7 @@ foreach ($file in $localStorageFiles) {
     $content = Get-Content $file.FullName -Raw -ErrorAction SilentlyContinue
     
     if ($content -match "localStorage\.(setItem|getItem)") {
-        # Verificar se √© para dados permanentes
+        # Verificar se È para dados permanentes
         $permanentDataPatterns = @(
             "contacts",
             "conversations", 
@@ -86,16 +86,16 @@ foreach ($file in $localStorageFiles) {
         
         foreach ($pattern in $permanentDataPatterns) {
             if ($content -match "localStorage\.(setItem|getItem).*['`"]$pattern") {
-                $errors += "‚ùå $($file.Name): localStorage para dados permanentes ('$pattern')"
+                $errors += "? $($file.Name): localStorage para dados permanentes ('$pattern')"
             }
         }
     }
 }
 
 # ============================================================================
-# REGRA 3: M√∫ltiplos setInterval
+# REGRA 3: M˙ltiplos setInterval
 # ============================================================================
-Write-Host "`nüìã Verificando setInterval..." -ForegroundColor Yellow
+Write-Host "`n?? Verificando setInterval..." -ForegroundColor Yellow
 
 $chatFiles = Get-ChildItem -Path "RendizyPrincipal/components" -Recurse -Include "*Chat*.tsx","*WhatsApp*.tsx" -ErrorAction SilentlyContinue
 
@@ -105,14 +105,14 @@ foreach ($file in $chatFiles) {
     $setIntervalCount = ([regex]::Matches($content, "setInterval")).Count
     
     if ($setIntervalCount -gt 1) {
-        $warnings += "‚ö†Ô∏è  $($file.Name): M√∫ltiplos setInterval ($setIntervalCount) - considerar consolidar"
+        $warnings += "??  $($file.Name): M˙ltiplos setInterval ($setIntervalCount) - considerar consolidar"
     }
 }
 
 # ============================================================================
 # REGRA 4: CORS com credentials: true
 # ============================================================================
-Write-Host "`nüìã Verificando CORS..." -ForegroundColor Yellow
+Write-Host "`n?? Verificando CORS..." -ForegroundColor Yellow
 
 $backendFiles = Get-ChildItem -Path "supabase/functions/rendizy-server" -Recurse -Include "*.ts" -ErrorAction SilentlyContinue
 
@@ -120,7 +120,7 @@ foreach ($file in $backendFiles) {
     $content = Get-Content $file.FullName -Raw -ErrorAction SilentlyContinue
     
     if ($content -match "origin.*\*.*credentials.*true|credentials.*true.*origin.*\*") {
-        $errors += "‚ùå $($file.Name): CORS com origin: '*' e credentials: true (n√£o permitido)"
+        $errors += "? $($file.Name): CORS com origin: '*' e credentials: true (n„o permitido)"
     }
 }
 
@@ -128,39 +128,39 @@ foreach ($file in $backendFiles) {
 # RESULTADO
 # ============================================================================
 Write-Host "`n" + ("=" * 60)
-Write-Host "üìä RESULTADO DA VALIDA√á√ÉO" -ForegroundColor Cyan
+Write-Host "?? RESULTADO DA VALIDA«√O" -ForegroundColor Cyan
 Write-Host "=" * 60
 
 if ($errors.Count -eq 0 -and $warnings.Count -eq 0) {
-    Write-Host "`n‚úÖ NENHUM PROBLEMA ENCONTRADO!" -ForegroundColor Green
-    Write-Host "   C√≥digo est√° em conformidade com as regras estabelecidas." -ForegroundColor Green
+    Write-Host "`n? NENHUM PROBLEMA ENCONTRADO!" -ForegroundColor Green
+    Write-Host "   CÛdigo est· em conformidade com as regras estabelecidas." -ForegroundColor Green
     exit 0
 }
 
 if ($errors.Count -gt 0) {
-    Write-Host "`n‚ùå ERROS ENCONTRADOS ($($errors.Count)):" -ForegroundColor Red
+    Write-Host "`n? ERROS ENCONTRADOS ($($errors.Count)):" -ForegroundColor Red
     foreach ($error in $errors) {
         Write-Host "   $error" -ForegroundColor Red
     }
 }
 
 if ($warnings.Count -gt 0) {
-    Write-Host "`n‚ö†Ô∏è  AVISOS ($($warnings.Count)):" -ForegroundColor Yellow
+    Write-Host "`n??  AVISOS ($($warnings.Count)):" -ForegroundColor Yellow
     foreach ($warning in $warnings) {
         Write-Host "   $warning" -ForegroundColor Yellow
     }
 }
 
-Write-Host "`nüìö Consulte:" -ForegroundColor Cyan
+Write-Host "`n?? Consulte:" -ForegroundColor Cyan
 Write-Host "   - REGRAS_ESTABELECIDAS_REFERENCIA_RAPIDA.md" -ForegroundColor White
 Write-Host "   - REGRA_NOMENCLATURA_STAYSNET.md" -ForegroundColor White
 Write-Host "   - CHECKLIST_ANTES_DE_MUDAR_CODIGO.md" -ForegroundColor White
 
 if ($errors.Count -gt 0) {
-    Write-Host "`n‚ùå CORRIJA OS ERROS ANTES DE COMMITAR!" -ForegroundColor Red
+    Write-Host "`n? CORRIJA OS ERROS ANTES DE COMMITAR!" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "`n‚ö†Ô∏è  Revise os avisos antes de commitar." -ForegroundColor Yellow
+Write-Host "`n??  Revise os avisos antes de commitar." -ForegroundColor Yellow
 exit 0
 
