@@ -105,6 +105,9 @@ export async function fullSyncStaysNet(
           // ✅ Converter ObjectId (MongoDB) para UUID válido
           const guestId = objectIdToUUID(staysClientId);
           
+          // ✅ Log para debug
+          console.log(`[StaysNet Full Sync] 🔍 Processando hóspede: ${staysClientId} → ${guestId}`);
+          
           // Converter para formato Rendizy (simplificado - você pode melhorar isso)
           // ✅ Garantir que email e phone não sejam null (constraint do banco)
           const guestEmail = staysGuest.email || `guest-${guestId.substring(0, 8)}@staysnet.local`;
@@ -234,6 +237,9 @@ export async function fullSyncStaysNet(
           // ✅ Converter ObjectId (MongoDB) para UUID válido
           const propertyId = objectIdToUUID(staysListingId);
           
+          // ✅ Log para debug
+          console.log(`[StaysNet Full Sync] 🔍 Processando propriedade: ${staysListingId} → ${propertyId}`);
+          
           // Converter para formato Rendizy (simplificado - você pode melhorar isso)
           const property: Property = {
             id: propertyId,
@@ -362,16 +368,20 @@ export async function fullSyncStaysNet(
       stats.reservations.fetched = staysReservations.length;
       console.log(`[StaysNet Full Sync] ✅ ${stats.reservations.fetched} reservas encontradas`);
       
-      // Buscar propriedades e hóspedes do banco para fallback
+      // ✅ Buscar TODAS as propriedades e hóspedes do banco para fallback (com mais campos)
       const { data: allProperties } = await supabase
         .from('properties')
-        .select('id')
+        .select('id, name, code')
         .eq('organization_id', organizationId);
       
       const { data: allGuests } = await supabase
         .from('guests')
-        .select('id')
+        .select('id, email, first_name, last_name')
         .eq('organization_id', organizationId);
+      
+      console.log(`[StaysNet Full Sync] 📊 Propriedades no banco: ${allProperties?.length || 0}`);
+      console.log(`[StaysNet Full Sync] 📊 Hóspedes no banco: ${allGuests?.length || 0}`);
+      console.log(`[StaysNet Full Sync] 📊 Maps: ${propertyIdMap.size} propriedades, ${guestIdMap.size} hóspedes`);
       
       for (const staysRes of staysReservations) {
         try {
@@ -382,33 +392,60 @@ export async function fullSyncStaysNet(
           // ✅ Converter ObjectId (MongoDB) para UUID válido
           const reservationId = objectIdToUUID(staysResId);
           
-          // Buscar property_id e guest_id usando os maps ou fallback
+          // ✅ Buscar property_id usando os maps (chave é o ObjectId original da Stays.net)
           let propertyId = propertyIdMap.get(staysListingId);
-          if (!propertyId && allProperties && allProperties.length > 0) {
-            // Fallback: buscar propriedade pelo ID da Stays.net (usando ObjectId convertido)
+          
+          // Se não encontrou no map, tentar buscar pelo ID convertido no banco
+          if (!propertyId) {
             const convertedListingId = objectIdToUUID(staysListingId);
-            const foundProperty = allProperties.find(p => p.id === convertedListingId);
-            propertyId = foundProperty?.id || allProperties[0].id;
+            const foundProperty = allProperties?.find(p => p.id === convertedListingId);
+            if (foundProperty) {
+              propertyId = foundProperty.id;
+              // Adicionar ao map para próximas buscas
+              propertyIdMap.set(staysListingId, propertyId);
+              console.log(`✅ [StaysNet Full Sync] Propriedade encontrada no banco: ${propertyId}`);
+            }
           }
           
+          // Se ainda não encontrou, usar primeira propriedade disponível
+          if (!propertyId && allProperties && allProperties.length > 0) {
+            propertyId = allProperties[0].id;
+            console.warn(`⚠️ [StaysNet Full Sync] Usando primeira propriedade como fallback: ${propertyId}`);
+          }
+          
+          // ✅ Buscar guest_id usando os maps (chave é o ObjectId original da Stays.net)
           let guestId = guestIdMap.get(staysClientId);
-          if (!guestId && allGuests && allGuests.length > 0) {
-            // Fallback: buscar hóspede pelo ID da Stays.net (usando ObjectId convertido)
+          
+          // Se não encontrou no map, tentar buscar pelo ID convertido no banco
+          if (!guestId) {
             const convertedClientId = objectIdToUUID(staysClientId);
-            const foundGuest = allGuests.find(g => g.id === convertedClientId);
-            guestId = foundGuest?.id || allGuests[0].id;
+            const foundGuest = allGuests?.find(g => g.id === convertedClientId);
+            if (foundGuest) {
+              guestId = foundGuest.id;
+              // Adicionar ao map para próximas buscas
+              guestIdMap.set(staysClientId, guestId);
+              console.log(`✅ [StaysNet Full Sync] Hóspede encontrado no banco: ${guestId}`);
+            }
+          }
+          
+          // Se ainda não encontrou, usar primeiro hóspede disponível
+          if (!guestId && allGuests && allGuests.length > 0) {
+            guestId = allGuests[0].id;
+            console.warn(`⚠️ [StaysNet Full Sync] Usando primeiro hóspede como fallback: ${guestId}`);
           }
           
           // ✅ Garantir que propertyId e guestId sejam UUIDs válidos (não 'system' ou null)
           if (!propertyId || propertyId === 'system' || propertyId.length !== 36) {
-            console.warn(`[StaysNet Full Sync] ⚠️ Reserva ${staysResId} sem property_id válido, pulando...`);
+            console.warn(`[StaysNet Full Sync] ⚠️ Reserva ${staysResId} sem property_id válido (${propertyId}), pulando...`);
             stats.reservations.failed++;
+            stats.errors.push(`Reserva ${staysResId}: property_id inválido (${propertyId})`);
             continue;
           }
           
           if (!guestId || guestId === 'system' || guestId.length !== 36) {
-            console.warn(`[StaysNet Full Sync] ⚠️ Reserva ${staysResId} sem guest_id válido, pulando...`);
+            console.warn(`[StaysNet Full Sync] ⚠️ Reserva ${staysResId} sem guest_id válido (${guestId}), pulando...`);
             stats.reservations.failed++;
+            stats.errors.push(`Reserva ${staysResId}: guest_id inválido (${guestId})`);
             continue;
           }
           
