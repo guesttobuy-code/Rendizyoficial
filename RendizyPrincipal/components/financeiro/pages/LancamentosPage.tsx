@@ -361,11 +361,22 @@ export function LancamentosPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        <DataTable
-          data={lancamentos}
-          columns={columns}
-          pageSize={25}
-        />
+        {loading && lancamentos.length === 0 ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <span className="ml-2 text-gray-500">Carregando lançamentos...</span>
+          </div>
+        ) : lancamentos.length === 0 ? (
+          <div className="flex items-center justify-center h-64">
+            <span className="text-gray-500">Nenhum lançamento encontrado no período selecionado</span>
+          </div>
+        ) : (
+          <DataTable
+            data={lancamentos}
+            columns={columns}
+            pageSize={25}
+          />
+        )}
       </div>
     </div>
   );
