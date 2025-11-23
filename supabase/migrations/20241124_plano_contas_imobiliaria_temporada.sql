@@ -15,6 +15,8 @@
 -- ============================================================================
 CREATE OR REPLACE FUNCTION criar_plano_contas_para_organizacao(org_id UUID)
 RETURNS VOID AS $$
+LANGUAGE plpgsql
+AS $$
 DECLARE
   cat_3_1_id UUID;
   cat_3_2_id UUID;
@@ -594,7 +596,8 @@ BEGIN
   SELECT gen_random_uuid(), org_id, '7.1.2', 'Juros Recebidos', 'receita', 'credora', 2, cat_7_1_id, true, NOW(), NOW()
   WHERE NOT EXISTS (SELECT 1 FROM financeiro_categorias WHERE organization_id = org_id AND codigo = '7.1.2');
 
-END $$;
+END;
+$$;
 
 -- ============================================================================
 -- EXECUTAR: Aplicar plano de contas para TODAS as organizações
