@@ -42,22 +42,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ✅ ARQUITETURA SQL v1.0.103.950 - SEMPRE valida token no backend SQL
   // ✅ BOAS PRÁTICAS v1.0.103.1000 - Validação periódica + Refresh automático
+  // ✅ CORREÇÃO CRÍTICA v1.0.103.1001 - NUNCA limpar token em validações periódicas por erros de rede
   // NÃO usa localStorage como fonte de verdade - sempre busca do banco
   useEffect(() => {
     let isMounted = true; // Flag para evitar atualizações após desmontar
     
-    const loadUser = async (retries = 3, skipDelay = false) => {
+    const loadUser = async (retries = 3, skipDelay = false, isPeriodicCheck = false) => {
       try {
         // ✅ SOLUÇÃO SIMPLES: Token no header Authorization (não cookie)
-        console.log('🔐 [AuthContext] Verificando sessão via token no header...');
+        if (!isPeriodicCheck) {
+          console.log('🔐 [AuthContext] Verificando sessão via token no header...');
+        }
 
         // ✅ SEMPRE validar token no backend SQL via /auth/me
         const { projectId, publicAnonKey } = await import('../utils/supabase/info');
         const token = localStorage.getItem('rendizy-token'); // ✅ Token salvo no localStorage
         
         if (!token) {
-          console.log('⚠️ [AuthContext] Token não encontrado no localStorage');
-          if (isMounted) {
+          if (!isPeriodicCheck) {
+            console.log('⚠️ [AuthContext] Token não encontrado no localStorage');
+          }
+          if (isMounted && !isPeriodicCheck) {
             setUser(null);
             setIsLoading(false);
           }
@@ -98,12 +103,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (retries > 0) {
             console.warn(`⚠️ [AuthContext] Erro ao parsear JSON, tentando novamente... (${retries} tentativas restantes)`);
             await new Promise(resolve => setTimeout(resolve, 2000)); // Aumentado para 2s
-            return loadUser(retries - 1, true);
+            return loadUser(retries - 1, true, isPeriodicCheck);
           }
           
-          // ✅ Se erro de parse, manter estado atual (pode ser problema temporário de rede)
-          // Não limpar token imediatamente - pode ser erro transitório
-          if (isMounted) {
+          // ✅ CORREÇÃO CRÍTICA: Em validações periódicas, NUNCA limpar token por erro de parse/rede
+          // Pode ser erro transitório de rede - manter sessão ativa
+          if (isMounted && !isPeriodicCheck) {
             setIsLoading(false);
           }
           return;
@@ -115,19 +120,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (response.status === 401 && retries > 0) {
             console.warn(`⚠️ [AuthContext] Erro 401, tentando novamente... (${retries} tentativas restantes)`);
             await new Promise(resolve => setTimeout(resolve, 2000)); // Aumentado para 2s
-            return loadUser(retries - 1, true);
+            return loadUser(retries - 1, true, isPeriodicCheck);
           }
           
-          console.log('❌ [AuthContext] Sessão inválida ou expirada:', data?.error);
-          // ✅ Limpar token inválido apenas se não for validação periódica (evita limpar após login bem-sucedido)
+          // ✅ CORREÇÃO CRÍTICA: Em validações periódicas, NUNCA limpar token por erros de rede
+          // Apenas limpar se for realmente uma sessão inválida (401 + SESSION_NOT_FOUND)
+          // E apenas se NÃO for validação periódica (para evitar deslogar durante digitação)
           if (isMounted) {
-            // Em validação periódica, apenas limpar se realmente inválido (não erro de rede)
-            if (response.status === 401 && data?.code === 'SESSION_NOT_FOUND') {
+            // ✅ Apenas limpar token se:
+            // 1. NÃO for validação periódica (isPeriodicCheck = false)
+            // 2. E for erro 401 com código SESSION_NOT_FOUND (sessão realmente inválida)
+            // 3. E não for erro de rede (response.ok = false mas pode ser timeout/CORS)
+            const isNetworkError = !response.ok && (response.status === 0 || response.status >= 500);
+            const isSessionInvalid = response.status === 401 && data?.code === 'SESSION_NOT_FOUND';
+            
+            if (!isPeriodicCheck && !isNetworkError && isSessionInvalid) {
+              console.log('❌ [AuthContext] Sessão realmente inválida - limpando token');
               localStorage.removeItem('rendizy-token');
               setUser(null);
+            } else if (isPeriodicCheck) {
+              // ✅ Em validação periódica, apenas logar o erro mas NÃO limpar token
+              console.warn('⚠️ [AuthContext] Erro em validação periódica (mantendo sessão):', data?.error || 'Erro de rede');
+            } else {
+              console.log('❌ [AuthContext] Erro na validação (mantendo sessão):', data?.error);
             }
           }
-          if (isMounted) {
+          if (isMounted && !isPeriodicCheck) {
             setIsLoading(false);
           }
           return;
@@ -218,24 +236,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        console.log('✅ [AuthContext] Usuário carregado do backend SQL:', loggedUser);
+        if (!isPeriodicCheck) {
+          console.log('✅ [AuthContext] Usuário carregado do backend SQL:', loggedUser);
+        }
       } catch (error) {
         console.error('❌ [AuthContext] Erro ao carregar usuário:', error);
-        // ✅ Não limpar token em erro de rede - pode ser temporário
-        if (isMounted) {
+        // ✅ CORREÇÃO CRÍTICA: Em validações periódicas, NUNCA limpar token por erro de rede
+        // Pode ser erro transitório - manter sessão ativa
+        if (isMounted && !isPeriodicCheck) {
           setIsLoading(false);
         }
+        // ✅ Em validação periódica, apenas logar o erro mas NÃO fazer nada
+        // Isso evita deslogar o usuário durante digitação por erros de rede
       }
     };
 
     // ✅ BOAS PRÁTICAS: Validar imediatamente ao montar
-    loadUser();
+    loadUser(3, false, false); // 3 retries, com delay, não é periódica
 
     // ✅ BOAS PRÁTICAS: Validação periódica (a cada 5 minutos)
+    // ✅ CORREÇÃO CRÍTICA: Marcar como isPeriodicCheck=true para NUNCA limpar token em erros
     const periodicInterval = setInterval(() => {
       if (isMounted) {
         console.log('🔄 [AuthContext] Validação periódica da sessão...');
-        loadUser(1, true); // 1 retry apenas, sem delay
+        loadUser(1, true, true); // 1 retry, sem delay, É periódica (não limpa token em erros)
       }
     }, 5 * 60 * 1000); // 5 minutos
 
