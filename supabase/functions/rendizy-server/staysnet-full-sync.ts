@@ -120,7 +120,7 @@ export async function fullSyncStaysNet(
             cpf: staysGuest.cpf || staysGuest.document?.cpf || null,
             passport: staysGuest.passport || staysGuest.document?.passport || null,
             language: staysGuest.language || 'pt-BR',
-            source: 'staysnet',
+            source: 'other', // ✅ 'staysnet' não é permitido pelo CHECK constraint, usar 'other'
             createdAt: staysGuest.createdAt || new Date().toISOString(),
             updatedAt: staysGuest.updatedAt || new Date().toISOString(),
           };
@@ -272,11 +272,33 @@ export async function fullSyncStaysNet(
           };
           
           // ✅ Garantir que organizationId seja UUID válido (não 'system')
-          const finalOrgId = (organizationId && organizationId !== 'system' && organizationId.length === 36) 
+          let finalOrgId = (organizationId && organizationId !== 'system' && organizationId.length === 36) 
             ? organizationId 
             : null;
           
-          const sqlData = propertyToSql(property, finalOrgId || '00000000-0000-0000-0000-000000000001');
+          // Se não tiver organizationId válido, buscar primeira organização disponível
+          if (!finalOrgId) {
+            const { data: firstOrg } = await supabase
+              .from('organizations')
+              .select('id')
+              .limit(1)
+              .maybeSingle();
+            finalOrgId = firstOrg?.id || '00000000-0000-0000-0000-000000000001';
+          }
+          
+          // ✅ Garantir que owner_id seja UUID válido (não null)
+          // Buscar primeiro usuário disponível como owner padrão
+          const { data: firstUser } = await supabase
+            .from('users')
+            .select('id')
+            .limit(1)
+            .maybeSingle();
+          const defaultOwnerId = firstUser?.id || '00000000-0000-0000-0000-000000000001';
+          
+          // Atualizar property com owner_id válido
+          property.ownerId = defaultOwnerId;
+          
+          const sqlData = propertyToSql(property, finalOrgId);
           
           // Verificar se já existe
           const { data: existing } = await supabase
