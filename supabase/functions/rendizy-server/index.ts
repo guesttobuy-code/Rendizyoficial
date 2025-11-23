@@ -483,6 +483,7 @@ app.post("/rendizy-server/make-server-67caf26a/staysnet/test-endpoint", staysnet
 app.post("/rendizy-server/make-server-67caf26a/staysnet/sync/properties", staysnetRoutes.syncStaysNetProperties);
 app.post("/rendizy-server/make-server-67caf26a/staysnet/sync/reservations", staysnetRoutes.syncStaysNetReservations);
 app.get("/rendizy-server/make-server-67caf26a/staysnet/reservations/preview", staysnetRoutes.previewStaysNetReservations);
+app.post("/rendizy-server/make-server-67caf26a/staysnet/import/full", staysnetRoutes.importFullStaysNet);
 
 // ============================================================================
 // CLIENT SITES ROUTES (v1.0.103.187)

@@ -461,13 +461,18 @@ class StaysNetClient {
     return await this.request(endpoint, 'GET');
   }
 
-  // Guests
+  // Guests / Clients
   async getGuests() {
     return await this.request('/guests', 'GET');
   }
 
   async getGuest(id: string) {
     return await this.request(`/guests/${id}`, 'GET');
+  }
+
+  // ✅ NOVO: Buscar clientes (hóspedes) via /booking/clients
+  async getClients() {
+    return await this.request('/booking/clients', 'GET');
   }
 }
 
@@ -793,6 +798,82 @@ export async function previewStaysNetReservations(c: Context) {
     logError('Error previewing Stays.net reservations', error);
     
     return c.json(errorResponse(error.message || 'Failed to preview reservations', {
+      type: error.constructor.name,
+      message: error.message,
+      stack: error.stack,
+    }), 500);
+  }
+}
+
+/**
+ * POST /staysnet/import/full
+ * Importação completa de dados da Stays.net (hóspedes, propriedades, reservas)
+ */
+export async function importFullStaysNet(c: Context) {
+  try {
+    console.log('\n' + '='.repeat(80));
+    console.log('[StaysNet Full Import] 🚀 INICIANDO IMPORTAÇÃO COMPLETA');
+    console.log('='.repeat(80));
+    
+    // Obter organization_id
+    const organizationId = await getOrganizationIdOrThrow(c);
+    console.log('[StaysNet Full Import] Organization ID:', organizationId);
+    
+    // Obter parâmetros do body
+    const body = await c.req.json().catch(() => ({}));
+    const { selectedPropertyIds, startDate, endDate } = body;
+    
+    console.log('[StaysNet Full Import] Parâmetros:', {
+      selectedPropertyIds: selectedPropertyIds?.length || 0,
+      startDate,
+      endDate,
+    });
+    
+    // Obter configuração
+    const config = await kv.get<StaysNetConfig>('settings:staysnet');
+    if (!config || !config.apiKey) {
+      return c.json(errorResponse('Stays.net não configurado. Configure em Configurações → Integrações → Stays.net'), 400);
+    }
+    
+    console.log('[StaysNet Full Import] ✅ Configuração carregada');
+    
+    // Criar cliente
+    const client = new StaysNetClient(config.apiKey, config.baseUrl, config.apiSecret);
+    
+    // Importar função de sincronização completa
+    const { fullSyncStaysNet } = await import('./staysnet-full-sync.ts');
+    
+    // Executar sincronização completa
+    const result = await fullSyncStaysNet(
+      client,
+      organizationId,
+      selectedPropertyIds,
+      startDate,
+      endDate
+    );
+    
+    console.log('[StaysNet Full Import] ✅ Sincronização concluída');
+    console.log('[StaysNet Full Import] Estatísticas:', result.stats);
+    console.log('='.repeat(80) + '\n');
+    
+    if (result.success) {
+      return c.json(successResponse({
+        message: 'Importação completa realizada com sucesso',
+        stats: result.stats,
+        timestamp: new Date().toISOString(),
+      }));
+    } else {
+      return c.json(errorResponse('Importação completa concluída com erros', result.stats), 200);
+    }
+  } catch (error: any) {
+    console.error('\n' + '='.repeat(80));
+    console.error('[StaysNet Full Import] ❌ ERRO');
+    console.error('='.repeat(80));
+    console.error('[StaysNet Full Import] Erro:', error);
+    console.error('='.repeat(80) + '\n');
+    
+    logError('Error in full import Stays.net', error);
+    return c.json(errorResponse(error.message || 'Failed to import data', {
       type: error.constructor.name,
       message: error.message,
       stack: error.stack,

@@ -511,6 +511,56 @@ export async function createReservation(c: Context) {
     // ✅ Converter resultado SQL para Reservation (TypeScript)
     const createdReservation = sqlToReservation(insertedRow);
 
+    // ✅ NOVO: Criar block no calendário automaticamente quando reserva é criada
+    try {
+      const { blockToSql } = await import('./utils-block-mapper.ts');
+      const blockId = `blk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const now = getCurrentDateTime();
+      
+      const block = {
+        id: blockId,
+        propertyId: body.propertyId,
+        startDate: body.checkIn,
+        endDate: body.checkOut,
+        nights: nights,
+        type: 'block' as const,
+        subtype: 'reservation' as const,
+        reason: `Reserva: ${id}`,
+        notes: `Reserva criada automaticamente para ${body.adults} hóspede(s)`,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: tenant.userId || 'system',
+      };
+      
+      const blockSqlData = blockToSql(block, organizationId || 'system');
+      
+      // Verificar se já existe block para este período
+      const { data: existingBlock } = await client
+        .from('blocks')
+        .select('id')
+        .eq('organization_id', organizationId || 'system')
+        .eq('property_id', body.propertyId)
+        .eq('start_date', body.checkIn)
+        .eq('end_date', body.checkOut)
+        .maybeSingle();
+      
+      if (!existingBlock) {
+        const { error: blockError } = await client
+          .from('blocks')
+          .insert(blockSqlData);
+        
+        if (blockError) {
+          console.error('⚠️ [createReservation] Erro ao criar block no calendário:', blockError);
+          // Não falhar a criação da reserva se o block falhar
+        } else {
+          logInfo(`Block created in calendar for reservation: ${id}`);
+        }
+      }
+    } catch (blockError: any) {
+      console.error('⚠️ [createReservation] Erro ao criar block no calendário:', blockError);
+      // Não falhar a criação da reserva se o block falhar
+    }
+
     logInfo(`Reservation created: ${id} in organization ${organizationId}`);
 
     return c.json(
