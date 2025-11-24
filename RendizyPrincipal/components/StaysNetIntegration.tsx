@@ -1457,9 +1457,6 @@ export default function StaysNetIntegration() {
             </div>
           </div>
         </TabsContent>
-
-        {/* TAB 6: IMPORTAÇÃO */}
-        <TabsContent value="import" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
