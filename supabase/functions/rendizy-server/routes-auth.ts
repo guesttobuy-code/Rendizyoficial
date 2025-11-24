@@ -68,18 +68,22 @@ function verifyPassword(password: string, hash: string): boolean {
 }
 
 // Helper: Gerar ID de sessão
+// ✅ Usa randomUUID para evitar colisões previsíveis e seguir boas práticas de geração de IDs
 function generateSessionId(): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 15);
-  return `session_${timestamp}${random}`;
+  return `session_${crypto.randomUUID()}`;
 }
 
 // Helper: Gerar token de sessão
-function generateToken(): string {
-  const timestamp = Date.now().toString(36);
-  const random1 = Math.random().toString(36).substring(2, 15);
-  const random2 = Math.random().toString(36).substring(2, 15);
-  return `${timestamp}_${random1}_${random2}`;
+// ❗ Importante: tokens precisam ser longos, imprevisíveis e resilientes a reuso em múltiplas abas
+//  - 64 bytes randômicos → 128 caracteres hexadecimais (~10^154 combinações)
+//  - Usa crypto.getRandomValues (disponível no runtime do Supabase Edge)
+//  - Resolve problema de token curto (31 caracteres) identificado no relatório de login
+function generateToken(bytes = 64): string {
+  const randomBytes = new Uint8Array(bytes);
+  crypto.getRandomValues(randomBytes);
+  return Array.from(randomBytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 // ❌ REMOVIDO: initializeSuperAdmin() - SuperAdmins agora são criados na migration SQL
