@@ -36,14 +36,14 @@ export function reservationToSql(reservation: Reservation, organizationId: strin
     // Datas
     check_in: reservation.checkIn,
     check_out: reservation.checkOut,
-    nights: Math.round(Number(reservation.nights) || 0), // ✅ Garantir INTEGER (não decimal ou string)
+    nights: Math.floor(Math.abs(Number(reservation.nights) || 0)), // ✅ GARANTIR INTEGER (Math.floor + Math.abs)
     
-    // Hóspedes (flat) - ✅ Garantir INTEGER (não decimal)
-    guests_adults: Math.round(Number(reservation.guests?.adults || 1)),
-    guests_children: Math.round(Number(reservation.guests?.children || 0)),
-    guests_infants: Math.round(Number(reservation.guests?.infants || 0)),
-    guests_pets: Math.round(Number(reservation.guests?.pets || 0)),
-    guests_total: Math.round(Number(reservation.guests?.total || reservation.guests?.adults || 1)),
+    // Hóspedes (flat) - ✅ GARANTIR INTEGER (Math.floor + Math.abs)
+    guests_adults: Math.floor(Math.abs(Number(reservation.guests?.adults || 1))),
+    guests_children: Math.floor(Math.abs(Number(reservation.guests?.children || 0))),
+    guests_infants: Math.floor(Math.abs(Number(reservation.guests?.infants || 0))),
+    guests_pets: Math.floor(Math.abs(Number(reservation.guests?.pets || 0))),
+    guests_total: Math.floor(Math.abs(Number(reservation.guests?.total || reservation.guests?.adults || 1))),
     
     // Precificação (flat)
     pricing_price_per_night: reservation.pricing?.pricePerNight || 0,

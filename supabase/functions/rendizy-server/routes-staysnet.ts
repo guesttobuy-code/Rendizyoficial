@@ -326,13 +326,63 @@ class StaysNetClient {
   }
 
   // Listings - ✅ ENDPOINT OFICIAL STAYS.NET
-  async getListings() {
-    console.log('[StaysNet] Fetching listings from /content/listings');
-    return await this.request('/content/listings', 'GET');
+  async getListings(params?: { limit?: number; skip?: number }) {
+    let endpoint = '/content/listings';
+    const searchParams = new URLSearchParams();
+    
+    // Adicionar parâmetros de paginação se fornecidos
+    if (params?.limit) {
+      searchParams.append('limit', params.limit.toString());
+    }
+    if (params?.skip) {
+      searchParams.append('skip', params.skip.toString());
+    }
+    
+    if (searchParams.toString()) {
+      endpoint += `?${searchParams.toString()}`;
+    }
+    
+    console.log('[StaysNet] Fetching listings from', endpoint);
+    return await this.request(endpoint, 'GET');
+  }
+  
+  // ✅ NOVO: Buscar TODOS os listings (com paginação automática)
+  async getAllListings(): Promise<{ success: boolean; data?: any[]; error?: string }> {
+    const allListings: any[] = [];
+    let skip = 0;
+    const limit = 100; // Buscar 100 por vez
+    let hasMore = true;
+    
+    while (hasMore) {
+      const result = await this.getListings({ limit, skip });
+      
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+      
+      let listings: any[] = [];
+      if (Array.isArray(result.data)) {
+        listings = result.data;
+      } else if (result.data?.listings && Array.isArray(result.data.listings)) {
+        listings = result.data.listings;
+      } else if (result.data?.data && Array.isArray(result.data.data)) {
+        listings = result.data.data;
+      }
+      
+      allListings.push(...listings);
+      
+      // Se retornou menos que o limite, não há mais páginas
+      hasMore = listings.length === limit;
+      skip += limit;
+      
+      console.log(`[StaysNet] 📥 Buscados ${allListings.length} listings até agora...`);
+    }
+    
+    return { success: true, data: allListings };
   }
 
   // Reservations - ✅ ENDPOINTS OFICIAIS STAYS.NET
-  async getReservations(params?: { startDate?: string; endDate?: string; dateType?: string }) {
+  async getReservations(params?: { startDate?: string; endDate?: string; dateType?: string; limit?: number; skip?: number }) {
     let endpoint = '/booking/reservations'; // ✅ Endpoint oficial
     
     // A API Stays.net requer 'from', 'to' e 'dateType' como parâmetros obrigatórios
@@ -353,12 +403,20 @@ class StaysNetClient {
     searchParams.append('to', endDate);
     searchParams.append('dateType', dateType);
     
+    // Adicionar parâmetros de paginação se fornecidos
+    if (params?.limit) {
+      searchParams.append('limit', params.limit.toString());
+    }
+    if (params?.skip) {
+      searchParams.append('skip', params.skip.toString());
+    }
+    
     endpoint += `?${searchParams.toString()}`;
     
     console.log(`[StaysNet] 📍 Fetching reservations`);
     console.log(`[StaysNet] 📍 Endpoint: ${endpoint}`);
     console.log(`[StaysNet] 📍 Full URL: ${this.baseUrl}${endpoint}`);
-    console.log(`[StaysNet] 📍 Query Params:`, { from: startDate, to: endDate, dateType });
+    console.log(`[StaysNet] 📍 Query Params:`, { from: startDate, to: endDate, dateType, limit: params?.limit, skip: params?.skip });
     console.log(`[StaysNet] 📍 Query String: ${searchParams.toString()}`);
     
     const result = await this.request(endpoint, 'GET');
@@ -398,6 +456,41 @@ class StaysNetClient {
     }
     
     return result;
+  }
+  
+  // ✅ NOVO: Buscar TODAS as reservas (com paginação automática)
+  async getAllReservations(params?: { startDate?: string; endDate?: string; dateType?: string }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+    const allReservations: any[] = [];
+    let skip = 0;
+    const limit = 100; // Buscar 100 por vez
+    let hasMore = true;
+    
+    while (hasMore) {
+      const result = await this.getReservations({ ...params, limit, skip });
+      
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+      
+      let reservations: any[] = [];
+      if (Array.isArray(result.data)) {
+        reservations = result.data;
+      } else if (result.data?.reservations && Array.isArray(result.data.reservations)) {
+        reservations = result.data.reservations;
+      } else if (result.data?.data && Array.isArray(result.data.data)) {
+        reservations = result.data.data;
+      }
+      
+      allReservations.push(...reservations);
+      
+      // Se retornou menos que o limite, não há mais páginas
+      hasMore = reservations.length === limit;
+      skip += limit;
+      
+      console.log(`[StaysNet] 📥 Buscadas ${allReservations.length} reservas até agora...`);
+    }
+    
+    return { success: true, data: allReservations };
   }
 
   async getReservation(id: string) {
@@ -471,8 +564,59 @@ class StaysNetClient {
   }
 
   // ✅ NOVO: Buscar clientes (hóspedes) via /booking/clients
-  async getClients() {
-    return await this.request('/booking/clients', 'GET');
+  // ✅ MELHORADO: Suporte a paginação para buscar TODOS os clientes
+  async getClients(params?: { limit?: number; skip?: number }) {
+    let endpoint = '/booking/clients';
+    const searchParams = new URLSearchParams();
+    
+    // Adicionar parâmetros de paginação se fornecidos
+    if (params?.limit) {
+      searchParams.append('limit', params.limit.toString());
+    }
+    if (params?.skip) {
+      searchParams.append('skip', params.skip.toString());
+    }
+    
+    if (searchParams.toString()) {
+      endpoint += `?${searchParams.toString()}`;
+    }
+    
+    return await this.request(endpoint, 'GET');
+  }
+  
+  // ✅ NOVO: Buscar TODOS os clientes (com paginação automática)
+  async getAllClients(): Promise<{ success: boolean; data?: any[]; error?: string }> {
+    const allClients: any[] = [];
+    let skip = 0;
+    const limit = 100; // Buscar 100 por vez
+    let hasMore = true;
+    
+    while (hasMore) {
+      const result = await this.getClients({ limit, skip });
+      
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+      
+      let clients: any[] = [];
+      if (Array.isArray(result.data)) {
+        clients = result.data;
+      } else if (result.data?.clients && Array.isArray(result.data.clients)) {
+        clients = result.data.clients;
+      } else if (result.data?.data && Array.isArray(result.data.data)) {
+        clients = result.data.data;
+      }
+      
+      allClients.push(...clients);
+      
+      // Se retornou menos que o limite, não há mais páginas
+      hasMore = clients.length === limit;
+      skip += limit;
+      
+      console.log(`[StaysNet] 📥 Buscados ${allClients.length} hóspedes até agora...`);
+    }
+    
+    return { success: true, data: allClients };
   }
 }
 

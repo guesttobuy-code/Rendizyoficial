@@ -54,6 +54,16 @@ function objectIdToUUID(objectId: string): string {
 /**
  * Importação completa de dados da Stays.net
  */
+// Interface para o cliente Stays.net (compatibilidade)
+interface StaysNetClientInterface {
+  getClients(params?: any): Promise<any>;
+  getListings(params?: any): Promise<any>;
+  getReservations(params?: any): Promise<any>;
+  getAllClients?(): Promise<{ success: boolean; data?: any[]; error?: string }>;
+  getAllListings?(): Promise<{ success: boolean; data?: any[]; error?: string }>;
+  getAllReservations?(params?: any): Promise<{ success: boolean; data?: any[]; error?: string }>;
+}
+
 export async function fullSyncStaysNet(
   client: StaysNetClientInterface,
   organizationId: string,
@@ -83,7 +93,8 @@ export async function fullSyncStaysNet(
     // FASE 1: IMPORTAR HÓSPEDES
     // ============================================================================
     console.log('[StaysNet Full Sync] 📥 Fase 1: Importando hóspedes...');
-    const clientsResult = await client.getClients();
+    // ✅ MELHORADO: Usar getAllClients() para buscar TODOS os hóspedes (com paginação)
+    const clientsResult = client.getAllClients ? await client.getAllClients() : await client.getClients();
     
     if (clientsResult.success && clientsResult.data) {
       let staysGuests: any[] = [];
@@ -208,7 +219,8 @@ export async function fullSyncStaysNet(
     // FASE 2: IMPORTAR PROPRIEDADES (LISTINGS)
     // ============================================================================
     console.log('[StaysNet Full Sync] 📥 Fase 2: Importando propriedades...');
-    const listingsResult = await client.getListings();
+    // ✅ MELHORADO: Usar getAllListings() para buscar TODAS as propriedades (com paginação)
+    const listingsResult = client.getAllListings ? await client.getAllListings() : await client.getListings();
     
     if (listingsResult.success && listingsResult.data) {
       let staysListings: any[] = [];
@@ -350,7 +362,11 @@ export async function fullSyncStaysNet(
     console.log('[StaysNet Full Sync] 📥 Fase 3: Importando reservas...');
     const reservationsStartDate = startDate || '2025-01-01';
     const reservationsEndDate = endDate || '2026-12-31';
-    const reservationsResult = await client.getReservations({ 
+    // ✅ MELHORADO: Usar getAllReservations() para buscar TODAS as reservas (com paginação)
+    const reservationsResult = client.getAllReservations ? await client.getAllReservations({ 
+      startDate: reservationsStartDate, 
+      endDate: reservationsEndDate 
+    }) : await client.getReservations({ 
       startDate: reservationsStartDate, 
       endDate: reservationsEndDate 
     });
@@ -452,8 +468,18 @@ export async function fullSyncStaysNet(
           // Calcular noites (deve ser INTEGER, não decimal)
           const checkIn = new Date(staysRes.checkInDate || staysRes.from || staysRes.check_in);
           const checkOut = new Date(staysRes.checkOutDate || staysRes.to || staysRes.check_out);
+          
+          // ✅ GARANTIR que as datas sejam válidas
+          if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
+            console.warn(`[StaysNet Full Sync] ⚠️ Reserva ${staysResId} com datas inválidas, pulando...`);
+            stats.reservations.failed++;
+            stats.errors.push(`Reserva ${staysResId}: datas inválidas`);
+            continue;
+          }
+          
           const nightsRaw = (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24);
-          const nights = Math.max(1, Math.round(nightsRaw)); // ✅ Math.round + Math.max para garantir INTEGER >= 1
+          // ✅ GARANTIR INTEGER: Math.floor para garantir número inteiro (não Math.round que pode dar problema)
+          const nights = Math.max(1, Math.floor(Math.abs(nightsRaw))); // ✅ Math.floor + Math.abs + Math.max para garantir INTEGER >= 1
           
           console.log(`[StaysNet Full Sync] 📅 Reserva ${staysResId}: ${checkIn.toISOString().substring(0, 10)} → ${checkOut.toISOString().substring(0, 10)} = ${nights} noites`);
           
@@ -489,14 +515,15 @@ export async function fullSyncStaysNet(
             guestId,    // ✅ Já validado acima
             checkIn: checkIn.toISOString().substring(0, 10), // ✅ Apenas data (YYYY-MM-DD)
             checkOut: checkOut.toISOString().substring(0, 10), // ✅ Apenas data (YYYY-MM-DD)
-            nights: nights, // ✅ Já é INTEGER
+            nights: Math.floor(Number(nights)), // ✅ GARANTIR INTEGER (não decimal ou string)
             guests: {
               // ✅ Garantir que todos os valores sejam INTEGER (não decimal)
-              adults: Math.round(Number(staysRes._i_maxGuests || staysRes.guests?.adults || 1)),
-              children: Math.round(Number(staysRes.guests?.children || 0)),
-              infants: Math.round(Number(staysRes.guests?.infants || 0)),
-              pets: Math.round(Number(staysRes.guests?.pets || 0)),
-              total: Math.round(Number(staysRes._i_maxGuests || staysRes.guests?.total || 1)),
+              // ⚠️ IMPORTANTE: _i_maxGuests é número de HÓSPEDES, não noites!
+              adults: Math.floor(Math.abs(Number(staysRes.guests?.adults || staysRes.guestsDetails?.adults || staysRes._i_maxGuests || 1))),
+              children: Math.floor(Math.abs(Number(staysRes.guests?.children || staysRes.guestsDetails?.children || 0))),
+              infants: Math.floor(Math.abs(Number(staysRes.guests?.infants || staysRes.guestsDetails?.infants || 0))),
+              pets: Math.floor(Math.abs(Number(staysRes.guests?.pets || staysRes.guestsDetails?.pets || 0))),
+              total: Math.floor(Math.abs(Number(staysRes.guests?.total || staysRes.guestsDetails?.total || staysRes._i_maxGuests || 1))),
             },
             pricing: {
               pricePerNight: (staysRes.price?.hostingDetails?._f_nightPrice || staysRes._f_nightPrice || 0) / 100, // Converter centavos para reais
