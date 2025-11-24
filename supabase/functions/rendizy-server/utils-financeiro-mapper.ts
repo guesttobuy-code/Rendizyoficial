@@ -392,3 +392,157 @@ export const CENTRO_CUSTO_SELECT_FIELDS = `
   orcamento_anual, orcamento_mensal, ativo, created_at, updated_at
 `.replace(/\s+/g, ' ').trim();
 
+// ============================================================================
+// LINHAS DE EXTRATO BANCÁRIO
+// ============================================================================
+
+import type { LinhaExtrato, RegraConciliacao } from './types.ts';
+
+// Re-exportar tipos para uso em outros arquivos
+export type { LinhaExtrato, RegraConciliacao };
+
+/**
+ * Converte LinhaExtrato (TypeScript) para formato SQL (tabela financeiro_linhas_extrato)
+ */
+export function linhaExtratoToSql(linha: LinhaExtrato, organizationId: string): any {
+  // Gerar hash único se não existir
+  const hashUnico = linha.hashUnico || generateHashExtrato(linha);
+  
+  return {
+    id: linha.id,
+    organization_id: organizationId,
+    conta_id: linha.contaId,
+    data: linha.data,
+    descricao: linha.descricao,
+    valor: Math.abs(linha.valor),
+    moeda: linha.moeda || 'BRL',
+    tipo: linha.tipo,
+    ref: linha.ref || null,
+    ref_banco: linha.refBanco || null,
+    hash_unico: hashUnico,
+    origem: linha.origem || 'manual',
+    conciliado: linha.conciliado || false,
+    lancamento_id: linha.lancamentoId || null,
+    confianca_ml: linha.confiancaML || null,
+    sugestao_id: linha.sugestaoId || null,
+    created_at: linha.createdAt || new Date().toISOString(),
+  };
+}
+
+/**
+ * Converte resultado SQL (tabela financeiro_linhas_extrato) para LinhaExtrato (TypeScript)
+ */
+export function sqlToLinhaExtrato(row: any): LinhaExtrato {
+  return {
+    id: row.id,
+    contaId: row.conta_id,
+    data: row.data,
+    descricao: row.descricao,
+    valor: row.tipo === 'debito' ? -Number(row.valor) : Number(row.valor),
+    moeda: row.moeda,
+    tipo: row.tipo,
+    ref: row.ref,
+    refBanco: row.ref_banco,
+    hashUnico: row.hash_unico,
+    origem: row.origem,
+    conciliado: row.conciliado || false,
+    lancamentoId: row.lancamento_id,
+    confiancaML: row.confianca_ml,
+    sugestaoId: row.sugestao_id,
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * Gera hash único para linha de extrato (deduplicação)
+ */
+function generateHashExtrato(linha: LinhaExtrato): string {
+  const data = linha.data.substring(0, 10); // YYYY-MM-DD
+  const valor = Math.abs(linha.valor).toFixed(2);
+  const descricao = (linha.descricao || '').toLowerCase().trim().substring(0, 50);
+  const hashString = `${data}|${valor}|${descricao}|${linha.contaId}`;
+  
+  // Hash simples usando crypto (Deno)
+  const encoder = new TextEncoder();
+  const data_encoded = encoder.encode(hashString);
+  // Usar crypto.subtle se disponível, senão usar hash simples
+  return btoa(hashString).replace(/[^a-zA-Z0-9]/g, '').substring(0, 64);
+}
+
+// ============================================================================
+// REGRAS DE CONCILIAÇÃO
+// ============================================================================
+
+/**
+ * Converte RegraConciliacao (TypeScript) para formato SQL (tabela financeiro_regras_conciliacao)
+ */
+export function regraConciliacaoToSql(regra: RegraConciliacao, organizationId: string): any {
+  return {
+    id: regra.id,
+    organization_id: organizationId,
+    nome: regra.nome,
+    descricao: regra.descricao || null,
+    ativo: regra.ativo !== false,
+    prioridade: regra.prioridade || 50,
+    padrao_operador: regra.padrao.operador,
+    padrao_termo: regra.padrao.termo,
+    valor_operador: regra.valor?.operador || null,
+    valor_a: regra.valor?.a || null,
+    valor_b: regra.valor?.b || null,
+    tipo_lancamento: regra.tipo || null,
+    categoria_id: regra.categoriaId || null,
+    conta_contrapartida_id: regra.contaContrapartidaId || null,
+    centro_custo_id: regra.centroCustoId || null,
+    acao: regra.acao,
+    aplicacoes: regra.aplicacoes || 0,
+    ultima_aplicacao: regra.ultimaAplicacao || null,
+    created_by: null, // TODO: Mapear se necessário
+    created_at: regra.createdAt || new Date().toISOString(),
+    updated_at: regra.updatedAt || new Date().toISOString(),
+  };
+}
+
+/**
+ * Converte resultado SQL (tabela financeiro_regras_conciliacao) para RegraConciliacao (TypeScript)
+ */
+export function sqlToRegraConciliacao(row: any): RegraConciliacao {
+  return {
+    id: row.id,
+    nome: row.nome,
+    descricao: row.descricao,
+    ativo: row.ativo !== false,
+    prioridade: row.prioridade || 50,
+    padrao: {
+      operador: row.padrao_operador,
+      termo: row.padrao_termo,
+    },
+    valor: row.valor_operador ? {
+      operador: row.valor_operador,
+      a: row.valor_a ? Number(row.valor_a) : undefined,
+      b: row.valor_b ? Number(row.valor_b) : undefined,
+    } : undefined,
+    tipo: row.tipo_lancamento || undefined,
+    categoriaId: row.categoria_id,
+    contaContrapartidaId: row.conta_contrapartida_id,
+    centroCustoId: row.centro_custo_id,
+    acao: row.acao,
+    aplicacoes: row.aplicacoes || 0,
+    ultimaAplicacao: row.ultima_aplicacao,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export const LINHA_EXTRATO_SELECT_FIELDS = `
+  id, organization_id, conta_id, data, descricao, valor, moeda, tipo,
+  ref, ref_banco, hash_unico, origem, conciliado, lancamento_id,
+  confianca_ml, sugestao_id, created_at
+`.replace(/\s+/g, ' ').trim();
+
+export const REGRA_CONCILIACAO_SELECT_FIELDS = `
+  id, organization_id, nome, descricao, ativo, prioridade,
+  padrao_operador, padrao_termo, valor_operador, valor_a, valor_b,
+  tipo_lancamento, categoria_id, conta_contrapartida_id, centro_custo_id,
+  acao, aplicacoes, ultima_aplicacao, created_by, created_at, updated_at
+`.replace(/\s+/g, ' ').trim();
+
