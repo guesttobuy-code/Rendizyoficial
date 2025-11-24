@@ -68,3 +68,4 @@ SELECT username, email, type, status FROM users;
 **Status:** ⏳ **AGUARDANDO APLICAÇÃO DAS MIGRATIONS SQL**
 
 
+

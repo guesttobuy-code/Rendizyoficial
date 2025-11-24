@@ -67,7 +67,7 @@ import {
   TableHeader,
   TableRow,
 } from './ui/table';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { locationsApi, propertiesApi, listingsApi, type Location, type Listing, type Platform } from '../utils/api';
 import { AmenitiesSelector } from './AmenitiesSelector';
 import { RoomsManager } from './RoomsManager';

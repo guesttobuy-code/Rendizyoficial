@@ -113,3 +113,4 @@ Verificar se a rota `/rendizy-server/auth/login` está registrada corretamente n
 **Status:** 🔴 **CRÍTICO - LOGIN NÃO FUNCIONA EM PRODUÇÃO**
 
 
+

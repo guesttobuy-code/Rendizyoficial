@@ -49,7 +49,7 @@ import { CreateOrganizationModal } from './CreateOrganizationModal';
 import { CreateUserModal } from './CreateUserModal';
 import { ReservationsManagement } from './ReservationsManagement';
 import { PropertyTypesSeedTool } from './PropertyTypesSeedTool';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 interface AdminMasterProps {

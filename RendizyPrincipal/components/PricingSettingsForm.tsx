@@ -19,7 +19,7 @@ import { Separator } from './ui/separator';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Alert, AlertDescription } from './ui/alert';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 // ============================================================================

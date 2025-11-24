@@ -30,7 +30,7 @@ import {
   Zap,
   FileText
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 // ============================================================================

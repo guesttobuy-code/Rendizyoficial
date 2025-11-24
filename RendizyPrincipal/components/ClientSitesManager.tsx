@@ -10,7 +10,7 @@ import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { useAutoSave } from '../hooks/useAutoSave';

@@ -13,7 +13,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Loader2, AlertCircle, Home } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { PropertyEditWizard } from '../components/PropertyEditWizard';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { propertiesApi } from '../utils/api';
 
 export function PropertyWizardPage() {

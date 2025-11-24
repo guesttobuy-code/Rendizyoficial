@@ -54,7 +54,7 @@ import { EditReservationWizard } from './EditReservationWizard';
 import { CancelReservationModal } from './CancelReservationModal';
 import { ConflictsDetectionDashboard } from './ConflictsDetectionDashboard';
 import { CreateReservationWizard } from './CreateReservationWizard';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { reservationsApi, propertiesApi, guestsApi, Property, Reservation, Guest } from '../utils/api';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { format, startOfMonth, endOfMonth, addMonths } from 'date-fns';

@@ -22,7 +22,7 @@ import { Badge } from '../ui/badge';
 import { Checkbox } from '../ui/checkbox';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { uploadRoomPhoto, deleteRoomPhoto } from '../../utils/roomsApi';
 
 // ============================================================================

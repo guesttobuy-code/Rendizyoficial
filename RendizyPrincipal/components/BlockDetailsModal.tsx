@@ -9,7 +9,7 @@ import { Badge } from './ui/badge';
 import { DateRangePicker } from './DateRangePicker';
 import { Calendar as CalendarIcon, Clock, AlertCircle, Trash2, Edit2, Lock, Target, Info } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { calendarApi } from '../utils/api';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';

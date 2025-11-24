@@ -51,7 +51,7 @@ import {
   Zap,
   Webhook,
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { channelsApi, OrganizationChannelConfig } from '../utils/chatApi';
 import { isOfflineMode } from '../utils/offlineConfig';
 import { evolutionService, SessionStatus } from '../utils/services/evolutionService';
