@@ -1915,3 +1915,52 @@ export interface SyncWhatsAppDataDTO {
   sync_type: WhatsAppSyncType;
   force?: boolean;               // Forçar sincronização mesmo se recente?
 }
+
+// ============================================================================
+// MÓDULO FINANCEIRO - CONCILIAÇÃO BANCÁRIA
+// ============================================================================
+
+export interface LinhaExtrato {
+  id: string;
+  contaId: string;
+  data: string;
+  descricao: string;
+  valor: number;
+  moeda: Currency;
+  tipo: 'debito' | 'credito';
+  ref?: string;
+  refBanco?: string;
+  hashUnico?: string;
+  origem?: 'ofx' | 'csv' | 'open_finance' | 'manual';
+  conciliado: boolean;
+  lancamentoId?: string;
+  confiancaML?: number;
+  sugestaoId?: string;
+  createdAt: string;
+}
+
+export interface RegraConciliacao {
+  id: string;
+  nome: string;
+  descricao?: string;
+  ativo: boolean;
+  prioridade: number;
+  padrao: {
+    operador: 'contains' | 'equals' | 'regex';
+    termo: string;
+  };
+  valor?: {
+    operador: 'eq' | 'gte' | 'lte' | 'between';
+    a?: number;
+    b?: number;
+  };
+  tipo?: 'entrada' | 'saida' | 'transferencia';
+  categoriaId?: string;
+  contaContrapartidaId?: string;
+  centroCustoId?: string;
+  acao: 'sugerir' | 'auto_conciliar' | 'auto_criar';
+  aplicacoes?: number;
+  ultimaAplicacao?: string;
+  createdAt: string;
+  updatedAt: string;
+}
