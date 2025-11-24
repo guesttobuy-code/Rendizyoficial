@@ -75,6 +75,9 @@ import { CentroCustosPage } from './components/financeiro/pages/CentroCustosPage
 import { ConciliacaoPage } from './components/financeiro/pages/ConciliacaoPage';
 import { RegrasConciliacaoPage } from './components/financeiro/pages/RegrasConciliacaoPage';
 import { FechamentoCaixaPage } from './components/financeiro/pages/FechamentoCaixaPage';
+import { InadimplenciaPage } from './components/financeiro/pages/InadimplenciaPage';
+import { RelatoriosGerenciaisPage } from './components/financeiro/pages/RelatoriosGerenciaisPage';
+import { ConfiguracoesFinanceirasPage } from './components/financeiro/pages/ConfiguracoesFinanceirasPage';
 import CRMTasksModule from './components/crm/CRMTasksModule';
 import CRMTasksDashboard from './components/crm/CRMTasksDashboard';
 import BIModule from './components/bi/BIModule';
@@ -1329,15 +1332,15 @@ function App() {
           <Route path="centro-custos" element={<CentroCustosPage />} />
           <Route path="contas-receber" element={<ContasReceberPage />} />
           <Route path="contas-pagar" element={<ContasPagarPage />} />
-          <Route path="inadimplencia" element={<ModulePlaceholder module="Inadimplência" />} />
+          <Route path="inadimplencia" element={<InadimplenciaPage />} />
           <Route path="conciliacao" element={<ConciliacaoPage />} />
           <Route path="conciliacao/regras" element={<RegrasConciliacaoPage />} />
           <Route path="conciliacao/fechamento" element={<FechamentoCaixaPage />} />
           <Route path="contas-bancarias" element={<ContasBancariasPage />} />
           <Route path="dre" element={<DREPage />} />
           <Route path="fluxo-caixa" element={<FluxoCaixaPage />} />
-          <Route path="relatorios" element={<ModulePlaceholder module="Relatórios Gerenciais" />} />
-          <Route path="configuracoes" element={<ModulePlaceholder module="Configurações Financeiras" />} />
+          <Route path="relatorios" element={<RelatoriosGerenciaisPage />} />
+          <Route path="configuracoes" element={<ConfiguracoesFinanceirasPage />} />
         </Route>
         
         {/* Módulo CRM & Tasks - Unificado - PROTEGIDO */}

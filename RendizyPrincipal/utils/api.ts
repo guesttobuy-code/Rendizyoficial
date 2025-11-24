@@ -1430,10 +1430,10 @@ import type {
   ContaBancaria, 
   CentroCusto,
   ContaContabil,
-  FiltroFinanceiro,
-  PaginatedResponse
-  RegraConciliacao,
-  LinhaExtrato,
+    FiltroFinanceiro,
+    PaginatedResponse,
+    RegraConciliacao,
+    LinhaExtrato,
 } from '../types/financeiro';
 
 export const financeiroApi = {
