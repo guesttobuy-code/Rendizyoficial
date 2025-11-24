@@ -62,8 +62,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!isPeriodicCheck) {
             console.log('⚠️ [AuthContext] Token não encontrado no localStorage');
           }
+          // ✅ CORREÇÃO: Não limpar user imediatamente - pode estar em navegação
+          // Apenas marcar como não carregando se não for periódica
           if (isMounted && !isPeriodicCheck) {
-            setUser(null);
+            // Não limpar user aqui - pode estar em transição de navegação
             setIsLoading(false);
           }
           return;
