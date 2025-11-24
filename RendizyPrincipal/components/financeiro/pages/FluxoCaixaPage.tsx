@@ -3,7 +3,7 @@
  * Projeção de fluxo de caixa com cenários
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { KpiCard } from '../components/KpiCard';
 import { Money } from '../components/Money';
 import { PeriodPicker } from '../components/PeriodPicker';
@@ -11,19 +11,130 @@ import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
-import { Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { Download, TrendingUp, TrendingDown, DollarSign, Loader2 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { startOfMonth, endOfMonth, addMonths, format } from 'date-fns';
+import { startOfMonth, endOfMonth, addMonths, format, eachMonthOfInterval, differenceInMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { ProjecaoFluxoCaixa } from '../../../types/financeiro';
+import { financeiroApi } from '../../../utils/api';
+import { toast } from 'sonner';
 
 export function FluxoCaixaPage() {
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(addMonths(new Date(), 5)));
   const [cenario, setCenario] = useState<'base' | 'otimista' | 'pessimista'>('base');
+  const [loading, setLoading] = useState(true);
+  const [projecoes, setProjecoes] = useState<ProjecaoFluxoCaixa[]>([]);
 
-  // Mock data - 6 meses
-  const projecoes: ProjecaoFluxoCaixa[] = [
+  useEffect(() => {
+    loadFluxoCaixa();
+  }, [startDate, endDate, cenario]);
+
+  const loadFluxoCaixa = async () => {
+    try {
+      setLoading(true);
+      
+      // Gerar lista de meses no período
+      const meses = eachMonthOfInterval({ start: startDate, end: endDate });
+      
+      // Buscar títulos (contas a receber e a pagar) e lançamentos
+      const [titulosReceberRes, titulosPagarRes, lancamentosRes] = await Promise.all([
+        financeiroApi.titulos.list({ tipo: 'receber' }),
+        financeiroApi.titulos.list({ tipo: 'pagar' }),
+        financeiroApi.lancamentos.list({
+          dataInicio: format(startDate, 'yyyy-MM-dd'),
+          dataFim: format(endDate, 'yyyy-MM-dd'),
+          page: 1,
+          limit: 1000,
+        }),
+      ]);
+
+      const titulosReceber = titulosReceberRes.success && titulosReceberRes.data?.data ? titulosReceberRes.data.data : [];
+      const titulosPagar = titulosPagarRes.success && titulosPagarRes.data?.data ? titulosPagarRes.data.data : [];
+      const lancamentos = lancamentosRes.success && lancamentosRes.data?.data ? lancamentosRes.data.data : [];
+
+      // Agrupar por mês
+      const projecoesCalculadas: ProjecaoFluxoCaixa[] = meses.map((mes, index) => {
+        const mesStr = format(mes, 'MMM/yy', { locale: ptBR });
+        const mesInicio = startOfMonth(mes);
+        const mesFim = endOfMonth(mes);
+
+        // Entradas: títulos a receber vencendo neste mês + lançamentos de entrada
+        const entradasTitulos = titulosReceber
+          .filter((t: any) => {
+            const vencimento = new Date(t.vencimento);
+            return vencimento >= mesInicio && vencimento <= mesFim && t.status !== 'pago';
+          })
+          .reduce((sum: number, t: any) => sum + (t.valor - (t.valorPago || 0)), 0);
+
+        const entradasLancamentos = lancamentos
+          .filter((l: any) => {
+            const data = new Date(l.data);
+            return data >= mesInicio && data <= mesFim && l.tipo === 'entrada';
+          })
+          .reduce((sum: number, l: any) => sum + (l.valor || 0), 0);
+
+        const entradas = entradasTitulos + entradasLancamentos;
+
+        // Saídas: títulos a pagar vencendo neste mês + lançamentos de saída
+        const saidasTitulos = titulosPagar
+          .filter((t: any) => {
+            const vencimento = new Date(t.vencimento);
+            return vencimento >= mesInicio && vencimento <= mesFim && t.status !== 'pago';
+          })
+          .reduce((sum: number, t: any) => sum + (t.valor - (t.valorPago || 0)), 0);
+
+        const saidasLancamentos = lancamentos
+          .filter((l: any) => {
+            const data = new Date(l.data);
+            return data >= mesInicio && data <= mesFim && l.tipo === 'saida';
+          })
+          .reduce((sum: number, l: any) => sum + (l.valor || 0), 0);
+
+        const saidas = saidasTitulos + saidasLancamentos;
+
+        // Aplicar cenário
+        let entradasAjustadas = entradas;
+        let saidasAjustadas = saidas;
+        
+        if (cenario === 'otimista') {
+          entradasAjustadas = entradas * 1.1;
+          saidasAjustadas = saidas * 0.9;
+        } else if (cenario === 'pessimista') {
+          entradasAjustadas = entradas * 0.9;
+          saidasAjustadas = saidas * 1.1;
+        }
+
+        const saldo = entradasAjustadas - saidasAjustadas;
+
+        return {
+          periodo: mesStr,
+          entradas: entradasAjustadas,
+          saidas: saidasAjustadas,
+          saldo,
+          saldoAcumulado: 0, // Será calculado depois
+          cenario,
+        };
+      });
+
+      // Calcular saldo acumulado
+      let saldoAcumulado = 0;
+      projecoesCalculadas.forEach((proj, index) => {
+        saldoAcumulado += proj.saldo;
+        proj.saldoAcumulado = saldoAcumulado;
+      });
+
+      setProjecoes(projecoesCalculadas);
+    } catch (err: any) {
+      console.error('Erro ao carregar fluxo de caixa:', err);
+      toast.error('Erro ao carregar fluxo de caixa');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mock data - 6 meses (fallback)
+  const projecoesMock: ProjecaoFluxoCaixa[] = [
     { periodo: 'Nov/25', entradas: 145000, saidas: 68000, saldo: 77000, saldoAcumulado: 77000, cenario: 'base' },
     { periodo: 'Dez/25', entradas: 198000, saidas: 95000, saldo: 103000, saldoAcumulado: 180000, cenario: 'base' },
     { periodo: 'Jan/26', entradas: 175000, saidas: 82000, saldo: 93000, saldoAcumulado: 273000, cenario: 'base' },
@@ -32,14 +143,15 @@ export function FluxoCaixaPage() {
     { periodo: 'Abr/26', entradas: 201000, saidas: 98000, saldo: 103000, saldoAcumulado: 557000, cenario: 'base' }
   ];
 
+  const projecoesAtuais = projecoes.length > 0 ? projecoes : projecoesMock;
   const kpis = {
-    saldoAtual: 557000,
-    entradasPrevistas: projecoes.reduce((sum, p) => sum + p.entradas, 0),
-    saidasPrevistas: projecoes.reduce((sum, p) => sum + p.saidas, 0),
-    saldoFinal: 557000
+    saldoAtual: projecoesAtuais.length > 0 ? projecoesAtuais[0].saldoAcumulado : 0,
+    entradasPrevistas: projecoesAtuais.reduce((sum, p) => sum + p.entradas, 0),
+    saidasPrevistas: projecoesAtuais.reduce((sum, p) => sum + p.saidas, 0),
+    saldoFinal: projecoesAtuais.length > 0 ? projecoesAtuais[projecoesAtuais.length - 1].saldoAcumulado : 0,
   };
 
-  const chartData = projecoes.map(p => ({
+  const chartData = (projecoes.length > 0 ? projecoes : projecoesMock).map(p => ({
     periodo: p.periodo,
     'Entradas': p.entradas,
     'Saídas': p.saidas,
@@ -178,18 +290,24 @@ export function FluxoCaixaPage() {
 
           <TabsContent value="tabela" className="mt-4">
             <Card className="overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs uppercase tracking-wider">Período</th>
-                    <th className="px-4 py-3 text-right text-xs uppercase tracking-wider">Entradas</th>
-                    <th className="px-4 py-3 text-right text-xs uppercase tracking-wider">Saídas</th>
-                    <th className="px-4 py-3 text-right text-xs uppercase tracking-wider">Saldo</th>
-                    <th className="px-4 py-3 text-right text-xs uppercase tracking-wider">Acumulado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {projecoes.map((proj, idx) => (
+              {loading ? (
+                <div className="flex items-center justify-center h-64">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                  <span className="ml-2 text-gray-500">Carregando fluxo de caixa...</span>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-800">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs uppercase tracking-wider">Período</th>
+                      <th className="px-4 py-3 text-right text-xs uppercase tracking-wider">Entradas</th>
+                      <th className="px-4 py-3 text-right text-xs uppercase tracking-wider">Saídas</th>
+                      <th className="px-4 py-3 text-right text-xs uppercase tracking-wider">Saldo</th>
+                      <th className="px-4 py-3 text-right text-xs uppercase tracking-wider">Acumulado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {(projecoes.length > 0 ? projecoes : projecoesMock).map((proj, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                       <td className="px-4 py-3">{proj.periodo}</td>
                       <td className="px-4 py-3 text-right">
@@ -205,9 +323,10 @@ export function FluxoCaixaPage() {
                         <Money amount={proj.saldoAcumulado} colorize />
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </Card>
           </TabsContent>
         </Tabs>

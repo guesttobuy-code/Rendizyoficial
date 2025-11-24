@@ -3,23 +3,192 @@
  * Demonstração do Resultado do Exercício Gerencial
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { KpiCard } from '../components/KpiCard';
 import { Money } from '../components/Money';
 import { PeriodPicker } from '../components/PeriodPicker';
 import { Button } from '../../ui/button';
 import { Card } from '../../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
-import { Download, ChevronRight, ChevronDown, TrendingUp, DollarSign } from 'lucide-react';
+import { Download, ChevronRight, ChevronDown, TrendingUp, DollarSign, Loader2 } from 'lucide-react';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import type { ItemDRE } from '../../../types/financeiro';
+import { financeiroApi } from '../../../utils/api';
+import { toast } from 'sonner';
 
 export function DREPage() {
   const [startDate, setStartDate] = useState(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState(endOfMonth(new Date()));
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [dreData, setDreData] = useState<ItemDRE[]>([]);
 
-  // Mock data DRE
+  useEffect(() => {
+    loadDRE();
+  }, [startDate, endDate]);
+
+  const loadDRE = async () => {
+    try {
+      setLoading(true);
+      
+      const dataInicio = format(startDate, 'yyyy-MM-dd');
+      const dataFim = format(endDate, 'yyyy-MM-dd');
+      
+      // Buscar lançamentos e categorias
+      const [lancamentosRes, categoriasRes] = await Promise.all([
+        financeiroApi.lancamentos.list({
+          dataInicio,
+          dataFim,
+          page: 1,
+          limit: 1000,
+        }),
+        financeiroApi.categorias.list(),
+      ]);
+
+      if (!lancamentosRes.success || !categoriasRes.success) {
+        toast.error('Erro ao carregar dados para DRE');
+        return;
+      }
+
+      const lancamentos = lancamentosRes.data?.data || [];
+      const categorias = categoriasRes.data || [];
+
+      // Agrupar lançamentos por categoria
+      const lancamentosPorCategoria = new Map<string, number>();
+      
+      lancamentos.forEach((lanc: any) => {
+        if (lanc.categoriaId) {
+          const atual = lancamentosPorCategoria.get(lanc.categoriaId) || 0;
+          const valor = lanc.tipo === 'entrada' ? lanc.valor : -lanc.valor;
+          lancamentosPorCategoria.set(lanc.categoriaId, atual + valor);
+        }
+      });
+
+      // Construir estrutura hierárquica do DRE
+      const receitas = categorias
+        .filter(c => c.tipo === 'receita')
+        .map(c => ({
+          id: c.id,
+          codigo: c.codigo,
+          nome: c.nome,
+          nivel: 1,
+          tipo: 'conta' as const,
+          valor: lancamentosPorCategoria.get(c.id) || 0,
+          percentual: 0, // Será calculado depois
+        }));
+
+      const despesas = categorias
+        .filter(c => c.tipo === 'despesa')
+        .map(c => ({
+          id: c.id,
+          codigo: c.codigo,
+          nome: c.nome,
+          nivel: 1,
+          tipo: 'conta' as const,
+          valor: Math.abs(lancamentosPorCategoria.get(c.id) || 0),
+          percentual: 0, // Será calculado depois
+        }));
+
+      const receitaBruta = receitas.reduce((sum, r) => sum + r.valor, 0);
+      const custosOperacionais = despesas
+        .filter(d => d.codigo?.startsWith('5'))
+        .reduce((sum, d) => sum + d.valor, 0);
+      const despesasOperacionais = despesas
+        .filter(d => d.codigo?.startsWith('6'))
+        .reduce((sum, d) => sum + d.valor, 0);
+
+      const receitaLiquida = receitaBruta;
+      const lucroBruto = receitaLiquida - custosOperacionais;
+      const ebitda = lucroBruto - despesasOperacionais;
+      const lucroLiquido = ebitda;
+
+      // Calcular percentuais
+      receitas.forEach(r => {
+        r.percentual = receitaBruta > 0 ? (r.valor / receitaBruta) * 100 : 0;
+      });
+      despesas.forEach(d => {
+        d.percentual = receitaBruta > 0 ? (d.valor / receitaBruta) * 100 : 0;
+      });
+
+      const dre: ItemDRE[] = [
+        {
+          id: '1',
+          codigo: '3',
+          nome: 'RECEITA OPERACIONAL BRUTA',
+          nivel: 0,
+          tipo: 'grupo',
+          valor: receitaBruta,
+          percentual: 100,
+          children: receitas.filter(r => r.valor > 0),
+        },
+        {
+          id: '2',
+          codigo: '',
+          nome: '= RECEITA OPERACIONAL LÍQUIDA',
+          nivel: 0,
+          tipo: 'grupo',
+          valor: receitaLiquida,
+          percentual: receitaBruta > 0 ? (receitaLiquida / receitaBruta) * 100 : 0,
+        },
+        {
+          id: '3',
+          codigo: '5',
+          nome: '(-) CUSTOS OPERACIONAIS',
+          nivel: 0,
+          tipo: 'grupo',
+          valor: -custosOperacionais,
+          percentual: receitaBruta > 0 ? (-custosOperacionais / receitaBruta) * 100 : 0,
+          children: despesas.filter(d => d.codigo?.startsWith('5') && d.valor > 0),
+        },
+        {
+          id: '4',
+          codigo: '',
+          nome: '= LUCRO BRUTO',
+          nivel: 0,
+          tipo: 'grupo',
+          valor: lucroBruto,
+          percentual: receitaBruta > 0 ? (lucroBruto / receitaBruta) * 100 : 0,
+        },
+        {
+          id: '5',
+          codigo: '6',
+          nome: '(-) DESPESAS OPERACIONAIS',
+          nivel: 0,
+          tipo: 'grupo',
+          valor: -despesasOperacionais,
+          percentual: receitaBruta > 0 ? (-despesasOperacionais / receitaBruta) * 100 : 0,
+          children: despesas.filter(d => d.codigo?.startsWith('6') && d.valor > 0),
+        },
+        {
+          id: '6',
+          codigo: '',
+          nome: '= EBITDA',
+          nivel: 0,
+          tipo: 'grupo',
+          valor: ebitda,
+          percentual: receitaBruta > 0 ? (ebitda / receitaBruta) * 100 : 0,
+        },
+        {
+          id: '7',
+          codigo: '',
+          nome: '= RESULTADO LÍQUIDO',
+          nivel: 0,
+          tipo: 'grupo',
+          valor: lucroLiquido,
+          percentual: receitaBruta > 0 ? (lucroLiquido / receitaBruta) * 100 : 0,
+        },
+      ];
+
+      setDreData(dre);
+    } catch (err: any) {
+      console.error('Erro ao carregar DRE:', err);
+      toast.error('Erro ao carregar DRE');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mock data DRE (fallback)
   const dreMock: ItemDRE[] = [
     {
       id: '1',
@@ -253,13 +422,20 @@ export function DREPage() {
     );
   };
 
-  const kpis = {
-    receitaBruta: 145850,
-    receitaLiquida: 138557.5,
-    ebitda: 77430,
-    lucroLiquido: 77430,
-    margemBruta: 75,
-    margemLiquida: 53.1
+  const kpis = dreData.length > 0 ? {
+    receitaBruta: dreData.find(d => d.codigo === '3')?.valor || 0,
+    receitaLiquida: dreData.find(d => d.nome.includes('RECEITA OPERACIONAL LÍQUIDA'))?.valor || 0,
+    ebitda: dreData.find(d => d.nome.includes('EBITDA'))?.valor || 0,
+    lucroLiquido: dreData.find(d => d.nome.includes('RESULTADO LÍQUIDO'))?.valor || 0,
+    margemBruta: dreData.find(d => d.nome.includes('LUCRO BRUTO'))?.percentual || 0,
+    margemLiquida: dreData.find(d => d.nome.includes('RESULTADO LÍQUIDO'))?.percentual || 0,
+  } : {
+    receitaBruta: 0,
+    receitaLiquida: 0,
+    ebitda: 0,
+    lucroLiquido: 0,
+    margemBruta: 0,
+    margemLiquida: 0,
   };
 
   return (
@@ -327,9 +503,20 @@ export function DREPage() {
 
           <TabsContent value="consolidado" className="mt-4">
             <Card className="p-4">
-              <div className="space-y-1">
-                {dreMock.map((item) => renderDREItem(item))}
-              </div>
+              {loading ? (
+                <div className="flex items-center justify-center h-64">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                  <span className="ml-2 text-gray-500">Carregando DRE...</span>
+                </div>
+              ) : dreData.length === 0 ? (
+                <div className="flex items-center justify-center h-64">
+                  <span className="text-gray-500">Nenhum dado encontrado para o período selecionado</span>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {dreData.map((item) => renderDREItem(item))}
+                </div>
+              )}
             </Card>
           </TabsContent>
 
