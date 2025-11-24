@@ -574,7 +574,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextType = {
     user,
     organization,
-    isAuthenticated: !!user,
+    // ✅ CORREÇÃO: isAuthenticated deve considerar token também (evita deslogar durante validação)
+    isAuthenticated: !!user || !!localStorage.getItem('rendizy-token'),
     isLoading,
     login,
     logout,
