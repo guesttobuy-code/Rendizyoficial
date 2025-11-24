@@ -31,9 +31,11 @@ import {
   Search,
   Download,
   Calendar,
+  Upload,
+  Users,
+  Home,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { StaysNetReservationAnalyzer } from './StaysNetReservationAnalyzer';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 interface StaysNetConfig {
@@ -202,11 +204,11 @@ export default function StaysNetIntegration() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   
-  // 🎯 Estados para Preview de Reservas
-  const [isLoadingReservations, setIsLoadingReservations] = useState(false);
-  const [reservationsData, setReservationsData] = useState<any>(null);
-  const [reservationsError, setReservationsError] = useState<string | null>(null);
-  const [dateType, setDateType] = useState<'arrival' | 'departure' | 'created'>('arrival');
+  // 🎯 Estados para Importação
+  const [isImporting, setIsImporting] = useState(false);
+  const [importType, setImportType] = useState<'all' | 'properties' | 'reservations' | 'guests' | null>(null);
+  const [importStats, setImportStats] = useState<any>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   
   // 🎯 Validação inteligente da URL
   const validateBaseUrl = (url: string): { 
@@ -443,121 +445,6 @@ export default function StaysNetIntegration() {
     }
   };
 
-  // 🎯 Buscar Reservas da API Stays.net
-  const handleFetchReservations = async (startDate?: string, endDate?: string) => {
-    setIsLoadingReservations(true);
-    setReservationsError(null);
-    setReservationsData(null);
-    
-    try {
-      console.log('[StaysNet] Fetching reservations...');
-      console.log('[StaysNet] Parameters:', { startDate, endDate, dateType });
-      
-      let url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/staysnet/reservations/preview`;
-      
-      // Adicionar parâmetros de data se fornecidos
-      const params = new URLSearchParams();
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
-      params.append('dateType', dateType); // SEMPRE enviar dateType
-      if (params.toString()) url += `?${params.toString()}`;
-      
-      console.log('[StaysNet] Request URL:', url);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
-      });
-
-      console.log('[StaysNet] Response status:', response.status);
-      console.log('[StaysNet] Response OK:', response.ok);
-
-      const data = await response.json();
-      console.log('[StaysNet] Response data:', data);
-      console.log('[StaysNet] Data.success:', data.success);
-      console.log('[StaysNet] Data.error:', data.error);
-
-      if (response.ok && data.success) {
-        // 🎯 DEBUG MODE: Analisar estrutura da resposta
-        const rawApiData = data.data?.data; // A resposta real da API Stays.net
-        console.log('\n='.repeat(80));
-        console.log('🔍 ANÁLISE DA ESTRUTURA DA RESPOSTA DA API STAYS.NET');
-        console.log('='.repeat(80));
-        console.log('📦 Resposta completa do backend:', data);
-        console.log('📦 data.data (wrapper RENDIZY):', data.data);
-        console.log('📦 data.data.data (resposta real da API):', rawApiData);
-        console.log('\n🔎 TESTE 1: Array direto?');
-        console.log('   Array.isArray(rawApiData):', Array.isArray(rawApiData));
-        if (Array.isArray(rawApiData)) {
-          console.log('   ✅ SIM! É array direto com', rawApiData.length, 'itens');
-        }
-        console.log('\n🔎 TESTE 2: Dentro de data.reservations?');
-        console.log('   rawApiData?.reservations existe?', !!rawApiData?.reservations);
-        if (rawApiData?.reservations) {
-          console.log('   Array.isArray(rawApiData.reservations):', Array.isArray(rawApiData.reservations));
-          if (Array.isArray(rawApiData.reservations)) {
-            console.log('   ✅ SIM! Está em .reservations com', rawApiData.reservations.length, 'itens');
-          }
-        }
-        console.log('\n🔎 TESTE 3: Outras possibilidades');
-        console.log('   rawApiData?.items?', !!rawApiData?.items);
-        console.log('   rawApiData?.results?', !!rawApiData?.results);
-        console.log('   rawApiData?.data?', !!rawApiData?.data);
-        console.log('\n📋 CHAVES DISPONÍVEIS no rawApiData:');
-        if (rawApiData && typeof rawApiData === 'object' && !Array.isArray(rawApiData)) {
-          console.log('   ', Object.keys(rawApiData).join(', '));
-        }
-        console.log('\n💾 JSON COMPLETO (primeiros 1000 chars):');
-        console.log(JSON.stringify(rawApiData, null, 2).substring(0, 1000));
-        console.log('='.repeat(80) + '\n');
-        
-        setReservationsData(data.data);
-        toast.success(`✅ ${data.data.count || 0} reservas encontradas!`);
-        console.log('[StaysNet] ✅ Reservations fetched successfully:', data.data);
-        
-        // 🎯 ALERT AMIGÁVEL COM ESTRUTURA
-        const alertMsg = `🎯 DEBUG - ESTRUTURA DA RESPOSTA DA API\n\n` +
-          `✅ Status: ${response.status} OK\n\n` +
-          `📊 ANÁLISE:\n` +
-          `• É array direto? ${Array.isArray(rawApiData) ? 'SIM ✅' : 'NÃO ❌'}\n` +
-          `• Tem .reservations? ${rawApiData?.reservations ? 'SIM ✅' : 'NÃO ❌'}\n` +
-          `• Tem .items? ${rawApiData?.items ? 'SIM ✅' : 'NÃO ❌'}\n` +
-          `• Tem .results? ${rawApiData?.results ? 'SIM ✅' : 'NÃO ❌'}\n` +
-          `• Tem .data? ${rawApiData?.data ? 'SIM ✅' : 'NÃO ❌'}\n\n` +
-          `🔑 CHAVES DISPONÍVEIS:\n${rawApiData && typeof rawApiData === 'object' && !Array.isArray(rawApiData) ? Object.keys(rawApiData).join('\n') : 'N/A'}\n\n` +
-          `📦 JSON (preview):\n${JSON.stringify(rawApiData, null, 2).substring(0, 500)}...\n\n` +
-          `👀 Veja o Console (F12) para o JSON COMPLETO!`;
-        
-        alert(alertMsg);
-      } else {
-        const errorMsg = data.error || data.message || 'Erro ao buscar reservas';
-        const detailedError = `${errorMsg}${data.details ? `\n\nDetalhes: ${JSON.stringify(data.details, null, 2)}` : ''}`;
-        setReservationsError(detailedError);
-        
-        // Alert com informações de debug
-        alert(`🔍 DEBUG - Erro ao Buscar Reservas\n\n` +
-          `URL: ${url}\n\n` +
-          `Status: ${response.status}\n\n` +
-          `Erro: ${errorMsg}\n\n` +
-          `Response completa:\n${JSON.stringify(data, null, 2)}\n\n` +
-          `Abra o Console do Browser (F12) para mais detalhes.`);
-        
-        toast.error(errorMsg, { duration: 5000 });
-        console.error('[StaysNet] ❌ Error fetching reservations:', errorMsg);
-        console.error('[StaysNet] ❌ Full error data:', data);
-      }
-    } catch (error: any) {
-      console.error('[StaysNet] ❌ Exception caught:', error);
-      console.error('[StaysNet] ❌ Error stack:', error.stack);
-      const errorMsg = error.message || 'Erro ao conectar com a API';
-      setReservationsError(errorMsg);
-      toast.error(errorMsg, { duration: 5000 });
-    } finally {
-      setIsLoadingReservations(false);
-    }
-  };
 
   const handleExportResponse = (endpointId: string) => {
     const response = apiResponses.get(endpointId);
@@ -573,6 +460,125 @@ export default function StaysNetIntegration() {
     URL.revokeObjectURL(url);
     
     toast.success('Resposta exportada com sucesso!');
+  };
+
+  // 🎯 Função de Importação Completa
+  const handleFullImport = async () => {
+    setIsImporting(true);
+    setImportType('all');
+    setImportError(null);
+    setImportStats(null);
+
+    try {
+      const token = localStorage.getItem('rendizy-token');
+      if (!token) {
+        throw new Error('Token não encontrado. Faça login novamente.');
+      }
+
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/staysnet/import/full`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Auth-Token': token,
+            'apikey': publicAnonKey,
+          },
+          body: JSON.stringify({
+            startDate: '2025-01-01',
+            endDate: '2026-12-31',
+            // Não especificar selectedPropertyIds = importar TODAS
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setImportStats(data.stats);
+        toast.success('Importação completa realizada com sucesso!');
+        
+        // Atualizar lastSync
+        setConfig({ ...config, lastSync: new Date().toISOString() });
+      } else {
+        throw new Error(data.error || 'Erro ao importar dados');
+      }
+    } catch (error: any) {
+      console.error('Erro ao importar:', error);
+      setImportError(error.message || 'Erro ao importar dados');
+      toast.error(error.message || 'Erro ao importar dados');
+    } finally {
+      setIsImporting(false);
+      setImportType(null);
+    }
+  };
+
+  // 🎯 Função de Importação Individual
+  const handleImport = async (type: 'properties' | 'reservations' | 'guests') => {
+    setIsImporting(true);
+    setImportType(type);
+    setImportError(null);
+    setImportStats(null);
+
+    try {
+      const token = localStorage.getItem('rendizy-token');
+      if (!token) {
+        throw new Error('Token não encontrado. Faça login novamente.');
+      }
+
+      // Para importação individual, também usamos a rota /import/full
+      // mas com parâmetros específicos
+      const body: any = {
+        startDate: '2025-01-01',
+        endDate: '2026-12-31',
+      };
+
+      // Se for apenas propriedades, não precisa de datas
+      if (type === 'properties') {
+        delete body.startDate;
+        delete body.endDate;
+      }
+
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/staysnet/import/full`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Auth-Token': token,
+            'apikey': publicAnonKey,
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Filtrar estatísticas apenas para o tipo importado
+        const filteredStats = {
+          guests: type === 'guests' ? data.stats.guests : { fetched: 0, created: 0, updated: 0, failed: 0 },
+          properties: type === 'properties' ? data.stats.properties : { fetched: 0, created: 0, updated: 0, failed: 0 },
+          reservations: type === 'reservations' ? data.stats.reservations : { fetched: 0, created: 0, updated: 0, failed: 0 },
+          errors: data.stats.errors || [],
+        };
+        
+        setImportStats(filteredStats);
+        toast.success(`${type === 'properties' ? 'Anúncios' : type === 'reservations' ? 'Reservas' : 'Hóspedes'} importados com sucesso!`);
+        
+        // Atualizar lastSync
+        setConfig({ ...config, lastSync: new Date().toISOString() });
+      } else {
+        throw new Error(data.error || 'Erro ao importar dados');
+      }
+    } catch (error: any) {
+      console.error('Erro ao importar:', error);
+      setImportError(error.message || 'Erro ao importar dados');
+      toast.error(error.message || 'Erro ao importar dados');
+    } finally {
+      setIsImporting(false);
+      setImportType(null);
+    }
   };
 
   const filteredEndpoints = API_ENDPOINTS.filter((endpoint) => {
@@ -610,13 +616,9 @@ export default function StaysNetIntegration() {
             <Key className="w-4 h-4 mr-2" />
             Configuração
           </TabsTrigger>
-          <TabsTrigger value="preview" className="flex-none justify-center px-4 py-2 min-w-[150px]">
-            <Eye className="w-4 h-4 mr-2" />
-            Preview Reservas
-          </TabsTrigger>
-          <TabsTrigger value="analyzer" className="flex-none justify-center px-4 py-2 min-w-[150px]">
-            <Calendar className="w-4 h-4 mr-2" />
-            Análise de Reservas
+          <TabsTrigger value="import" className="flex-none justify-center px-4 py-2 min-w-[150px]">
+            <Upload className="w-4 h-4 mr-2" />
+            Importação
           </TabsTrigger>
           <TabsTrigger value="mapping" className="flex-none justify-center px-4 py-2 min-w-[150px]">
             <Database className="w-4 h-4 mr-2" />
@@ -997,472 +999,256 @@ export default function StaysNetIntegration() {
           </Card>
         </TabsContent>
 
-        {/* TAB 2: PREVIEW DE RESERVAS DA API */}
-        <TabsContent value="preview" className="space-y-6">
+        {/* TAB 2: IMPORTAÇÃO */}
+        <TabsContent value="import" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Eye className="w-5 h-5" />
-                Preview de Reservas da API Real
+                <Upload className="w-5 h-5" />
+                Importar Dados do Stays.net
               </CardTitle>
               <CardDescription>
-                Busque e visualize reservas diretamente da API Stays.net em tempo real
+                Sincronize anúncios, reservas e hóspedes do Stays.net para o Rendizy
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Info sobre range padrão */}
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  Por padrão, busca reservas dos <strong>últimos 30 dias até os próximos 365 dias</strong>. 
-                  Você pode personalizar o período de busca se desejar.
-                </AlertDescription>
-              </Alert>
-
-              {/* Filtros de Busca */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border">
-                <div className="space-y-2">
-                  <Label htmlFor="dateType">Tipo de Data</Label>
-                  <Select value={dateType} onValueChange={(value: any) => setDateType(value)}>
-                    <SelectTrigger id="dateType">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="arrival">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <div>
-                            <div className="font-medium">Check-in (Arrival)</div>
-                            <div className="text-xs text-gray-500">Data de chegada do hóspede</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="departure">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <div>
-                            <div className="font-medium">Check-out (Departure)</div>
-                            <div className="text-xs text-gray-500">Data de saída do hóspede</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="created">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <div>
-                            <div className="font-medium">Criação (Created)</div>
-                            <div className="text-xs text-gray-500">Data de criação da reserva</div>
-                          </div>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500">
-                    Filtrar reservas por: {dateType === 'arrival' ? 'data de chegada' : dateType === 'departure' ? 'data de saída' : 'data de criação'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Botões de Busca */}
-              <div className="space-y-3">
-                {/* Busca Padrão */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Button
-                    onClick={() => handleFetchReservations()}
-                    disabled={isLoadingReservations || !config.apiKey || !config.baseUrl}
-                    className="flex items-center gap-2"
-                  >
-                    {isLoadingReservations ? (
-                      <span className="flex items-center">
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Buscando...
-                      </span>
-                    ) : (
-                      <span className="flex items-center">
-                        <Download className="w-4 h-4 mr-2" />
-                        Buscar Reservas (Padrão)
-                      </span>
-                    )}
-                  </Button>
-                  
-                  {reservationsData && (
-                    <Badge variant="outline" className="text-sm">
-                      {reservationsData.count || 0} reservas encontradas
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Buscas Rápidas */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm text-gray-500">Buscas Rápidas:</span>
-                  
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const today = new Date().toISOString().split('T')[0];
-                      handleFetchReservations(today, today);
-                    }}
-                    disabled={isLoadingReservations || !config.apiKey || !config.baseUrl}
-                    className="flex items-center gap-2"
-                  >
-                    <Calendar className="w-3 h-3" />
-                    Hoje ({new Date().toLocaleDateString('pt-BR')})
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const tomorrow = new Date();
-                      tomorrow.setDate(tomorrow.getDate() + 1);
-                      const tomorrowStr = tomorrow.toISOString().split('T')[0];
-                      handleFetchReservations(tomorrowStr, tomorrowStr);
-                    }}
-                    disabled={isLoadingReservations || !config.apiKey || !config.baseUrl}
-                    className="flex items-center gap-2"
-                  >
-                    <Calendar className="w-3 h-3" />
-                    Amanhã
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const today = new Date();
-                      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-                      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                      handleFetchReservations(
-                        firstDay.toISOString().split('T')[0],
-                        lastDay.toISOString().split('T')[0]
-                      );
-                    }}
-                    disabled={isLoadingReservations || !config.apiKey || !config.baseUrl}
-                    className="flex items-center gap-2"
-                  >
-                    <Calendar className="w-3 h-3" />
-                    Este Mês
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const today = new Date();
-                      const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-                      const lastDayNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-                      handleFetchReservations(
-                        nextMonth.toISOString().split('T')[0],
-                        lastDayNextMonth.toISOString().split('T')[0]
-                      );
-                    }}
-                    disabled={isLoadingReservations || !config.apiKey || !config.baseUrl}
-                    className="flex items-center gap-2"
-                  >
-                    <Calendar className="w-3 h-3" />
-                    Próximo Mês
-                  </Button>
-                </div>
-
-                {/* Dica sobre tipo de data */}
-                <p className="text-xs text-gray-500 italic">
-                  💡 As buscas rápidas usam o <strong>Tipo de Data</strong> selecionado acima 
-                  ({dateType === 'arrival' ? '📥 Check-in' : dateType === 'departure' ? '📤 Check-out' : '📝 Criação'})
-                </p>
-              </div>
-
-              {/* Mensagem de Erro */}
-              {reservationsError && (
+            <CardContent className="space-y-6">
+              {/* Alerta de Configuração */}
+              {(!config.apiKey || !config.baseUrl) && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{reservationsError}</AlertDescription>
-                </Alert>
-              )}
-
-              {/* Dados das Reservas */}
-              {reservationsData && (
-                <div className="space-y-4">
-                  {/* Info Header */}
-                  <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-green-600" />
-                      <div>
-                        <p className="font-medium text-green-900 dark:text-green-100">
-                          Dados recebidos com sucesso!
-                        </p>
-                        <p className="text-sm text-green-700 dark:text-green-300">
-                          {reservationsData.count || 0} reservas • {reservationsData.timestamp ? new Date(reservationsData.timestamp).toLocaleString('pt-BR') : 'Agora'}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        const dataStr = JSON.stringify(reservationsData.data, null, 2);
-                        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                        const url = URL.createObjectURL(dataBlob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `stays-net-reservations-${Date.now()}.json`;
-                        link.click();
-                        URL.revokeObjectURL(url);
-                        toast.success('Reservas exportadas!');
-                      }}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Exportar JSON
-                    </Button>
-                  </div>
-
-                  {/* 🎯 CARD DE ANÁLISE DA ESTRUTURA */}
-                  <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-300">
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Search className="w-5 h-5 text-blue-600" />
-                        🔍 Análise da Estrutura de Dados
-                      </CardTitle>
-                      <CardDescription>
-                        Diagnóstico automático para ajudar a interpretar o JSON
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        {/* TESTE 1: É array direto? */}
-                        <div className={`p-4 rounded-lg border-2 ${
-                          Array.isArray(reservationsData.data) 
-                            ? 'bg-green-100 border-green-400 dark:bg-green-900/30' 
-                            : 'bg-gray-100 border-gray-300 dark:bg-gray-800'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            {Array.isArray(reservationsData.data) ? (
-                              <CheckCircle2 className="w-5 h-5 text-green-600" />
-                            ) : (
-                              <XCircle className="w-5 h-5 text-gray-400" />
-                            )}
-                            <span className="font-semibold">Array Direto?</span>
-                          </div>
-                          <p className="text-sm">
-                            {Array.isArray(reservationsData.data) 
-                              ? `✅ SIM! Array com ${reservationsData.data.length} itens`
-                              : '❌ NÃO é array direto'}
-                          </p>
-                          <code className="text-xs mt-2 block bg-white dark:bg-gray-900 p-2 rounded">
-                            Array.isArray(data)
-                          </code>
-                        </div>
-
-                        {/* TESTE 2: Tem .reservations? */}
-                        <div className={`p-4 rounded-lg border-2 ${
-                          reservationsData.data?.reservations 
-                            ? 'bg-green-100 border-green-400 dark:bg-green-900/30' 
-                            : 'bg-gray-100 border-gray-300 dark:bg-gray-800'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            {reservationsData.data?.reservations ? (
-                              <CheckCircle2 className="w-5 h-5 text-green-600" />
-                            ) : (
-                              <XCircle className="w-5 h-5 text-gray-400" />
-                            )}
-                            <span className="font-semibold">Tem .reservations?</span>
-                          </div>
-                          <p className="text-sm">
-                            {reservationsData.data?.reservations 
-                              ? `✅ SIM! ${Array.isArray(reservationsData.data.reservations) ? `Array com ${reservationsData.data.reservations.length} itens` : 'Objeto'}`
-                              : '❌ NÃO existe'}
-                          </p>
-                          <code className="text-xs mt-2 block bg-white dark:bg-gray-900 p-2 rounded">
-                            data.reservations
-                          </code>
-                        </div>
-
-                        {/* TESTE 3: Tem .items? */}
-                        <div className={`p-4 rounded-lg border-2 ${
-                          reservationsData.data?.items 
-                            ? 'bg-green-100 border-green-400 dark:bg-green-900/30' 
-                            : 'bg-gray-100 border-gray-300 dark:bg-gray-800'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            {reservationsData.data?.items ? (
-                              <CheckCircle2 className="w-5 h-5 text-green-600" />
-                            ) : (
-                              <XCircle className="w-5 h-5 text-gray-400" />
-                            )}
-                            <span className="font-semibold">Tem .items?</span>
-                          </div>
-                          <p className="text-sm">
-                            {reservationsData.data?.items 
-                              ? `✅ SIM! ${Array.isArray(reservationsData.data.items) ? `Array com ${reservationsData.data.items.length} itens` : 'Objeto'}`
-                              : '❌ NÃO existe'}
-                          </p>
-                          <code className="text-xs mt-2 block bg-white dark:bg-gray-900 p-2 rounded">
-                            data.items
-                          </code>
-                        </div>
-
-                        {/* TESTE 4: Tem .results? */}
-                        <div className={`p-4 rounded-lg border-2 ${
-                          reservationsData.data?.results 
-                            ? 'bg-green-100 border-green-400 dark:bg-green-900/30' 
-                            : 'bg-gray-100 border-gray-300 dark:bg-gray-800'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            {reservationsData.data?.results ? (
-                              <CheckCircle2 className="w-5 h-5 text-green-600" />
-                            ) : (
-                              <XCircle className="w-5 h-5 text-gray-400" />
-                            )}
-                            <span className="font-semibold">Tem .results?</span>
-                          </div>
-                          <p className="text-sm">
-                            {reservationsData.data?.results 
-                              ? `✅ SIM! ${Array.isArray(reservationsData.data.results) ? `Array com ${reservationsData.data.results.length} itens` : 'Objeto'}`
-                              : '❌ NÃO existe'}
-                          </p>
-                          <code className="text-xs mt-2 block bg-white dark:bg-gray-900 p-2 rounded">
-                            data.results
-                          </code>
-                        </div>
-                      </div>
-
-                      {/* CHAVES DISPONÍVEIS */}
-                      {reservationsData.data && typeof reservationsData.data === 'object' && !Array.isArray(reservationsData.data) && (
-                        <Alert className="bg-yellow-50 border-yellow-300 dark:bg-yellow-900/20">
-                          <Info className="h-4 w-4 text-yellow-700" />
-                          <AlertDescription>
-                            <p className="font-semibold mb-2 text-yellow-900 dark:text-yellow-100">
-                              🔑 Chaves disponíveis no objeto:
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {Object.keys(reservationsData.data).map((key) => (
-                                <Badge key={key} variant="outline" className="bg-white dark:bg-gray-800">
-                                  {key}
-                                  {Array.isArray(reservationsData.data[key]) && 
-                                    ` [${reservationsData.data[key].length}]`
-                                  }
-                                </Badge>
-                              ))}
-                            </div>
-                          </AlertDescription>
-                        </Alert>
-                      )}
-
-                      {/* TIPO DE DADOS */}
-                      <div className="p-3 bg-white dark:bg-gray-800 rounded border">
-                        <p className="text-sm mb-1"><strong>Tipo de dados:</strong></p>
-                        <code className="text-xs">
-                          {Array.isArray(reservationsData.data) ? 'Array' : typeof reservationsData.data}
-                        </code>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Visualização das Reservas */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">📄 JSON Bruto Completo</CardTitle>
-                      <CardDescription>
-                        JSON retornado pela API Stays.net (copie e cole para análise)
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ScrollArea className="h-[500px] w-full rounded-md border p-4">
-                        <pre className="text-sm">
-                          <code>{JSON.stringify(reservationsData.data, null, 2)}</code>
-                        </pre>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
-
-                  {/* Detalhes de Cada Reserva (se for array) */}
-                  {Array.isArray(reservationsData.data) && reservationsData.data.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="font-semibold text-lg">Reservas Individuais</h3>
-                      <div className="grid gap-3">
-                        {reservationsData.data.slice(0, 10).map((reservation: any, index: number) => (
-                          <Card key={index} className="border-l-4 border-l-blue-500">
-                            <CardContent className="p-4">
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div>
-                                  <p className="text-xs text-muted-foreground">ID</p>
-                                  <p className="font-mono text-sm">{reservation.id || reservation.reservation_id || 'N/A'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Hóspede</p>
-                                  <p className="text-sm">{reservation.guest_name || reservation.guestName || 'N/A'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Check-in</p>
-                                  <p className="text-sm">{reservation.check_in || reservation.checkIn || 'N/A'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Check-out</p>
-                                  <p className="text-sm">{reservation.check_out || reservation.checkOut || 'N/A'}</p>
-                                </div>
-                              </div>
-                              
-                              {/* Botão para ver JSON completo */}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="mt-3"
-                                onClick={() => {
-                                  console.log('Reservation details:', reservation);
-                                  toast.info('Veja o console para detalhes completos');
-                                }}
-                              >
-                                <Eye className="w-3 h-3 mr-2" />
-                                Ver Detalhes no Console
-                              </Button>
-                            </CardContent>
-                          </Card>
-                        ))}
-                        
-                        {reservationsData.data.length > 10 && (
-                          <Alert>
-                            <Info className="h-4 w-4" />
-                            <AlertDescription>
-                              Mostrando 10 de {reservationsData.data.length} reservas. 
-                              Use "Exportar JSON" para ver todas.
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Estado Vazio */}
-              {!reservationsData && !reservationsError && !isLoadingReservations && (
-                <Alert>
-                  <Info className="h-4 w-4" />
                   <AlertDescription>
-                    Clique em "Buscar Todas as Reservas" para ver os dados da API Stays.net
+                    Configure suas credenciais na aba "Configuração" antes de importar dados.
                   </AlertDescription>
                 </Alert>
               )}
+
+              {/* Botões de Importação */}
+              {config.apiKey && config.baseUrl && (
+                <div className="space-y-4">
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Importação Completa:</strong> Importa todos os anúncios, todas as reservas (01/01/2025 até 31/12/2026) e todos os hóspedes desse período.
+                    </AlertDescription>
+                  </Alert>
+
+                  {/* Botão Importação Completa */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card className="border-2 border-blue-500">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Database className="w-5 h-5 text-blue-600" />
+                          Importação Completa
+                        </CardTitle>
+                        <CardDescription>
+                          Importa anúncios, reservas e hóspedes de uma vez
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <Button
+                          onClick={() => handleFullImport()}
+                          disabled={isImporting}
+                          className="w-full"
+                          size="lg"
+                        >
+                          {isImporting && importType === 'all' ? (
+                            <span className="flex items-center">
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Importando...
+                            </span>
+                          ) : (
+                            <span className="flex items-center">
+                              <Upload className="w-4 h-4 mr-2" />
+                              Importar Tudo
+                            </span>
+                          )}
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          • Anúncios (propriedades)<br />
+                          • Reservas (01/01/2025 - 31/12/2026)<br />
+                          • Hóspedes
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Botões Individuais */}
+                    <div className="space-y-3">
+                      <Card>
+                        <CardContent className="pt-6">
+                          <Button
+                            onClick={() => handleImport('properties')}
+                            disabled={isImporting}
+                            variant="outline"
+                            className="w-full"
+                            size="lg"
+                          >
+                            {isImporting && importType === 'properties' ? (
+                              <span className="flex items-center">
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Importando...
+                              </span>
+                            ) : (
+                              <span className="flex items-center">
+                                <Home className="w-4 h-4 mr-2" />
+                                Importar Anúncios
+                              </span>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="pt-6">
+                          <Button
+                            onClick={() => handleImport('reservations')}
+                            disabled={isImporting}
+                            variant="outline"
+                            className="w-full"
+                            size="lg"
+                          >
+                            {isImporting && importType === 'reservations' ? (
+                              <span className="flex items-center">
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Importando...
+                              </span>
+                            ) : (
+                              <span className="flex items-center">
+                                <Calendar className="w-4 h-4 mr-2" />
+                                Importar Reservas
+                              </span>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="pt-6">
+                          <Button
+                            onClick={() => handleImport('guests')}
+                            disabled={isImporting}
+                            variant="outline"
+                            className="w-full"
+                            size="lg"
+                          >
+                            {isImporting && importType === 'guests' ? (
+                              <span className="flex items-center">
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Importando...
+                              </span>
+                            ) : (
+                              <span className="flex items-center">
+                                <Users className="w-4 h-4 mr-2" />
+                                Importar Hóspedes
+                              </span>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+
+                  {/* Estatísticas de Importação */}
+                  {importStats && (
+                    <Card className="bg-green-50 dark:bg-green-900/20 border-green-200">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-green-900 dark:text-green-100">
+                          <CheckCircle2 className="w-5 h-5" />
+                          Importação Concluída!
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {/* Hóspedes */}
+                          <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Users className="w-4 h-4 text-blue-600" />
+                              <span className="font-semibold">Hóspedes</span>
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <p>Buscados: <strong>{importStats.guests?.fetched || 0}</strong></p>
+                              <p>Criados: <strong className="text-green-600">{importStats.guests?.created || 0}</strong></p>
+                              <p>Atualizados: <strong className="text-blue-600">{importStats.guests?.updated || 0}</strong></p>
+                              {importStats.guests?.failed > 0 && (
+                                <p className="text-red-600">Falharam: <strong>{importStats.guests.failed}</strong></p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Propriedades */}
+                          <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Home className="w-4 h-4 text-purple-600" />
+                              <span className="font-semibold">Propriedades</span>
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <p>Buscadas: <strong>{importStats.properties?.fetched || 0}</strong></p>
+                              <p>Criadas: <strong className="text-green-600">{importStats.properties?.created || 0}</strong></p>
+                              <p>Atualizadas: <strong className="text-blue-600">{importStats.properties?.updated || 0}</strong></p>
+                              {importStats.properties?.failed > 0 && (
+                                <p className="text-red-600">Falharam: <strong>{importStats.properties.failed}</strong></p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Reservas */}
+                          <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Calendar className="w-4 h-4 text-green-600" />
+                              <span className="font-semibold">Reservas</span>
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <p>Buscadas: <strong>{importStats.reservations?.fetched || 0}</strong></p>
+                              <p>Criadas: <strong className="text-green-600">{importStats.reservations?.created || 0}</strong></p>
+                              <p>Atualizadas: <strong className="text-blue-600">{importStats.reservations?.updated || 0}</strong></p>
+                              {importStats.reservations?.failed > 0 && (
+                                <p className="text-red-600">Falharam: <strong>{importStats.reservations.failed}</strong></p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Erros (se houver) */}
+                        {importStats.errors && importStats.errors.length > 0 && (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>
+                              <strong>Erros encontrados:</strong>
+                              <ul className="list-disc list-inside mt-2 text-sm">
+                                {importStats.errors.slice(0, 5).map((error: string, index: number) => (
+                                  <li key={index}>{error}</li>
+                                ))}
+                                {importStats.errors.length > 5 && (
+                                  <li>... e mais {importStats.errors.length - 5} erros</li>
+                                )}
+                              </ul>
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Erro de Importação */}
+                  {importError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{importError}</AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* TAB 3: ANÁLISE DE RESERVAS */}
-        <TabsContent value="analyzer" className="space-y-6">
-          {config.apiKey && config.baseUrl ? (
-            <StaysNetReservationAnalyzer
-              apiKey={config.apiKey}
-              baseUrl={config.baseUrl}
-            />
-          ) : (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Configure e salve suas credenciais na aba "Configuração" primeiro.
-              </AlertDescription>
-            </Alert>
-          )}
+          {/* Nota sobre Sincronização Automática */}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <strong>🔄 Sincronização Automática:</strong> O sistema está planejado para sincronizar automaticamente 
+              a cada 1 minuto, buscando novas propriedades, reservas e hóspedes do Stays.net. 
+              Esta funcionalidade será implementada em breve.
+            </AlertDescription>
+          </Alert>
         </TabsContent>
 
         {/* TAB 4: MAPEAMENTO DE CAMPOS */}
@@ -1670,6 +1456,248 @@ export default function StaysNetIntegration() {
               </Card>
             </div>
           </div>
+        </TabsContent>
+
+        {/* TAB 6: IMPORTAÇÃO */}
+        <TabsContent value="import" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="w-5 h-5" />
+                Importar Dados do Stays.net
+              </CardTitle>
+              <CardDescription>
+                Sincronize anúncios, reservas e hóspedes do Stays.net para o Rendizy
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Alerta de Configuração */}
+              {(!config.apiKey || !config.baseUrl) && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Configure suas credenciais na aba "Configuração" antes de importar dados.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Botões de Importação */}
+              {config.apiKey && config.baseUrl && (
+                <div className="space-y-4">
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Importação Completa:</strong> Importa todos os anúncios, todas as reservas (01/01/2025 até 31/12/2026) e todos os hóspedes desse período.
+                    </AlertDescription>
+                  </Alert>
+
+                  {/* Botão Importação Completa */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card className="border-2 border-blue-500">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Database className="w-5 h-5 text-blue-600" />
+                          Importação Completa
+                        </CardTitle>
+                        <CardDescription>
+                          Importa anúncios, reservas e hóspedes de uma vez
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <Button
+                          onClick={() => handleFullImport()}
+                          disabled={isImporting}
+                          className="w-full"
+                          size="lg"
+                        >
+                          {isImporting && importType === 'all' ? (
+                            <span className="flex items-center">
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Importando...
+                            </span>
+                          ) : (
+                            <span className="flex items-center">
+                              <Upload className="w-4 h-4 mr-2" />
+                              Importar Tudo
+                            </span>
+                          )}
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          • Anúncios (propriedades)<br />
+                          • Reservas (01/01/2025 - 31/12/2026)<br />
+                          • Hóspedes
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Botões Individuais */}
+                    <div className="space-y-3">
+                      <Card>
+                        <CardContent className="pt-6">
+                          <Button
+                            onClick={() => handleImport('properties')}
+                            disabled={isImporting}
+                            variant="outline"
+                            className="w-full"
+                            size="lg"
+                          >
+                            {isImporting && importType === 'properties' ? (
+                              <span className="flex items-center">
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Importando...
+                              </span>
+                            ) : (
+                              <span className="flex items-center">
+                                <Home className="w-4 h-4 mr-2" />
+                                Importar Anúncios
+                              </span>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="pt-6">
+                          <Button
+                            onClick={() => handleImport('reservations')}
+                            disabled={isImporting}
+                            variant="outline"
+                            className="w-full"
+                            size="lg"
+                          >
+                            {isImporting && importType === 'reservations' ? (
+                              <span className="flex items-center">
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Importando...
+                              </span>
+                            ) : (
+                              <span className="flex items-center">
+                                <Calendar className="w-4 h-4 mr-2" />
+                                Importar Reservas
+                              </span>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="pt-6">
+                          <Button
+                            onClick={() => handleImport('guests')}
+                            disabled={isImporting}
+                            variant="outline"
+                            className="w-full"
+                            size="lg"
+                          >
+                            {isImporting && importType === 'guests' ? (
+                              <span className="flex items-center">
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Importando...
+                              </span>
+                            ) : (
+                              <span className="flex items-center">
+                                <Users className="w-4 h-4 mr-2" />
+                                Importar Hóspedes
+                              </span>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+
+                  {/* Estatísticas de Importação */}
+                  {importStats && (
+                    <Card className="bg-green-50 dark:bg-green-900/20 border-green-200">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-green-900 dark:text-green-100">
+                          <CheckCircle2 className="w-5 h-5" />
+                          Importação Concluída!
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {/* Hóspedes */}
+                          <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Users className="w-4 h-4 text-blue-600" />
+                              <span className="font-semibold">Hóspedes</span>
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <p>Buscados: <strong>{importStats.guests?.fetched || 0}</strong></p>
+                              <p>Criados: <strong className="text-green-600">{importStats.guests?.created || 0}</strong></p>
+                              <p>Atualizados: <strong className="text-blue-600">{importStats.guests?.updated || 0}</strong></p>
+                              {importStats.guests?.failed > 0 && (
+                                <p className="text-red-600">Falharam: <strong>{importStats.guests.failed}</strong></p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Propriedades */}
+                          <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Home className="w-4 h-4 text-purple-600" />
+                              <span className="font-semibold">Propriedades</span>
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <p>Buscadas: <strong>{importStats.properties?.fetched || 0}</strong></p>
+                              <p>Criadas: <strong className="text-green-600">{importStats.properties?.created || 0}</strong></p>
+                              <p>Atualizadas: <strong className="text-blue-600">{importStats.properties?.updated || 0}</strong></p>
+                              {importStats.properties?.failed > 0 && (
+                                <p className="text-red-600">Falharam: <strong>{importStats.properties.failed}</strong></p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Reservas */}
+                          <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Calendar className="w-4 h-4 text-green-600" />
+                              <span className="font-semibold">Reservas</span>
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <p>Buscadas: <strong>{importStats.reservations?.fetched || 0}</strong></p>
+                              <p>Criadas: <strong className="text-green-600">{importStats.reservations?.created || 0}</strong></p>
+                              <p>Atualizadas: <strong className="text-blue-600">{importStats.reservations?.updated || 0}</strong></p>
+                              {importStats.reservations?.failed > 0 && (
+                                <p className="text-red-600">Falharam: <strong>{importStats.reservations.failed}</strong></p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Erros (se houver) */}
+                        {importStats.errors && importStats.errors.length > 0 && (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>
+                              <strong>Erros encontrados:</strong>
+                              <ul className="list-disc list-inside mt-2 text-sm">
+                                {importStats.errors.slice(0, 5).map((error: string, index: number) => (
+                                  <li key={index}>{error}</li>
+                                ))}
+                                {importStats.errors.length > 5 && (
+                                  <li>... e mais {importStats.errors.length - 5} erros</li>
+                                )}
+                              </ul>
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Erro de Importação */}
+                  {importError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{importError}</AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
