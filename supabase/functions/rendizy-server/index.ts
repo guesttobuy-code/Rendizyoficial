@@ -34,6 +34,7 @@ import * as staysnetRoutes from './routes-staysnet.ts';
 import * as amenitiesRoutes from './routes-amenities.ts';
 // ✅ MÓDULO FINANCEIRO v1.0.103.400
 import * as financeiroRoutes from './routes-financeiro.ts';
+import * as conciliacaoRoutes from './routes-conciliacao.ts';
 // v1.0.103.319: WhatsApp Evolution API COMPLETA (40/40 rotas)
 import { whatsappEvolutionRoutes } from './routes-whatsapp-evolution.ts';
 import { whatsappDataRoutes } from './routes-whatsapp-data.ts';
@@ -526,6 +527,7 @@ app.route("/rendizy-server/make-server-67caf26a/tenants", tenantsApp);
 
 // ✅ Middleware de autenticação para todas as rotas financeiras
 app.use('/rendizy-server/make-server-67caf26a/financeiro/*', tenancyMiddleware);
+app.use('/rendizy-server/make-server-67caf26a/financeiro/conciliacao/*', tenancyMiddleware);
 
 // Lançamentos
 app.get("/rendizy-server/make-server-67caf26a/financeiro/lancamentos", financeiroRoutes.listLancamentos);
@@ -562,6 +564,29 @@ app.get("/rendizy-server/make-server-67caf26a/financeiro/centro-custos/:id", fin
 app.post("/rendizy-server/make-server-67caf26a/financeiro/centro-custos", financeiroRoutes.createCentroCusto);
 app.put("/rendizy-server/make-server-67caf26a/financeiro/centro-custos/:id", financeiroRoutes.updateCentroCusto);
 app.delete("/rendizy-server/make-server-67caf26a/financeiro/centro-custos/:id", financeiroRoutes.deleteCentroCusto);
+
+// ============================================================================
+// CONCILIAÇÃO BANCÁRIA
+// ============================================================================
+
+// Importar extrato
+app.post("/rendizy-server/make-server-67caf26a/financeiro/conciliacao/importar", conciliacaoRoutes.importarExtrato);
+
+// Linhas de extrato
+app.get("/rendizy-server/make-server-67caf26a/financeiro/conciliacao/pendentes", conciliacaoRoutes.listarPendentes);
+
+// Conciliação
+app.post("/rendizy-server/make-server-67caf26a/financeiro/conciliacao/match", conciliacaoRoutes.conciliarLinha);
+app.post("/rendizy-server/make-server-67caf26a/financeiro/conciliacao/aplicar-regras", conciliacaoRoutes.aplicarRegras);
+
+// Fechamento de caixa
+app.get("/rendizy-server/make-server-67caf26a/financeiro/conciliacao/fechamento", conciliacaoRoutes.fechamentoCaixa);
+
+// Regras de conciliação
+app.get("/rendizy-server/make-server-67caf26a/financeiro/conciliacao/regras", conciliacaoRoutes.listarRegras);
+app.post("/rendizy-server/make-server-67caf26a/financeiro/conciliacao/regras", conciliacaoRoutes.criarRegra);
+app.put("/rendizy-server/make-server-67caf26a/financeiro/conciliacao/regras/:id", conciliacaoRoutes.atualizarRegra);
+app.delete("/rendizy-server/make-server-67caf26a/financeiro/conciliacao/regras/:id", conciliacaoRoutes.deletarRegra);
 
 // ============================================================================
 // DATABASE RESET ROUTES (v1.0.103.267)

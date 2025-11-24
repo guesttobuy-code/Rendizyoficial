@@ -1432,6 +1432,8 @@ import type {
   ContaContabil,
   FiltroFinanceiro,
   PaginatedResponse
+  RegraConciliacao,
+  LinhaExtrato,
 } from '../types/financeiro';
 
 export const financeiroApi = {
@@ -1557,6 +1559,78 @@ export const financeiroApi = {
         method: 'POST',
         body: JSON.stringify(data),
       });
+    },
+  },
+  
+  // ============================================================================
+  // CONCILIAÇÃO BANCÁRIA
+  // ============================================================================
+  
+  conciliacao: {
+    importar: async (arquivo: File, contaId: string, formato: 'csv' | 'ofx'): Promise<ApiResponse<any>> => {
+      const formData = new FormData();
+      formData.append('arquivo', arquivo);
+      formData.append('contaId', contaId);
+      formData.append('formato', formato);
+      
+      return apiRequest<any>('/financeiro/conciliacao/importar', {
+        method: 'POST',
+        body: formData,
+      });
+    },
+    
+    pendentes: async (filtros?: { contaId?: string; dataInicio?: string; dataFim?: string; conciliado?: boolean }): Promise<ApiResponse<any>> => {
+      const params = new URLSearchParams();
+      if (filtros?.contaId) params.append('contaId', filtros.contaId);
+      if (filtros?.dataInicio) params.append('dataInicio', filtros.dataInicio);
+      if (filtros?.dataFim) params.append('dataFim', filtros.dataFim);
+      if (filtros?.conciliado !== undefined) params.append('conciliado', filtros.conciliado.toString());
+      
+      return apiRequest<any>(`/financeiro/conciliacao/pendentes?${params.toString()}`);
+    },
+    
+    match: async (linhaExtratoId: string, lancamentoId: string, observacoes?: string): Promise<ApiResponse<any>> => {
+      return apiRequest<any>('/financeiro/conciliacao/match', {
+        method: 'POST',
+        body: JSON.stringify({ linhaExtratoId, lancamentoId, observacoes }),
+      });
+    },
+    
+    aplicarRegras: async (linhaIds?: string[]): Promise<ApiResponse<any>> => {
+      return apiRequest<any>('/financeiro/conciliacao/aplicar-regras', {
+        method: 'POST',
+        body: JSON.stringify({ linhaIds: linhaIds || [] }),
+      });
+    },
+    
+    fechamento: async (data: string, contaId: string): Promise<ApiResponse<any>> => {
+      return apiRequest<any>(`/financeiro/conciliacao/fechamento?data=${data}&contaId=${contaId}`);
+    },
+    
+    regras: {
+      list: async (): Promise<ApiResponse<RegraConciliacao[]>> => {
+        return apiRequest<RegraConciliacao[]>('/financeiro/conciliacao/regras');
+      },
+      
+      create: async (data: Partial<RegraConciliacao>): Promise<ApiResponse<RegraConciliacao>> => {
+        return apiRequest<RegraConciliacao>('/financeiro/conciliacao/regras', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+      },
+      
+      update: async (id: string, data: Partial<RegraConciliacao>): Promise<ApiResponse<RegraConciliacao>> => {
+        return apiRequest<RegraConciliacao>(`/financeiro/conciliacao/regras/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        });
+      },
+      
+      delete: async (id: string): Promise<ApiResponse<null>> => {
+        return apiRequest<null>(`/financeiro/conciliacao/regras/${id}`, {
+          method: 'DELETE',
+        });
+      },
     },
   },
 };
