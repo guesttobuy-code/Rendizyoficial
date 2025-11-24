@@ -15,12 +15,13 @@ export default defineConfig({
   build: {
     sourcemap: true, // ✅ Habilitar source maps para facilitar debug
     minify: 'esbuild',
+    // ✅ Forçar novo hash a cada build para evitar cache
     rollupOptions: {
       output: {
         manualChunks: undefined,
-        entryFileNames: `assets/[name]-[hash]-v110.js`,
-        chunkFileNames: `assets/[name]-[hash]-v110.js`,
-        assetFileNames: `assets/[name]-[hash]-v110.[ext]`
+        entryFileNames: `assets/[name]-[hash]-v111.js`, // ✅ Incrementado para forçar novo hash
+        chunkFileNames: `assets/[name]-[hash]-v111.js`,
+        assetFileNames: `assets/[name]-[hash]-v111.[ext]`
       },
     },
   },
