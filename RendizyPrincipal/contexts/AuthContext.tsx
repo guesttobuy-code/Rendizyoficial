@@ -67,6 +67,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (isMounted && !isPeriodicCheck) {
             // Não limpar user aqui - pode estar em transição de navegação
             setIsLoading(false);
+            // ✅ CORREÇÃO v1.0.103.1003: Se não tem token e não tem user, limpar user
+            // Mas apenas se realmente não for uma navegação em andamento
+            if (!user) {
+              setUser(null);
+            }
           }
           return;
         }

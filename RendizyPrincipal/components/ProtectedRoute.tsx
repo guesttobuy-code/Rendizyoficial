@@ -45,9 +45,14 @@ export default function ProtectedRoute({
   const path = location.pathname;
   const [checkingMetadata, setCheckingMetadata] = useState(false);
 
-  // ✅ CORREÇÃO CRÍTICA: Mostrar loading enquanto verifica autenticação
-  // MAS se já tem user, não bloquear navegação (pode estar em validação periódica)
-  if (isLoading && !user) {
+  // ✅ CORREÇÃO CRÍTICA v1.0.103.1003: Aguardar validação se houver token
+  // Se tem token no localStorage, aguardar validação completar antes de redirecionar
+  const hasToken = typeof window !== 'undefined' ? !!localStorage.getItem('rendizy-token') : false;
+  
+  // ✅ CORREÇÃO: Mostrar loading enquanto verifica autenticação
+  // Se está carregando E (tem token OU tem user), aguardar validação completar
+  if (isLoading && (hasToken || user)) {
+    // ✅ Se tem token ou user, aguardar validação completar (não redirecionar imediatamente)
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center space-y-4">
@@ -70,11 +75,29 @@ export default function ProtectedRoute({
     return <>{children}</>;
   }
 
-  // 2. ✅ CORREÇÃO CRÍTICA: Sem sessão → redireciona para login
-  // MAS apenas se realmente não tiver user (não durante validação)
-  if (requireAuth && !isAuthenticated && !user && !isLoading) {
-    console.log('🔒 Rota protegida: redirecionando para login');
+  // 2. ✅ CORREÇÃO CRÍTICA v1.0.103.1003: Sem sessão → redireciona para login
+  // MAS apenas se realmente não tiver token E não estiver carregando E não tiver user
+  // Se tem token, aguardar validação completar (não redirecionar durante validação)
+  if (requireAuth && !isAuthenticated && !user && !isLoading && !hasToken) {
+    console.log('🔒 [ProtectedRoute] Rota protegida: redirecionando para login (sem token)');
     return <Navigate to={redirectTo} state={{ from: location }} replace />;
+  }
+  
+  // ✅ CORREÇÃO: Se tem token mas ainda está carregando, aguardar (não redirecionar)
+  // Isso evita logout durante navegação direta por URL
+  if (requireAuth && !isAuthenticated && !user && isLoading && hasToken) {
+    console.log('⏳ [ProtectedRoute] Aguardando validação de token...');
+    // Aguardar validação completar
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
+          <p className="text-gray-600 dark:text-gray-400">
+            Verificando autenticação...
+          </p>
+        </div>
+      </div>
+    );
   }
 
   // 3. ✅ CORREÇÃO CRÍTICA v1.0.103.1002 - NÃO deslogar ao verificar organização
