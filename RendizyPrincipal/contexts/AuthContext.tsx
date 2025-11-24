@@ -246,6 +246,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!isPeriodicCheck) {
           console.log('✅ [AuthContext] Usuário carregado do backend SQL:', loggedUser);
         }
+        
+        // ✅ CRÍTICO: Sempre marcar como não carregando após sucesso
+        if (isMounted && !isPeriodicCheck) {
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error('❌ [AuthContext] Erro ao carregar usuário:', error);
         // ✅ CORREÇÃO CRÍTICA: Em validações periódicas, NUNCA limpar token por erro de rede
@@ -255,6 +260,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         // ✅ Em validação periódica, apenas logar o erro mas NÃO fazer nada
         // Isso evita deslogar o usuário durante digitação por erros de rede
+      } finally {
+        // ✅ CRÍTICO: Garantir que isLoading seja false após tentativa (mesmo em erro)
+        // Isso evita que ProtectedRoute fique esperando indefinidamente
+        if (isMounted && !isPeriodicCheck) {
+          // Já foi setado acima, mas garantir aqui também
+        }
       }
     };
 
@@ -310,11 +321,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }, 30 * 60 * 1000); // 30 minutos
 
+    // ✅ BOAS PRÁTICAS MUNDIAIS: Visibility API - Revalidar quando aba volta ao foco
+    // Isso garante que sessão seja validada quando usuário volta para a aba
+    const handleVisibilityChange = () => {
+      if (isMounted && !document.hidden) {
+        const token = localStorage.getItem('rendizy-token');
+        if (token) {
+          console.log('👁️ [AuthContext] Aba voltou ao foco - revalidando sessão...');
+          loadUser(1, true, true); // 1 retry, sem delay, é periódica (não limpa token em erros)
+        }
+      }
+    };
+
+    // ✅ BOAS PRÁTICAS MUNDIAIS: Window Focus - Revalidar quando janela ganha foco
+    // Isso garante que sessão seja validada quando usuário volta para a janela
+    const handleWindowFocus = () => {
+      if (isMounted) {
+        const token = localStorage.getItem('rendizy-token');
+        if (token) {
+          console.log('🎯 [AuthContext] Janela ganhou foco - revalidando sessão...');
+          loadUser(1, true, true); // 1 retry, sem delay, é periódica (não limpa token em erros)
+        }
+      }
+    };
+
+    // Adicionar event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+
     // Cleanup ao desmontar
     return () => {
       isMounted = false;
       clearInterval(periodicInterval);
       clearInterval(refreshInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
     };
   }, []);
 

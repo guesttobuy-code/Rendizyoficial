@@ -45,14 +45,49 @@ export default function ProtectedRoute({
   const path = location.pathname;
   const [checkingMetadata, setCheckingMetadata] = useState(false);
 
-  // ✅ CORREÇÃO CRÍTICA v1.0.103.1003: Aguardar validação se houver token
-  // Se tem token no localStorage, aguardar validação completar antes de redirecionar
+  // ✅ CORREÇÃO CRÍTICA v1.0.103.1004: Aguardar validação se houver token
+  // Se tem token no localStorage, SEMPRE aguardar validação completar antes de redirecionar
+  // Isso resolve o problema de logout ao navegar diretamente via URL
   const hasToken = typeof window !== 'undefined' ? !!localStorage.getItem('rendizy-token') : false;
+  
+  // ✅ BOAS PRÁTICAS MUNDIAIS: SEMPRE aguardar validação se houver token
+  // Mesmo que isLoading seja false, se tem token e não tem user, pode estar em processo de validação
+  // Aguardar um tempo razoável (até 5 segundos) antes de redirecionar
+  const [validationTimeout, setValidationTimeout] = React.useState(false);
+  
+  React.useEffect(() => {
+    if (hasToken && !user && !isLoading) {
+      // Se tem token mas não tem user e não está carregando, pode estar em processo de validação
+      // Aguardar até 5 segundos antes de considerar que realmente não tem sessão
+      const timeout = setTimeout(() => {
+        setValidationTimeout(true);
+      }, 5000); // 5 segundos de tolerância
+      
+      return () => clearTimeout(timeout);
+    } else {
+      setValidationTimeout(false);
+    }
+  }, [hasToken, user, isLoading]);
   
   // ✅ CORREÇÃO: Mostrar loading enquanto verifica autenticação
   // Se está carregando E (tem token OU tem user), aguardar validação completar
+  // OU se tem token mas ainda não validou (dentro do timeout de 5s)
   if (isLoading && (hasToken || user)) {
     // ✅ Se tem token ou user, aguardar validação completar (não redirecionar imediatamente)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
+          <p className="text-gray-600 dark:text-gray-400">
+            Verificando autenticação...
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  // ✅ Se tem token mas ainda não validou (dentro do timeout), aguardar
+  if (hasToken && !user && !isLoading && !validationTimeout) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center space-y-4">
@@ -75,29 +110,22 @@ export default function ProtectedRoute({
     return <>{children}</>;
   }
 
-  // 2. ✅ CORREÇÃO CRÍTICA v1.0.103.1003: Sem sessão → redireciona para login
+  // 2. ✅ CORREÇÃO CRÍTICA v1.0.103.1004: Sem sessão → redireciona para login
   // MAS apenas se realmente não tiver token E não estiver carregando E não tiver user
+  // E já passou o timeout de validação (5 segundos)
   // Se tem token, aguardar validação completar (não redirecionar durante validação)
   if (requireAuth && !isAuthenticated && !user && !isLoading && !hasToken) {
     console.log('🔒 [ProtectedRoute] Rota protegida: redirecionando para login (sem token)');
     return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
   
-  // ✅ CORREÇÃO: Se tem token mas ainda está carregando, aguardar (não redirecionar)
-  // Isso evita logout durante navegação direta por URL
-  if (requireAuth && !isAuthenticated && !user && isLoading && hasToken) {
-    console.log('⏳ [ProtectedRoute] Aguardando validação de token...');
-    // Aguardar validação completar
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
-          <p className="text-gray-600 dark:text-gray-400">
-            Verificando autenticação...
-          </p>
-        </div>
-      </div>
-    );
+  // ✅ CORREÇÃO: Se tem token mas ainda não validou após timeout, considerar inválido
+  // Mas apenas se realmente passou o timeout (5 segundos)
+  if (requireAuth && !isAuthenticated && !user && !isLoading && hasToken && validationTimeout) {
+    console.log('🔒 [ProtectedRoute] Token não validado após timeout - redirecionando para login');
+    // Limpar token inválido antes de redirecionar
+    localStorage.removeItem('rendizy-token');
+    return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
 
   // 3. ✅ CORREÇÃO CRÍTICA v1.0.103.1002 - NÃO deslogar ao verificar organização
