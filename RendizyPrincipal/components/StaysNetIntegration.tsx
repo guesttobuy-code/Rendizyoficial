@@ -583,6 +583,7 @@ export default function StaysNetIntegration() {
 
   // ✅ CORREÇÃO: Garantir que filteredEndpoints seja sempre definido
   // Evita erro "Cannot access 'x' before initialization" durante minificação
+  // ✅ FORÇA NOVO HASH - v1.0.103.322 - 24/11/2025 00:52
   const filteredEndpoints = useMemo(() => {
     return API_ENDPOINTS.filter((endpoint) => {
       const matchesSearch = 
