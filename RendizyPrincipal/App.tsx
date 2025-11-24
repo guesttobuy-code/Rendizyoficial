@@ -72,6 +72,9 @@ import { FluxoCaixaPage } from './components/financeiro/pages/FluxoCaixaPage';
 import { PlanoContasPage } from './components/financeiro/pages/PlanoContasPage';
 import { ContasBancariasPage } from './components/financeiro/pages/ContasBancariasPage';
 import { CentroCustosPage } from './components/financeiro/pages/CentroCustosPage';
+import { ConciliacaoPage } from './components/financeiro/pages/ConciliacaoPage';
+import { RegrasConciliacaoPage } from './components/financeiro/pages/RegrasConciliacaoPage';
+import { FechamentoCaixaPage } from './components/financeiro/pages/FechamentoCaixaPage';
 import CRMTasksModule from './components/crm/CRMTasksModule';
 import CRMTasksDashboard from './components/crm/CRMTasksDashboard';
 import BIModule from './components/bi/BIModule';
@@ -1327,7 +1330,9 @@ function App() {
           <Route path="contas-receber" element={<ContasReceberPage />} />
           <Route path="contas-pagar" element={<ContasPagarPage />} />
           <Route path="inadimplencia" element={<ModulePlaceholder module="Inadimplência" />} />
-          <Route path="conciliacao" element={<ModulePlaceholder module="Conciliação Bancária" />} />
+          <Route path="conciliacao" element={<ConciliacaoPage />} />
+          <Route path="conciliacao/regras" element={<RegrasConciliacaoPage />} />
+          <Route path="conciliacao/fechamento" element={<FechamentoCaixaPage />} />
           <Route path="contas-bancarias" element={<ContasBancariasPage />} />
           <Route path="dre" element={<DREPage />} />
           <Route path="fluxo-caixa" element={<FluxoCaixaPage />} />
