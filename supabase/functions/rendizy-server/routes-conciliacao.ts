@@ -92,7 +92,7 @@ export async function importarExtrato(c: Context) {
     for (const linha of linhas) {
       try {
         // Gerar hash único
-        const hashUnico = gerarHashExtrato(linha);
+        const hashUnico = linha.hashUnico || gerarHashExtrato(linha);
         
         // Verificar se já existe (deduplicação)
         const { data: existente } = await client
