@@ -44,6 +44,19 @@ export default function ProtectedRoute({
   const location = useLocation();
   const path = location.pathname;
   const [checkingMetadata, setCheckingMetadata] = useState(false);
+  
+  // ✅ DEBUG: Log para entender o estado
+  React.useEffect(() => {
+    const hasToken = typeof window !== 'undefined' ? !!localStorage.getItem('rendizy-token') : false;
+    console.log('🔍 [ProtectedRoute] Estado:', {
+      hasToken,
+      isLoading,
+      isAuthenticated,
+      hasUser: !!user,
+      path,
+      validationTimeout
+    });
+  }, [isLoading, isAuthenticated, user, path, validationTimeout]);
 
   // ✅ CORREÇÃO CRÍTICA v1.0.103.1004: Aguardar validação se houver token
   // Se tem token no localStorage, SEMPRE aguardar validação completar antes de redirecionar

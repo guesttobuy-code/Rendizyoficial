@@ -126,6 +126,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // ✅ RETRY: Se erro 401 e ainda há retries, tentar novamente (pode ser erro transitório)
           if (response.status === 401 && retries > 0) {
             console.warn(`⚠️ [AuthContext] Erro 401, tentando novamente... (${retries} tentativas restantes)`);
+            // ✅ CRÍTICO: Manter isLoading=true durante retries para ProtectedRoute aguardar
+            if (isMounted && !isPeriodicCheck) {
+              setIsLoading(true);
+            }
             await new Promise(resolve => setTimeout(resolve, 2000)); // Aumentado para 2s
             return loadUser(retries - 1, true, isPeriodicCheck);
           }
@@ -152,6 +156,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               console.log('❌ [AuthContext] Erro na validação (mantendo sessão):', data?.error);
             }
           }
+          // ✅ CRÍTICO: Só setar isLoading=false após TODAS as tentativas falharem
+          // Isso permite que ProtectedRoute aguarde o timeout de 5 segundos
           if (isMounted && !isPeriodicCheck) {
             setIsLoading(false);
           }
