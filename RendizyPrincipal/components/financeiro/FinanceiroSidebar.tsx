@@ -21,7 +21,9 @@ import {
   Receipt,
   Landmark,
   Target,
-  LineChart
+  LineChart,
+  Filter,
+  Calculator
 } from 'lucide-react';
 
 interface MenuItem {
@@ -105,6 +107,18 @@ const menuSections = [
         label: 'Conciliação Bancária',
         icon: <Landmark className="w-5 h-5" />,
         path: '/financeiro/conciliacao',
+      },
+      {
+        id: 'regras-conciliacao',
+        label: 'Regras de Conciliação',
+        icon: <Filter className="w-5 h-5" />,
+        path: '/financeiro/conciliacao/regras',
+      },
+      {
+        id: 'fechamento-caixa',
+        label: 'Fechamento de Caixa',
+        icon: <Calculator className="w-5 h-5" />,
+        path: '/financeiro/conciliacao/fechamento',
       },
       {
         id: 'contas-bancarias',
