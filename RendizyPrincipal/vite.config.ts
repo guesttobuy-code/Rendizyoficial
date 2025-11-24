@@ -13,7 +13,7 @@ export default defineConfig({
     open: true,
   },
   build: {
-    sourcemap: false,
+    sourcemap: true, // ✅ Habilitar source maps para facilitar debug
     minify: 'esbuild',
     rollupOptions: {
       output: {

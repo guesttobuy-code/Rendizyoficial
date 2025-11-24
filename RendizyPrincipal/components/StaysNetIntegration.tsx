@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -581,16 +581,20 @@ export default function StaysNetIntegration() {
     }
   };
 
-  const filteredEndpoints = API_ENDPOINTS.filter((endpoint) => {
-    const matchesSearch = 
-      endpoint.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      endpoint.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      endpoint.endpoint.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesCategory = selectedCategory === 'all' || endpoint.category === selectedCategory;
-    
-    return matchesSearch && matchesCategory;
-  });
+  // ✅ CORREÇÃO: Garantir que filteredEndpoints seja sempre definido
+  // Evita erro "Cannot access 'x' before initialization" durante minificação
+  const filteredEndpoints = useMemo(() => {
+    return API_ENDPOINTS.filter((endpoint) => {
+      const matchesSearch = 
+        endpoint.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        endpoint.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        endpoint.endpoint.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesCategory = selectedCategory === 'all' || endpoint.category === selectedCategory;
+      
+      return matchesSearch && matchesCategory;
+    });
+  }, [searchQuery, selectedCategory]);
 
   return (
     <div className="space-y-6">
