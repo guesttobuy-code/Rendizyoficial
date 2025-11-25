@@ -1,4 +1,4 @@
-Ôªøimport React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -43,7 +43,7 @@ interface StaysNetConfig {
   apiSecret?: string; // Senha / Secret (opcional)
   baseUrl: string;
   accountName?: string; // Nome da conta (ex: "Sua Casa Rende Mais")
-  notificationWebhookUrl?: string; // Link de notifica√ß√µes
+  notificationWebhookUrl?: string; // Link de notificaÁıes
   scope?: 'global' | 'individual'; // Global ou Individual
   enabled: boolean;
   lastSync?: string;
@@ -73,7 +73,7 @@ const API_ENDPOINTS: ApiEndpoint[] = [
     name: 'Listar Propriedades',
     method: 'GET',
     endpoint: '/properties',
-    description: 'Lista todas as propriedades dispon√≠veis',
+    description: 'Lista todas as propriedades disponÌveis',
     category: 'properties',
   },
   {
@@ -81,7 +81,7 @@ const API_ENDPOINTS: ApiEndpoint[] = [
     name: 'Detalhes da Propriedade',
     method: 'GET',
     endpoint: '/properties/{id}',
-    description: 'Retorna detalhes de uma propriedade espec√≠fica',
+    description: 'Retorna detalhes de uma propriedade especÌfica',
     category: 'properties',
   },
   {
@@ -107,7 +107,7 @@ const API_ENDPOINTS: ApiEndpoint[] = [
     name: 'Detalhes da Reserva',
     method: 'GET',
     endpoint: '/reservations/{id}',
-    description: 'Retorna detalhes de uma reserva espec√≠fica',
+    description: 'Retorna detalhes de uma reserva especÌfica',
     category: 'reservations',
   },
   {
@@ -130,10 +130,10 @@ const API_ENDPOINTS: ApiEndpoint[] = [
   },
   {
     id: 'rates-calendar',
-    name: 'Calend√°rio de Tarifas',
+    name: 'Calend·rio de Tarifas',
     method: 'GET',
     endpoint: '/rates/calendar',
-    description: 'Retorna calend√°rio de tarifas',
+    description: 'Retorna calend·rio de tarifas',
     category: 'rates',
   },
   
@@ -148,28 +148,28 @@ const API_ENDPOINTS: ApiEndpoint[] = [
   },
   {
     id: 'availability-calendar',
-    name: 'Calend√°rio de Disponibilidade',
+    name: 'Calend·rio de Disponibilidade',
     method: 'GET',
     endpoint: '/availability/calendar',
-    description: 'Retorna calend√°rio de disponibilidade',
+    description: 'Retorna calend·rio de disponibilidade',
     category: 'availability',
   },
   
   // GUESTS
   {
     id: 'guests-list',
-    name: 'Listar H√≥spedes',
+    name: 'Listar HÛspedes',
     method: 'GET',
     endpoint: '/guests',
-    description: 'Lista todos os h√≥spedes',
+    description: 'Lista todos os hÛspedes',
     category: 'guests',
   },
   {
     id: 'guests-detail',
-    name: 'Detalhes do H√≥spede',
+    name: 'Detalhes do HÛspede',
     method: 'GET',
     endpoint: '/guests/{id}',
-    description: 'Retorna detalhes de um h√≥spede espec√≠fico',
+    description: 'Retorna detalhes de um hÛspede especÌfico',
     category: 'guests',
   },
 ];
@@ -179,7 +179,7 @@ const CATEGORY_INFO = {
   reservations: { label: 'Reservas', color: 'green', icon: CheckCircle2 },
   rates: { label: 'Tarifas', color: 'purple', icon: Database },
   availability: { label: 'Disponibilidade', color: 'orange', icon: Search },
-  guests: { label: 'H√≥spedes', color: 'pink', icon: Globe },
+  guests: { label: 'HÛspedes', color: 'pink', icon: Globe },
 };
 
 export default function StaysNetIntegration() {
@@ -204,13 +204,13 @@ export default function StaysNetIntegration() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   
-  // üéØ Estados para Importa√ß√£o
+  // ?? Estados para ImportaÁ„o
   const [isImporting, setIsImporting] = useState(false);
   const [importType, setImportType] = useState<'all' | 'properties' | 'reservations' | 'guests' | null>(null);
   const [importStats, setImportStats] = useState<any>(null);
   const [importError, setImportError] = useState<string | null>(null);
   
-  // üéØ Valida√ß√£o inteligente da URL
+  // ?? ValidaÁ„o inteligente da URL
   const validateBaseUrl = (url: string): { 
     isValid: boolean; 
     hasExternalV1: boolean; 
@@ -229,7 +229,7 @@ export default function StaysNetIntegration() {
     let suggestion: string | undefined;
     let status: 'correct' | 'fixable' | 'invalid' = 'invalid';
     
-    // Se n√£o tem /external/v1, mas √© um dom√≠nio stays.net v√°lido
+    // Se n„o tem /external/v1, mas È um domÌnio stays.net v·lido
     if (!hasExternalV1 && isHttps && isStaysNetDomain) {
       suggestion = trimmedUrl.replace(/\/$/, '') + '/external/v1';
       status = 'fixable';
@@ -247,7 +247,7 @@ export default function StaysNetIntegration() {
   
   const urlValidation = validateBaseUrl(config.baseUrl);
   
-  // üîß Auto-corrigir URL
+  // ?? Auto-corrigir URL
   const handleAutoFixUrl = () => {
     if (urlValidation.suggestion) {
       setConfig({ ...config, baseUrl: urlValidation.suggestion });
@@ -263,7 +263,7 @@ export default function StaysNetIntegration() {
   const loadConfig = async () => {
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/settings/staysnet`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/settings/staysnet`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
@@ -287,7 +287,7 @@ export default function StaysNetIntegration() {
     
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/settings/staysnet`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/settings/staysnet`,
         {
           method: 'POST',
           headers: {
@@ -299,14 +299,14 @@ export default function StaysNetIntegration() {
       );
 
       if (response.ok) {
-        toast.success('Configura√ß√£o salva com sucesso!');
+        toast.success('ConfiguraÁ„o salva com sucesso!');
         setConfig({ ...config, lastSync: new Date().toISOString() });
       } else {
         throw new Error('Failed to save config');
       }
     } catch (error) {
       console.error('Error saving config:', error);
-      toast.error('Erro ao salvar configura√ß√£o');
+      toast.error('Erro ao salvar configuraÁ„o');
     } finally {
       setIsSaving(false);
     }
@@ -317,7 +317,7 @@ export default function StaysNetIntegration() {
     setConnectionStatus('idle');
     
     try {
-      // Valida√ß√£o antes de enviar
+      // ValidaÁ„o antes de enviar
       if (!config.baseUrl || !config.apiKey) {
         toast.error('Preencha Base URL e API Key/Login');
         setConnectionStatus('error');
@@ -325,9 +325,9 @@ export default function StaysNetIntegration() {
         return;
       }
 
-      // üéØ VALIDA√á√ÉO INTELIGENTE: Bloquear se URL est√° claramente errada
+      // ?? VALIDA«√O INTELIGENTE: Bloquear se URL est· claramente errada
       if (urlValidation.status === 'fixable') {
-        toast.error('URL incorreta! Use o bot√£o "Corrigir Automaticamente" antes de testar.', {
+        toast.error('URL incorreta! Use o bot„o "Corrigir Automaticamente" antes de testar.', {
           duration: 5000,
         });
         setConnectionStatus('error');
@@ -336,7 +336,7 @@ export default function StaysNetIntegration() {
       }
 
       if (urlValidation.status === 'invalid') {
-        toast.error('URL inv√°lida! Verifique o formato da URL.', {
+        toast.error('URL inv·lida! Verifique o formato da URL.', {
           duration: 5000,
         });
         setConnectionStatus('error');
@@ -352,7 +352,7 @@ export default function StaysNetIntegration() {
       });
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/staysnet/test`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/staysnet/test`,
         {
           method: 'POST',
           headers: {
@@ -375,19 +375,19 @@ export default function StaysNetIntegration() {
       if (response.ok) {
         if (data.success) {
           setConnectionStatus('success');
-          toast.success('Conex√£o estabelecida com sucesso!');
+          toast.success('Conex„o estabelecida com sucesso!');
           console.log('[StaysNet Frontend] Connection successful');
         } else {
           setConnectionStatus('error');
           const errorMsg = data.error || 'Erro desconhecido';
           console.error('[StaysNet Frontend] Connection failed:', errorMsg);
-          toast.error('Falha na conex√£o: ' + errorMsg, { duration: 5000 });
+          toast.error('Falha na conex„o: ' + errorMsg, { duration: 5000 });
         }
       } else {
         setConnectionStatus('error');
         const errorMsg = data.error || `HTTP ${response.status}`;
         console.error('[StaysNet Frontend] Request failed:', errorMsg);
-        toast.error('Erro ao testar conex√£o: ' + errorMsg, { duration: 5000 });
+        toast.error('Erro ao testar conex„o: ' + errorMsg, { duration: 5000 });
       }
     } catch (error: any) {
       console.error('[StaysNet Frontend] Error testing connection:', error);
@@ -403,7 +403,7 @@ export default function StaysNetIntegration() {
     
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/staysnet/test-endpoint`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/staysnet/test-endpoint`,
         {
           method: 'POST',
           headers: {
@@ -462,7 +462,7 @@ export default function StaysNetIntegration() {
     toast.success('Resposta exportada com sucesso!');
   };
 
-  // üéØ Fun√ß√£o de Importa√ß√£o Completa
+  // ?? FunÁ„o de ImportaÁ„o Completa
   const handleFullImport = async () => {
     setIsImporting(true);
     setImportType('all');
@@ -472,11 +472,11 @@ export default function StaysNetIntegration() {
     try {
       const token = localStorage.getItem('rendizy-token');
       if (!token) {
-        throw new Error('Token n√£o encontrado. Fa√ßa login novamente.');
+        throw new Error('Token n„o encontrado. FaÁa login novamente.');
       }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/staysnet/import/full`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/staysnet/import/full`,
         {
           method: 'POST',
           headers: {
@@ -487,7 +487,7 @@ export default function StaysNetIntegration() {
           body: JSON.stringify({
             startDate: '2025-01-01',
             endDate: '2026-12-31',
-            // N√£o especificar selectedPropertyIds = importar TODAS
+            // N„o especificar selectedPropertyIds = importar TODAS
           }),
         }
       );
@@ -496,7 +496,7 @@ export default function StaysNetIntegration() {
 
       if (response.ok && data.success) {
         setImportStats(data.stats);
-        toast.success('Importa√ß√£o completa realizada com sucesso!');
+        toast.success('ImportaÁ„o completa realizada com sucesso!');
         
         // Atualizar lastSync
         setConfig({ ...config, lastSync: new Date().toISOString() });
@@ -513,7 +513,7 @@ export default function StaysNetIntegration() {
     }
   };
 
-  // üéØ Fun√ß√£o de Importa√ß√£o Individual
+  // ?? FunÁ„o de ImportaÁ„o Individual
   const handleImport = async (type: 'properties' | 'reservations' | 'guests') => {
     setIsImporting(true);
     setImportType(type);
@@ -523,24 +523,24 @@ export default function StaysNetIntegration() {
     try {
       const token = localStorage.getItem('rendizy-token');
       if (!token) {
-        throw new Error('Token n√£o encontrado. Fa√ßa login novamente.');
+        throw new Error('Token n„o encontrado. FaÁa login novamente.');
       }
 
-      // Para importa√ß√£o individual, tamb√©m usamos a rota /import/full
-      // mas com par√¢metros espec√≠ficos
+      // Para importaÁ„o individual, tambÈm usamos a rota /import/full
+      // mas com par‚metros especÌficos
       const body: any = {
         startDate: '2025-01-01',
         endDate: '2026-12-31',
       };
 
-      // Se for apenas propriedades, n√£o precisa de datas
+      // Se for apenas propriedades, n„o precisa de datas
       if (type === 'properties') {
         delete body.startDate;
         delete body.endDate;
       }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/staysnet/import/full`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/staysnet/import/full`,
         {
           method: 'POST',
           headers: {
@@ -555,7 +555,7 @@ export default function StaysNetIntegration() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Filtrar estat√≠sticas apenas para o tipo importado
+        // Filtrar estatÌsticas apenas para o tipo importado
         const filteredStats = {
           guests: type === 'guests' ? data.stats.guests : { fetched: 0, created: 0, updated: 0, failed: 0 },
           properties: type === 'properties' ? data.stats.properties : { fetched: 0, created: 0, updated: 0, failed: 0 },
@@ -564,7 +564,7 @@ export default function StaysNetIntegration() {
         };
         
         setImportStats(filteredStats);
-        toast.success(`${type === 'properties' ? 'An√∫ncios' : type === 'reservations' ? 'Reservas' : 'H√≥spedes'} importados com sucesso!`);
+        toast.success(`${type === 'properties' ? 'An˙ncios' : type === 'reservations' ? 'Reservas' : 'HÛspedes'} importados com sucesso!`);
         
         // Atualizar lastSync
         setConfig({ ...config, lastSync: new Date().toISOString() });
@@ -581,9 +581,9 @@ export default function StaysNetIntegration() {
     }
   };
 
-  // ‚úÖ CORRE√á√ÉO: Garantir que filteredEndpoints seja sempre definido
-  // Evita erro "Cannot access 'x' before initialization" durante minifica√ß√£o
-  // ‚úÖ FOR√áA NOVO HASH - v1.0.103.322 - 24/11/2025 00:52
+  // ? CORRE«√O: Garantir que filteredEndpoints seja sempre definido
+  // Evita erro "Cannot access 'x' before initialization" durante minificaÁ„o
+  // ? FOR«A NOVO HASH - v1.0.103.322 - 24/11/2025 00:52
   const filteredEndpoints = useMemo(() => {
     return API_ENDPOINTS.filter((endpoint) => {
       const matchesSearch = 
@@ -599,7 +599,7 @@ export default function StaysNetIntegration() {
 
   return (
     <div className="space-y-6">
-      {/* Status badges - apenas quando n√£o est√° em Dialog */}
+      {/* Status badges - apenas quando n„o est· em Dialog */}
       <div className="flex items-center justify-end gap-2">
         {config.enabled && (
           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -610,7 +610,7 @@ export default function StaysNetIntegration() {
         
         {config.lastSync && (
           <Badge variant="outline">
-            √öltima sincroniza√ß√£o: {new Date(config.lastSync).toLocaleString('pt-BR')}
+            ⁄ltima sincronizaÁ„o: {new Date(config.lastSync).toLocaleString('pt-BR')}
           </Badge>
         )}
       </div>
@@ -619,11 +619,11 @@ export default function StaysNetIntegration() {
         <TabsList className="w-full flex flex-wrap gap-3">
           <TabsTrigger value="config" className="flex-none justify-center px-4 py-2 min-w-[150px]">
             <Key className="w-4 h-4 mr-2" />
-            Configura√ß√£o
+            ConfiguraÁ„o
           </TabsTrigger>
           <TabsTrigger value="import" className="flex-none justify-center px-4 py-2 min-w-[150px]">
             <Upload className="w-4 h-4 mr-2" />
-            Importa√ß√£o
+            ImportaÁ„o
           </TabsTrigger>
           <TabsTrigger value="mapping" className="flex-none justify-center px-4 py-2 min-w-[150px]">
             <Database className="w-4 h-4 mr-2" />
@@ -635,33 +635,33 @@ export default function StaysNetIntegration() {
           </TabsTrigger>
         </TabsList>
 
-        {/* TAB 1: CONFIGURA√á√ÉO */}
+        {/* TAB 1: CONFIGURA«√O */}
         <TabsContent value="config" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Credenciais da API</CardTitle>
               <CardDescription>
-                Configure suas credenciais de acesso √† API do Stays.net
+                Configure suas credenciais de acesso ‡ API do Stays.net
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* üéØ ALERTA INTELIGENTE DE URL */}
+              {/* ?? ALERTA INTELIGENTE DE URL */}
               {config.baseUrl && urlValidation.status === 'fixable' && (
                 <Alert className="bg-red-50 border-red-300">
                   <AlertCircle className="h-4 w-4 text-red-700" />
                   <AlertDescription className="text-red-900">
                     <div className="space-y-3">
-                      <p className="text-sm"><strong>‚ö†Ô∏è URL INCORRETA DETECTADA!</strong></p>
+                      <p className="text-sm"><strong>?? URL INCORRETA DETECTADA!</strong></p>
                       
                       <div className="bg-white p-3 rounded border border-red-200">
-                        <p className="text-xs mb-1 text-red-700"><strong>‚ùå Voc√™ digitou (ERRADO):</strong></p>
+                        <p className="text-xs mb-1 text-red-700"><strong>? VocÍ digitou (ERRADO):</strong></p>
                         <code className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs block">
                           {config.baseUrl}
                         </code>
                       </div>
 
                       <div className="bg-white p-3 rounded border border-green-200">
-                        <p className="text-xs mb-1 text-green-700"><strong>‚úÖ URL Correta (com /external/v1):</strong></p>
+                        <p className="text-xs mb-1 text-green-700"><strong>? URL Correta (com /external/v1):</strong></p>
                         <code className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs block">
                           {urlValidation.suggestion}
                         </code>
@@ -677,8 +677,8 @@ export default function StaysNetIntegration() {
                       </Button>
 
                       <p className="text-xs text-red-700 pt-2 border-t border-red-300">
-                        <strong>üí° Explica√ß√£o:</strong> A API Stays.net <strong>sempre</strong> requer <code className="bg-red-100 px-1 rounded">/external/v1</code> no final da URL. 
-                        Sem isso, voc√™ acessa o painel de administra√ß√£o (HTML) ao inv√©s da API (JSON).
+                        <strong>?? ExplicaÁ„o:</strong> A API Stays.net <strong>sempre</strong> requer <code className="bg-red-100 px-1 rounded">/external/v1</code> no final da URL. 
+                        Sem isso, vocÍ acessa o painel de administraÁ„o (HTML) ao invÈs da API (JSON).
                       </p>
                     </div>
                   </AlertDescription>
@@ -689,9 +689,9 @@ export default function StaysNetIntegration() {
                 <Alert className="bg-green-50 border-green-300">
                   <CheckCircle2 className="h-4 w-4 text-green-700" />
                   <AlertDescription className="text-green-900">
-                    <p className="text-sm"><strong>‚úÖ URL CORRETA!</strong></p>
+                    <p className="text-sm"><strong>? URL CORRETA!</strong></p>
                     <p className="text-xs mt-1">
-                      A URL est√° no formato correto e termina com <code className="bg-green-100 px-1 rounded">/external/v1</code>
+                      A URL est· no formato correto e termina com <code className="bg-green-100 px-1 rounded">/external/v1</code>
                     </p>
                   </AlertDescription>
                 </Alert>
@@ -725,7 +725,7 @@ export default function StaysNetIntegration() {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  üí° A URL deve terminar com <code className="bg-muted px-1 rounded">/external/v1</code>
+                  ?? A URL deve terminar com <code className="bg-muted px-1 rounded">/external/v1</code>
                 </p>
               </div>
 
@@ -771,7 +771,7 @@ export default function StaysNetIntegration() {
                       type={showApiKey ? 'text' : 'password'}
                       value={config.apiSecret || ''}
                       onChange={(e) => setConfig({ ...config, apiSecret: e.target.value })}
-                      placeholder="Ex: bfcf4daf (deixe vazio se n√£o tiver)"
+                      placeholder="Ex: bfcf4daf (deixe vazio se n„o tiver)"
                     />
                   </div>
                 </div>
@@ -799,10 +799,10 @@ export default function StaysNetIntegration() {
                 </p>
               </div>
 
-              {/* Link de Notifica√ß√µes */}
+              {/* Link de NotificaÁıes */}
               <div className="space-y-2">
                 <Label htmlFor="notificationWebhookUrl">
-                  Link de Notifica√ß√µes <span className="text-xs text-muted-foreground">(Opcional)</span>
+                  Link de NotificaÁıes <span className="text-xs text-muted-foreground">(Opcional)</span>
                 </Label>
                 <div className="flex gap-2">
                   <Globe className="w-5 h-5 text-muted-foreground mt-2" />
@@ -826,7 +826,7 @@ export default function StaysNetIntegration() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  URL para receber notifica√ß√µes do Stays.net (webhook)
+                  URL para receber notificaÁıes do Stays.net (webhook)
                 </p>
               </div>
 
@@ -856,7 +856,7 @@ export default function StaysNetIntegration() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Escopo da integra√ß√£o: Global (todas as propriedades) ou Individual (por propriedade)
+                  Escopo da integraÁ„o: Global (todas as propriedades) ou Individual (por propriedade)
                 </p>
               </div>
 
@@ -864,40 +864,40 @@ export default function StaysNetIntegration() {
               <Alert className="bg-blue-50 border-blue-300">
                 <Info className="h-4 w-4 text-blue-700" />
                 <AlertDescription className="text-blue-900 space-y-3">
-                  <p className="text-sm"><strong>üìñ URL Correta da API Stays.net</strong></p>
+                  <p className="text-sm"><strong>?? URL Correta da API Stays.net</strong></p>
                   
                   <div className="bg-white p-3 rounded border border-blue-200">
-                    <p className="text-xs mb-2 font-semibold">‚úÖ Formato Correto (com /external/v1):</p>
+                    <p className="text-xs mb-2 font-semibold">? Formato Correto (com /external/v1):</p>
                     <code className="bg-green-100 text-green-800 px-2 py-1 rounded font-mono text-xs block">
                       https://bvm.stays.net/external/v1
                     </code>
                   </div>
 
                   <div className="bg-red-50 p-3 rounded border border-red-200">
-                    <p className="text-xs mb-2 font-semibold">‚ùå Formato Errado (sem /external/v1):</p>
+                    <p className="text-xs mb-2 font-semibold">? Formato Errado (sem /external/v1):</p>
                     <code className="bg-red-100 text-red-800 px-2 py-1 rounded font-mono text-xs block line-through">
                       https://bvm.stays.net
                     </code>
                   </div>
 
                   <div className="space-y-1 text-xs">
-                    <p className="font-semibold">üìù Outras URLs para testar:</p>
+                    <p className="font-semibold">?? Outras URLs para testar:</p>
                     <div className="ml-2 space-y-1">
-                      <div>‚Ä¢ <code className="bg-blue-100 px-1 rounded">https://api.stays.net/external/v1</code></div>
-                      <div>‚Ä¢ <code className="bg-blue-100 px-1 rounded">https://play.stays.net/external/v1</code></div>
-                      <div>‚Ä¢ <code className="bg-blue-100 px-1 rounded">https://yourcompany.stays.net/external/v1</code></div>
+                      <div>ï <code className="bg-blue-100 px-1 rounded">https://api.stays.net/external/v1</code></div>
+                      <div>ï <code className="bg-blue-100 px-1 rounded">https://play.stays.net/external/v1</code></div>
+                      <div>ï <code className="bg-blue-100 px-1 rounded">https://yourcompany.stays.net/external/v1</code></div>
                     </div>
                   </div>
 
                   <p className="text-xs pt-2 border-t border-blue-300">
-                    üí° <strong>Dica:</strong> A URL da API sempre termina com <code className="bg-blue-100 px-1 rounded">/external/v1</code>
+                    ?? <strong>Dica:</strong> A URL da API sempre termina com <code className="bg-blue-100 px-1 rounded">/external/v1</code>
                   </p>
                 </AlertDescription>
               </Alert>
 
               <Separator />
 
-              {/* Status da Conex√£o */}
+              {/* Status da Conex„o */}
               {connectionStatus !== 'idle' && (
                 <Alert className={connectionStatus === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}>
                   {connectionStatus === 'success' ? (
@@ -907,20 +907,20 @@ export default function StaysNetIntegration() {
                   )}
                   <AlertDescription className={connectionStatus === 'success' ? 'text-green-800' : 'text-red-800'}>
                     {connectionStatus === 'success'
-                      ? '‚úÖ Conex√£o estabelecida com sucesso! A API est√° respondendo corretamente.'
-                      : '‚ùå Falha na conex√£o. Abra o Console do navegador (F12) para ver detalhes do erro e poss√≠veis solu√ß√µes.'}
+                      ? '? Conex„o estabelecida com sucesso! A API est· respondendo corretamente.'
+                      : '? Falha na conex„o. Abra o Console do navegador (F12) para ver detalhes do erro e possÌveis soluÁıes.'}
                   </AlertDescription>
                 </Alert>
               )}
 
-              {/* A√ß√µes */}
+              {/* AÁıes */}
               <div className="flex flex-col gap-3 pt-4">
                 {/* Mensagem de aviso se URL estiver errada */}
                 {urlValidation.status === 'fixable' && (
                   <Alert className="bg-yellow-50 border-yellow-300">
                     <AlertCircle className="h-4 w-4 text-yellow-700" />
                     <AlertDescription className="text-yellow-900 text-sm">
-                      <strong>‚ö†Ô∏è Corrija a URL antes de testar!</strong> Use o bot√£o "Corrigir Automaticamente" acima.
+                      <strong>?? Corrija a URL antes de testar!</strong> Use o bot„o "Corrigir Automaticamente" acima.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -946,7 +946,7 @@ export default function StaysNetIntegration() {
                     ) : (
                       <span className="flex items-center">
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        Testar Conex√£o
+                        Testar Conex„o
                       </span>
                     )}
                   </Button>
@@ -966,7 +966,7 @@ export default function StaysNetIntegration() {
                         Salvando...
                       </span>
                     ) : (
-                      'Salvar Configura√ß√£o'
+                      'Salvar ConfiguraÁ„o'
                     )}
                   </Button>
                 </div>
@@ -974,7 +974,7 @@ export default function StaysNetIntegration() {
             </CardContent>
           </Card>
 
-          {/* Documenta√ß√£o */}
+          {/* DocumentaÁ„o */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -984,27 +984,27 @@ export default function StaysNetIntegration() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Para integrar com o Stays.net, voc√™ precisa:
+                Para integrar com o Stays.net, vocÍ precisa:
               </p>
               <ol className="list-decimal list-inside space-y-2 text-sm">
                 <li>Acessar o painel do Stays.net em <a href="https://bvm.stays.net" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">bvm.stays.net</a></li>
-                <li>Ir em <strong>App Center ‚Üí API Stays</strong></li>
+                <li>Ir em <strong>App Center ? API Stays</strong></li>
                 <li>Gerar uma nova <strong>API Key</strong></li>
                 <li>Copiar e colar a chave no campo acima</li>
-                <li>Testar a conex√£o</li>
+                <li>Testar a conex„o</li>
               </ol>
               
               <Alert className="mt-4">
                 <Info className="h-4 w-4" />
                 <AlertDescription>
-                  Documenta√ß√£o completa: <a href="https://stays.net/external-api/#introduction" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">stays.net/external-api</a>
+                  DocumentaÁ„o completa: <a href="https://stays.net/external-api/#introduction" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">stays.net/external-api</a>
                 </AlertDescription>
               </Alert>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* TAB 2: IMPORTA√á√ÉO */}
+        {/* TAB 2: IMPORTA«√O */}
         <TabsContent value="import" className="space-y-6">
           <Card>
             <CardHeader>
@@ -1013,40 +1013,40 @@ export default function StaysNetIntegration() {
                 Importar Dados do Stays.net
               </CardTitle>
               <CardDescription>
-                Sincronize an√∫ncios, reservas e h√≥spedes do Stays.net para o Rendizy
+                Sincronize an˙ncios, reservas e hÛspedes do Stays.net para o Rendizy
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Alerta de Configura√ß√£o */}
+              {/* Alerta de ConfiguraÁ„o */}
               {(!config.apiKey || !config.baseUrl) && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Configure suas credenciais na aba "Configura√ß√£o" antes de importar dados.
+                    Configure suas credenciais na aba "ConfiguraÁ„o" antes de importar dados.
                   </AlertDescription>
                 </Alert>
               )}
 
-              {/* Bot√µes de Importa√ß√£o */}
+              {/* Botıes de ImportaÁ„o */}
               {config.apiKey && config.baseUrl && (
                 <div className="space-y-4">
                   <Alert>
                     <Info className="h-4 w-4" />
                     <AlertDescription>
-                      <strong>Importa√ß√£o Completa:</strong> Importa todos os an√∫ncios, todas as reservas (01/01/2025 at√© 31/12/2026) e todos os h√≥spedes desse per√≠odo.
+                      <strong>ImportaÁ„o Completa:</strong> Importa todos os an˙ncios, todas as reservas (01/01/2025 atÈ 31/12/2026) e todos os hÛspedes desse perÌodo.
                     </AlertDescription>
                   </Alert>
 
-                  {/* Bot√£o Importa√ß√£o Completa */}
+                  {/* Bot„o ImportaÁ„o Completa */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Card className="border-2 border-blue-500">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-lg">
                           <Database className="w-5 h-5 text-blue-600" />
-                          Importa√ß√£o Completa
+                          ImportaÁ„o Completa
                         </CardTitle>
                         <CardDescription>
-                          Importa an√∫ncios, reservas e h√≥spedes de uma vez
+                          Importa an˙ncios, reservas e hÛspedes de uma vez
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
@@ -1069,14 +1069,14 @@ export default function StaysNetIntegration() {
                           )}
                         </Button>
                         <p className="text-xs text-muted-foreground mt-2">
-                          ‚Ä¢ An√∫ncios (propriedades)<br />
-                          ‚Ä¢ Reservas (01/01/2025 - 31/12/2026)<br />
-                          ‚Ä¢ H√≥spedes
+                          ï An˙ncios (propriedades)<br />
+                          ï Reservas (01/01/2025 - 31/12/2026)<br />
+                          ï HÛspedes
                         </p>
                       </CardContent>
                     </Card>
 
-                    {/* Bot√µes Individuais */}
+                    {/* Botıes Individuais */}
                     <div className="space-y-3">
                       <Card>
                         <CardContent className="pt-6">
@@ -1095,7 +1095,7 @@ export default function StaysNetIntegration() {
                             ) : (
                               <span className="flex items-center">
                                 <Home className="w-4 h-4 mr-2" />
-                                Importar An√∫ncios
+                                Importar An˙ncios
                               </span>
                             )}
                           </Button>
@@ -1143,7 +1143,7 @@ export default function StaysNetIntegration() {
                             ) : (
                               <span className="flex items-center">
                                 <Users className="w-4 h-4 mr-2" />
-                                Importar H√≥spedes
+                                Importar HÛspedes
                               </span>
                             )}
                           </Button>
@@ -1152,22 +1152,22 @@ export default function StaysNetIntegration() {
                     </div>
                   </div>
 
-                  {/* Estat√≠sticas de Importa√ß√£o */}
+                  {/* EstatÌsticas de ImportaÁ„o */}
                   {importStats && (
                     <Card className="bg-green-50 dark:bg-green-900/20 border-green-200">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-green-900 dark:text-green-100">
                           <CheckCircle2 className="w-5 h-5" />
-                          Importa√ß√£o Conclu√≠da!
+                          ImportaÁ„o ConcluÌda!
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {/* H√≥spedes */}
+                          {/* HÛspedes */}
                           <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border">
                             <div className="flex items-center gap-2 mb-2">
                               <Users className="w-4 h-4 text-blue-600" />
-                              <span className="font-semibold">H√≥spedes</span>
+                              <span className="font-semibold">HÛspedes</span>
                             </div>
                             <div className="space-y-1 text-sm">
                               <p>Buscados: <strong>{importStats.guests?.fetched || 0}</strong></p>
@@ -1233,7 +1233,7 @@ export default function StaysNetIntegration() {
                     </Card>
                   )}
 
-                  {/* Erro de Importa√ß√£o */}
+                  {/* Erro de ImportaÁ„o */}
                   {importError && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
@@ -1245,13 +1245,13 @@ export default function StaysNetIntegration() {
             </CardContent>
           </Card>
 
-          {/* Nota sobre Sincroniza√ß√£o Autom√°tica */}
+          {/* Nota sobre SincronizaÁ„o Autom·tica */}
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              <strong>üîÑ Sincroniza√ß√£o Autom√°tica:</strong> O sistema est√° planejado para sincronizar automaticamente 
-              a cada 1 minuto, buscando novas propriedades, reservas e h√≥spedes do Stays.net. 
-              Esta funcionalidade ser√° implementada em breve.
+              <strong>?? SincronizaÁ„o Autom·tica:</strong> O sistema est· planejado para sincronizar automaticamente 
+              a cada 1 minuto, buscando novas propriedades, reservas e hÛspedes do Stays.net. 
+              Esta funcionalidade ser· implementada em breve.
             </AlertDescription>
           </Alert>
         </TabsContent>
@@ -1261,21 +1261,21 @@ export default function StaysNetIntegration() {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Esta se√ß√£o est√° em desenvolvimento. Aqui voc√™ poder√° mapear os campos da API do Stays.net
-              para os campos do RENDIZY, criando uma correspond√™ncia personalizada.
+              Esta seÁ„o est· em desenvolvimento. Aqui vocÍ poder· mapear os campos da API do Stays.net
+              para os campos do RENDIZY, criando uma correspondÍncia personalizada.
             </AlertDescription>
           </Alert>
 
           <Card>
             <CardHeader>
-              <CardTitle>Mapeamento Autom√°tico</CardTitle>
+              <CardTitle>Mapeamento Autom·tico</CardTitle>
               <CardDescription>
-                O sistema ir√° sugerir automaticamente o mapeamento com base nos nomes e tipos de dados
+                O sistema ir· sugerir automaticamente o mapeamento com base nos nomes e tipos de dados
               </CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Funcionalidade dispon√≠vel em breve...
+                Funcionalidade disponÌvel em breve...
               </p>
             </CardContent>
           </Card>
@@ -1419,7 +1419,7 @@ export default function StaysNetIntegration() {
               </ScrollArea>
             </div>
 
-            {/* Visualiza√ß√£o da Resposta */}
+            {/* VisualizaÁ„o da Resposta */}
             <div>
               <Card className="sticky top-4">
                 <CardHeader>

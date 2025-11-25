@@ -137,7 +137,7 @@ export default function WhatsAppWebhookManager() {
     try {
       setLoading(true);
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/webhook/status`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/webhook/status`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
@@ -170,7 +170,7 @@ export default function WhatsAppWebhookManager() {
     try {
       setLoadingEvents(true);
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/webhook/events`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/webhook/events`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
@@ -199,7 +199,7 @@ export default function WhatsAppWebhookManager() {
       setConfiguring(true);
       
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/webhook/setup`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/webhook/setup`,
         {
           method: 'POST',
           headers: {
@@ -243,7 +243,7 @@ export default function WhatsAppWebhookManager() {
       setConfiguring(true);
       
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/webhook`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/webhook`,
         {
           method: 'DELETE',
           headers: {
