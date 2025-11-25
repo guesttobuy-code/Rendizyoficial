@@ -15,8 +15,8 @@ foreach ($file in $files) {
     # Corrigir next-themes
     $content = $content -replace "from ['\""]next-themes@[^'\""]+['\""]", "from 'next-themes'"
     
-    # Corrigir figma:asset
-    $content = $content -replace "from ['\""]figma:asset/[^'\""]+['\""]", "from '/assets/57eefd69a2e74079e948ce1356622b7f42644fd5.png'"
+    # Remover imports figma:asset (logo antiga)
+    $content = $content -replace "import[^\r\n]+figma:asset/[^\r\n]+[\r\n]+", ""
     
     if ($content -ne $original) {
         Set-Content -Path $file.FullName -Value $content -NoNewline

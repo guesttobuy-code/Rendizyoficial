@@ -25,7 +25,6 @@
         'hono@4.6.14': 'hono',
         'hono@4.0.2': 'hono',
         'hono@4': 'hono',
-        'figma:asset/57eefd69a2e74079e948ce1356622b7f42644fd5.png': path.resolve(__dirname, './RendizyPrincipal/assets/57eefd69a2e74079e948ce1356622b7f42644fd5.png'),
         'embla-carousel-react@8.6.0': 'embla-carousel-react',
         'cmdk@1.1.1': 'cmdk',
         'class-variance-authority@0.7.1': 'class-variance-authority',
