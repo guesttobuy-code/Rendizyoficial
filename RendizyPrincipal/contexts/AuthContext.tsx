@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true; // Flag para evitar atualizações após desmontar
     
-    const loadUser = async (retries = 3, skipDelay = false, isPeriodicCheck = false) => {
+    const loadUser = async (retries = 1, skipDelay = false, isPeriodicCheck = false) => {
       try {
         // ✅ SOLUÇÃO SIMPLES: Token no header Authorization (não cookie)
         if (!isPeriodicCheck) {
@@ -57,6 +57,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // ✅ SEMPRE validar token no backend SQL via /auth/me
         const { projectId, publicAnonKey } = await import('../utils/supabase/info');
         const token = localStorage.getItem('rendizy-token'); // ✅ Token salvo no localStorage
+        
+        // ❗ Validação defensiva: tokens curtos (<80 chars) indicam sessão legada/truncada
+        // que o backend atual não reconhece (retorna 401 em /auth/me). Limpar para forçar
+        // um novo login com token longo (128+ chars) e evitar loops infinitos de retry.
+        if (token && token.length < 80) {
+          console.warn('⚠️ [AuthContext] Token legada/truncada detectada. Limpando para reautenticar.');
+          localStorage.removeItem('rendizy-token');
+          if (isMounted && !isPeriodicCheck) {
+            setUser(null);
+            setIsLoading(false);
+          }
+          return;
+        }
         
         if (!token) {
           if (!isPeriodicCheck) {
@@ -123,33 +136,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // ✅ Verificar se sessão é válida
         if (!response.ok || !data || !data.success) {
-          // ✅ RETRY: Se erro 401 e ainda há retries, tentar novamente (pode ser erro transitório)
-          if (response.status === 401 && retries > 0) {
-            console.warn(`⚠️ [AuthContext] Erro 401, tentando novamente... (${retries} tentativas restantes)`);
-            // ✅ CRÍTICO: Manter isLoading=true durante retries para ProtectedRoute aguardar
+          // ✅ CORREÇÃO CRÍTICA: Erro 401 não causa mais loop infinito
+          // Token inválido é imediatamente limpo e sistema redireciona para login
+          if (response.status === 401) {
+            console.log('❌ [AuthContext] Sessão inválida/expirada (401) - limpando token e resetando estado');
+            localStorage.removeItem('rendizy-token');
             if (isMounted && !isPeriodicCheck) {
-              setIsLoading(true);
+              setUser(null);
+              setOrganization(null);
+              setIsLoading(false);
             }
-            await new Promise(resolve => setTimeout(resolve, 2000)); // Aumentado para 2s
+            return;
+          }
+          
+          // ✅ Para outros erros (rede, etc), tentar retry apenas uma vez
+          if (retries > 0) {
+            console.warn(`⚠️ [AuthContext] Erro de rede, tentando novamente... (${retries} tentativas restantes)`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
             return loadUser(retries - 1, true, isPeriodicCheck);
           }
           
           // ✅ CORREÇÃO CRÍTICA: Em validações periódicas, NUNCA limpar token por erros de rede
-          // Apenas limpar se for realmente uma sessão inválida (401 + SESSION_NOT_FOUND)
-          // E apenas se NÃO for validação periódica (para evitar deslogar durante digitação)
+          // Pode ser erro transitório - manter sessão ativa
           if (isMounted) {
-            // ✅ Apenas limpar token se:
-            // 1. NÃO for validação periódica (isPeriodicCheck = false)
-            // 2. E for erro 401 com código SESSION_NOT_FOUND (sessão realmente inválida)
-            // 3. E não for erro de rede (response.ok = false mas pode ser timeout/CORS)
-            const isNetworkError = !response.ok && (response.status === 0 || response.status >= 500);
-            const isSessionInvalid = response.status === 401 && data?.code === 'SESSION_NOT_FOUND';
-            
-            if (!isPeriodicCheck && !isNetworkError && isSessionInvalid) {
-              console.log('❌ [AuthContext] Sessão realmente inválida - limpando token');
-              localStorage.removeItem('rendizy-token');
-              setUser(null);
-            } else if (isPeriodicCheck) {
+            if (isPeriodicCheck) {
               // ✅ Em validação periódica, apenas logar o erro mas NÃO limpar token
               console.warn('⚠️ [AuthContext] Erro em validação periódica (mantendo sessão):', data?.error || 'Erro de rede');
             } else {
@@ -157,7 +167,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
           // ✅ CRÍTICO: Só setar isLoading=false após TODAS as tentativas falharem
-          // Isso permite que ProtectedRoute aguarde o timeout de 5 segundos
           if (isMounted && !isPeriodicCheck) {
             setIsLoading(false);
           }
@@ -276,7 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     // ✅ BOAS PRÁTICAS: Validar imediatamente ao montar
-    loadUser(3, false, false); // 3 retries, com delay, não é periódica
+    loadUser(1, false, false); // 1 retry, com delay, não é periódica
 
     // ✅ BOAS PRÁTICAS: Validação periódica (a cada 5 minutos)
     // ✅ CORREÇÃO CRÍTICA: Marcar como isPeriodicCheck=true para NUNCA limpar token em erros

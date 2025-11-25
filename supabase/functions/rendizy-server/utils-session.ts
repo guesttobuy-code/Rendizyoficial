@@ -51,6 +51,14 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
     return null;
   }
 
+  // ✅ CORREÇÃO CRÍTICA: Tokens legados (ex.: "micjk8ts_qffa7w735o_...") tinham ~30 caracteres e não existem mais
+  // na tabela SQL. Para evitar consultas inúteis e 401 repetidos, considere-os inválidos.
+  // O novo token tem 128 caracteres. Usar 80 como limite de segurança.
+  if (token.length < 80) {
+    console.warn(`⚠️ [getSessionFromToken] Token muito curto (${token.length} chars). Ignorando e solicitando novo login.`);
+    return null;
+  }
+
   try {
     // ✅ ARQUITETURA SQL: Buscar sessão da tabela sessions do SQL
     console.log(`🔍 [getSessionFromToken] Buscando sessão na tabela SQL com token: ${token.substring(0, 20)}...`);
