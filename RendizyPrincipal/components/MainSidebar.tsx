@@ -70,7 +70,7 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import rendizyLogo from '/assets/57eefd69a2e74079e948ce1356622b7f42644fd5.png';
+import rendizyLogo from '../assets/57eefd69a2e74079e948ce1356622b7f42644fd5.png';
 import { Logo, LogoIcon, LogoText } from './Logo';
 import {
   DropdownMenu,
