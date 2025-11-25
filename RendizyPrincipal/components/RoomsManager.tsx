@@ -17,7 +17,7 @@ import { Plus, Bed, Bath, Users, Trash2, Home } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 // ============================================================================

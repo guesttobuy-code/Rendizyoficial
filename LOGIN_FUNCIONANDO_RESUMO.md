@@ -82,3 +82,5 @@ npx supabase functions deploy rendizy-server
 **Status:** ✅ **LOGIN FUNCIONANDO - MIGRATION APLICADA**
 
 
+
+

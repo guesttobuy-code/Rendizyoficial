@@ -6,7 +6,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
 import { Building2, AlertCircle, Loader2, WifiOff, Check } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { fetchWithRetry, testBackendHealth, diagnoseFetchError } from '../utils/fetchWithRetry';
 import { isOffline } from '../utils/offlineMode';

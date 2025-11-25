@@ -278,3 +278,5 @@ CREATE TABLE sessions (...);
 **Última atualização:** 2025-11-23
 
 
+
+

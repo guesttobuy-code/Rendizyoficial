@@ -83,3 +83,5 @@ Acessar: https://supabase.com/dashboard/project/odcgnzfremrqnvtitpcc/functions/r
 **Status:** ⚠️ **DEPLOY REALIZADO - AGUARDANDO PROPAGAÇÃO**
 
 
+
+
