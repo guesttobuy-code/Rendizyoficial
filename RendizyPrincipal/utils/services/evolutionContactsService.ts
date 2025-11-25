@@ -93,7 +93,7 @@ export class EvolutionContactsService {
       const { publicAnonKey } = await import('../supabase/info');
       
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/contacts`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/contacts`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase
@@ -150,7 +150,7 @@ export class EvolutionContactsService {
       const { publicAnonKey } = await import('../supabase/info');
       
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/whatsapp/chats`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/whatsapp/chats`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase
