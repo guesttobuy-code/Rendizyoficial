@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../ui/button';
-import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 import { Badge } from '../ui/badge';
 import {
@@ -156,7 +155,7 @@ const menuSections = [
     items: [
       {
         id: 'config',
-        label: 'Configurações',
+        label: 'Configurações do Financeiro',
         icon: <Settings className="w-5 h-5" />,
         path: '/financeiro/configuracoes',
       },
@@ -217,7 +216,36 @@ export default function FinanceiroSidebar() {
       <Separator />
 
       {/* Menu Items */}
-      <ScrollArea className="flex-1">
+      <div 
+        className="flex-1 overflow-y-auto pr-2 scrollbar-right"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgb(209 213 219) transparent'
+        }}
+      >
+        <style>{`
+          .scrollbar-right::-webkit-scrollbar {
+            width: 8px;
+          }
+          .scrollbar-right::-webkit-scrollbar-track {
+            background: transparent;
+            margin: 4px 0;
+          }
+          .scrollbar-right::-webkit-scrollbar-thumb {
+            background-color: rgb(209 213 219);
+            border-radius: 9999px;
+            margin-right: 4px;
+          }
+          .scrollbar-right::-webkit-scrollbar-thumb:hover {
+            background-color: rgb(156 163 175);
+          }
+          .dark .scrollbar-right::-webkit-scrollbar-thumb {
+            background-color: rgb(75 85 99);
+          }
+          .dark .scrollbar-right::-webkit-scrollbar-thumb:hover {
+            background-color: rgb(107 114 128);
+          }
+        `}</style>
         <div className="p-2 space-y-6">
           {menuSections.map((section, idx) => (
             <div key={idx}>
@@ -263,7 +291,7 @@ export default function FinanceiroSidebar() {
             </div>
           ))}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">

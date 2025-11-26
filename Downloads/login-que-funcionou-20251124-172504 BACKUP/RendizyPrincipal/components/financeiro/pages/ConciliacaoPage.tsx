@@ -15,6 +15,7 @@ import { Label } from '../../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { Badge } from '../../ui/badge';
 import { Upload, Check, X, Loader2, Search, Filter, Download } from 'lucide-react';
+import { SearchInput } from '../components/SearchInput';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import type { LinhaExtrato, ContaBancaria, Lancamento } from '../../../types/financeiro';
 import { financeiroApi } from '../../../utils/api';
@@ -35,6 +36,7 @@ export function ConciliacaoPage() {
   const [dataInicio, setDataInicio] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [dataFim, setDataFim] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [conciliado, setConciliado] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Upload
   const [arquivo, setArquivo] = useState<File | null>(null);
@@ -266,6 +268,11 @@ export function ConciliacaoPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <SearchInput
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Buscar linhas de extrato..."
+            />
             <Button variant="outline" size="sm" onClick={handleAplicarRegras} disabled={loading}>
               <Filter className="h-4 w-4 mr-2" />
               Aplicar Regras
