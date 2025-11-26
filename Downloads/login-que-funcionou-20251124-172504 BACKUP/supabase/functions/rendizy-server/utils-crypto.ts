@@ -1,0 +1,65 @@
+/**
+ * Utilidades de criptografia simétrica para dados sensíveis (ex.: API keys).
+ * Usa AES-GCM com chave derivada de variável de ambiente.
+ */
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+async function getCryptoKey() {
+  const secret = Deno.env.get('AI_PROVIDER_SECRET') || Deno.env.get('RENDAI_SECRET');
+  if (!secret) {
+    throw new Error('AI_PROVIDER_SECRET não configurado nas variáveis de ambiente');
+  }
+
+  const keyMaterial = await crypto.subtle.digest('SHA-256', encoder.encode(secret));
+  return crypto.subtle.importKey(
+    'raw',
+    keyMaterial,
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+}
+
+function bufferToBase64(buf: ArrayBuffer): string {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+
+function base64ToBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+export async function encryptSensitive(payload: string): Promise<string> {
+  const key = await getCryptoKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    encoder.encode(payload),
+  );
+  return `${bufferToBase64(iv.buffer)}:${bufferToBase64(encrypted)}`;
+}
+
+export async function decryptSensitive(encoded: string): Promise<string> {
+  const [ivB64, dataB64] = encoded.split(':');
+  if (!ivB64 || !dataB64) {
+    throw new Error('Formato de dado criptografado inválido');
+  }
+
+  const key = await getCryptoKey();
+  const iv = new Uint8Array(base64ToBuffer(ivB64));
+  const encrypted = base64ToBuffer(dataB64);
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    encrypted,
+  );
+  return decoder.decode(decrypted);
+}
+
