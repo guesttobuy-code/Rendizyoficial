@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import BUILD_INFO from './CACHE_BUSTER';
 // Mock backend desabilitado em v1.0.103.305 - Sistema usa apenas Supabase
@@ -61,7 +61,6 @@ import { EmergencyRecovery } from './components/EmergencyRecovery';
 import { PropertyWizardPage } from './pages/PropertyWizardPage';
 import DiagnosticoImovelPage from './pages/DiagnosticoImovelPage';
 import { FigmaTestPropertyCreator } from './components/FigmaTestPropertyCreator';
-import FinanceiroModule from './components/financeiro/FinanceiroModule';
 import FinanceiroDashboard from './components/financeiro/FinanceiroDashboard';
 import { ContasReceberPage } from './components/financeiro/pages/ContasReceberPage';
 import { ContasPagarPage } from './components/financeiro/pages/ContasPagarPage';
@@ -77,9 +76,8 @@ import { FechamentoCaixaPage } from './components/financeiro/pages/FechamentoCai
 import { InadimplenciaPage } from './components/financeiro/pages/InadimplenciaPage';
 import { RelatoriosGerenciaisPage } from './components/financeiro/pages/RelatoriosGerenciaisPage';
 import { ConfiguracoesFinanceirasPage } from './components/financeiro/pages/ConfiguracoesFinanceirasPage';
-import CRMTasksModule from './components/crm/CRMTasksModule';
 import CRMTasksDashboard from './components/crm/CRMTasksDashboard';
-import BIModule from './components/bi/BIModule';
+import AutomationsNaturalLanguageLab from './components/automations/AutomationsNaturalLanguageLab';
 import BIDashboard from './components/bi/BIDashboard';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -91,6 +89,17 @@ import { toast } from 'sonner';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// Cápsulas de módulos principais
+import { AdminMasterModule } from './components/admin/AdminMasterModule';
+import { DashboardModule } from './components/dashboard/DashboardModule';
+import { CalendarModule } from './components/calendar/CalendarModule';
+import { ReservationsModule } from './components/reservations/ReservationsModule';
+import { ChatModule } from './components/chat/ChatModule';
+import { LocationsModule } from './components/locations/LocationsModule';
+import { PropertiesModule } from './components/properties/PropertiesModule';
+import { GuestsModule } from './components/guests/GuestsModule';
+import { SettingsModule } from './components/settings/SettingsModule';
+
 import { initAutoRecovery } from './utils/autoRecovery';
 import { ChevronLeft, ChevronRight, Plus, Filter, Download, Tag, Sparkles, TrendingUp, Database, AlertTriangle } from 'lucide-react';
 import { detectConflicts } from './utils/conflictDetection';
@@ -98,6 +107,11 @@ import { initializeEvolutionContactsService, getEvolutionContactsService } from 
 import { Button } from './components/ui/button';
 import { reservationsApi, guestsApi, propertiesApi, calendarApi } from './utils/api';
 import { cn } from './components/ui/utils';
+
+// Lazy-loaded module shells (code splitting por módulo grande)
+const FinanceiroModule = React.lazy(() => import('./components/financeiro/FinanceiroModule'));
+const CRMTasksModule = React.lazy(() => import('./components/crm/CRMTasksModule'));
+const BIModule = React.lazy(() => import('./components/bi/BIModule'));
 
 // Types
 export interface Property {
@@ -893,6 +907,7 @@ function App() {
         <BuildLogger />
         <Toaster />
         
+        <Suspense fallback={<LoadingProgress isLoading={true} />}>
         <Routes>
         {/* ✅ ROTA LOGIN - v1.0.103.259 - Sistema Multi-Tenant */}
         <Route path="/login" element={<LoginPage />} />
@@ -937,230 +952,91 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA CALENDÁRIO - v1.0.103.249 - PROTEGIDA */}
+        {/* ✅ ROTA CALENDÁRIO - v1.0.103.249 - PROTEGIDA (ENCAPSULADA) */}
         <Route path="/calendario" element={
           <ProtectedRoute>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-            <LoadingProgress 
-              isLoading={initialLoading}
-            />
-            
-            <MainSidebar
-              activeModule='calendario'
+            <CalendarModule
+              sidebarCollapsed={sidebarCollapsed}
+              setSidebarCollapsed={setSidebarCollapsed}
+              initialLoading={initialLoading}
               onModuleChange={setActiveModule}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
               onSearchReservation={handleSearchReservation}
               onAdvancedSearch={handleAdvancedSearch}
+              properties={properties}
+              selectedProperties={selectedProperties}
+              setSelectedProperties={(updater) => setSelectedProperties(updater)}
+              reservations={reservations}
+              blocks={blocks}
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              selectedReservationTypes={selectedReservationTypes}
+              setSelectedReservationTypes={setSelectedReservationTypes}
+              currentView={currentView}
+              setCurrentView={setCurrentView}
+              currentMonth={currentMonth}
+              setCurrentMonth={setCurrentMonth}
+              refreshKey={refreshKey}
+              setExportModal={setExportModal}
+              handleEmptyClick={handleEmptyClick}
+              handleReservationClick={handleReservationClick}
+              handleOpenBlockDetails={handleOpenBlockDetails}
             />
-
-            <div 
-              className={cn(
-                "flex flex-col min-h-screen transition-all duration-300",
-                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-              )}
-            >
-              <div className="flex flex-1 overflow-hidden">
-                {/* Property Sidebar */}
-                <PropertySidebar
-                  properties={properties}
-                  selectedProperties={selectedProperties}
-                  onToggleProperty={(id) => {
-                    setSelectedProperties(prev => 
-                      prev.includes(id) 
-                        ? prev.filter(p => p !== id)
-                        : [...prev, id]
-                    );
-                  }}
-                  dateRange={dateRange}
-                  onDateRangeChange={setDateRange}
-                  selectedReservationTypes={selectedReservationTypes}
-                  onReservationTypesChange={setSelectedReservationTypes}
-                  currentView={currentView}
-                  onViewChange={setCurrentView}
-                />
-
-                {/* Main Calendar Area */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  {/* Calendar Header */}
-                  <CalendarHeader
-                    currentMonth={currentMonth}
-                    onMonthChange={setCurrentMonth}
-                    currentView={currentView}
-                    onViewChange={setCurrentView}
-                    dateRange={dateRange}
-                    onDateRangeChange={setDateRange}
-                    selectedProperties={selectedProperties}
-                    selectedReservationTypes={selectedReservationTypes}
-                    onReservationTypesChange={setSelectedReservationTypes}
-                    onExport={() => setExportModal(true)}
-                  />
-
-                  {/* Calendar Views */}
-                  <div className="flex-1 overflow-auto">
-                    {currentView === 'calendar' && (
-                      <Calendar
-                        properties={properties.filter(p => selectedProperties.includes(p.id))}
-                        reservations={reservations}
-                        blocks={blocks}
-                        currentMonth={currentMonth}
-                        selectedReservationTypes={selectedReservationTypes}
-                        onCellClick={handleEmptyClick}
-                        onReservationClick={handleReservationClick}
-                        onBlockClick={handleOpenBlockDetails}
-                        refreshKey={refreshKey}
-                      />
-                    )}
-                    
-                    {currentView === 'list' && (
-                      <ListView
-                        properties={properties.filter(p => selectedProperties.includes(p.id))}
-                        reservations={reservations}
-                        selectedReservationTypes={selectedReservationTypes}
-                        onReservationClick={handleReservationClick}
-                      />
-                    )}
-                    
-                    {currentView === 'timeline' && (
-                      <TimelineView
-                        properties={properties.filter(p => selectedProperties.includes(p.id))}
-                        reservations={reservations}
-                        blocks={blocks}
-                        dateRange={dateRange}
-                        selectedReservationTypes={selectedReservationTypes}
-                        onReservationClick={handleReservationClick}
-                        onBlockClick={handleOpenBlockDetails}
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
           </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA RESERVAS - v1.0.103.253 - PROTEGIDA */}
+        {/* ✅ ROTA RESERVAS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
         <Route path="/reservations" element={
           <ProtectedRoute>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-            <LoadingProgress 
-              isLoading={initialLoading}
-            />
-            
-            <MainSidebar
-              activeModule='central-reservas'
+            <ReservationsModule
+              sidebarCollapsed={sidebarCollapsed}
+              setSidebarCollapsed={setSidebarCollapsed}
+              initialLoading={initialLoading}
               onModuleChange={setActiveModule}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
               onSearchReservation={handleSearchReservation}
               onAdvancedSearch={handleAdvancedSearch}
             />
-
-            <div 
-              className={cn(
-                "flex flex-col min-h-screen transition-all duration-300",
-                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-              )}
-            >
-              <div className="flex-1 overflow-hidden">
-                <ReservationsManagement />
-              </div>
-            </div>
-          </div>
           </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA ADMIN MASTER - v1.0.103.253 - PROTEGIDA (CRÍTICO!) */}
+        {/* ✅ ROTA ADMIN MASTER - v1.0.103.253 - PROTEGIDA (CRÍTICO!) - ENCAPSULADA */}
         <Route path="/admin" element={
           <ProtectedRoute>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-            <LoadingProgress 
-              isLoading={initialLoading}
-            />
-            
-            <MainSidebar
-              activeModule='admin-master'
+            <AdminMasterModule
+              sidebarCollapsed={sidebarCollapsed}
+              setSidebarCollapsed={setSidebarCollapsed}
+              initialLoading={initialLoading}
               onModuleChange={setActiveModule}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
               onSearchReservation={handleSearchReservation}
               onAdvancedSearch={handleAdvancedSearch}
             />
-
-            <div 
-              className={cn(
-                "flex flex-col min-h-screen transition-all duration-300",
-                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-              )}
-            >
-              <div className="flex-1 overflow-hidden">
-                <AdminMasterFunctional />
-              </div>
-            </div>
-          </div>
           </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA CHAT - v1.0.103.253 - PROTEGIDA */}
+        {/* ✅ ROTA CHAT - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
         <Route path="/chat" element={
           <ProtectedRoute>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-              <LoadingProgress 
-                isLoading={initialLoading}
-              />
-              
-              <MainSidebar
-                activeModule='central-mensagens'
-                onModuleChange={setActiveModule}
-                collapsed={sidebarCollapsed}
-                onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-                onSearchReservation={handleSearchReservation}
-                onAdvancedSearch={handleAdvancedSearch}
-              />
-
-              <div 
-                className={cn(
-                  "flex flex-col min-h-screen transition-all duration-300",
-                  sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-                )}
-              >
-                <div className="flex-1 overflow-hidden">
-                  <ChatInboxWithEvolution />
-                </div>
-              </div>
-            </div>
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA LOCATIONS - v1.0.103.253 - PROTEGIDA */}
-        <Route path="/locations" element={
-          <ProtectedRoute>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-            <LoadingProgress 
-              isLoading={initialLoading}
-            />
-            
-            <MainSidebar
-              activeModule='locations-manager'
+            <ChatModule
+              sidebarCollapsed={sidebarCollapsed}
+              setSidebarCollapsed={setSidebarCollapsed}
+              initialLoading={initialLoading}
               onModuleChange={setActiveModule}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
               onSearchReservation={handleSearchReservation}
               onAdvancedSearch={handleAdvancedSearch}
             />
-
-            <div 
-              className={cn(
-                "flex flex-col min-h-screen transition-all duration-300",
-                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-              )}
-            >
-              <div className="flex-1 overflow-hidden">
-                <LocationsAndListings />
-              </div>
-            </div>
-          </div>
+          </ProtectedRoute>
+        } />
+        
+        {/* ✅ ROTA LOCATIONS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
+        <Route path="/locations" element={
+          <ProtectedRoute>
+            <LocationsModule
+              sidebarCollapsed={sidebarCollapsed}
+              setSidebarCollapsed={setSidebarCollapsed}
+              initialLoading={initialLoading}
+              onModuleChange={setActiveModule}
+              onSearchReservation={handleSearchReservation}
+              onAdvancedSearch={handleAdvancedSearch}
+            />
           </ProtectedRoute>
         } />
         
@@ -1257,65 +1133,31 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA GUESTS - v1.0.103.253 - PROTEGIDA */}
+        {/* ✅ ROTA GUESTS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
         <Route path="/guests" element={
           <ProtectedRoute>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-            <LoadingProgress 
-              isLoading={initialLoading}
-            />
-            
-            <MainSidebar
-              activeModule='hospedes'
+            <GuestsModule
+              sidebarCollapsed={sidebarCollapsed}
+              setSidebarCollapsed={setSidebarCollapsed}
+              initialLoading={initialLoading}
               onModuleChange={setActiveModule}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
               onSearchReservation={handleSearchReservation}
               onAdvancedSearch={handleAdvancedSearch}
             />
-
-            <div 
-              className={cn(
-                "flex flex-col min-h-screen transition-all duration-300",
-                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-              )}
-            >
-              <div className="flex-1 overflow-hidden">
-                <GuestsManager />
-              </div>
-            </div>
-          </div>
           </ProtectedRoute>
         } />
         
-        {/* ✅ ROTA SETTINGS - v1.0.103.253 - PROTEGIDA */}
+        {/* ✅ ROTA SETTINGS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
         <Route path="/settings" element={
           <ProtectedRoute>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-            <LoadingProgress 
-              isLoading={initialLoading}
-            />
-            
-            <MainSidebar
-              activeModule='configuracoes'
+            <SettingsModule
+              sidebarCollapsed={sidebarCollapsed}
+              setSidebarCollapsed={setSidebarCollapsed}
+              initialLoading={initialLoading}
               onModuleChange={setActiveModule}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
               onSearchReservation={handleSearchReservation}
               onAdvancedSearch={handleAdvancedSearch}
             />
-
-            <div 
-              className={cn(
-                "flex flex-col min-h-screen transition-all duration-300",
-                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-              )}
-            >
-              <div className="flex-1 overflow-hidden">
-                <SettingsManager />
-              </div>
-            </div>
-          </div>
           </ProtectedRoute>
         } />
         
@@ -1375,6 +1217,9 @@ function App() {
           {/* Seção Análise */}
           <Route path="relatorios" element={<ModulePlaceholder module="Relatórios" />} />
           <Route path="tarefas-arquivadas" element={<ModulePlaceholder module="Tarefas Arquivadas" />} />
+          
+          {/* Laboratório de Automações Inteligentes */}
+          <Route path="automacoes-lab" element={<AutomationsNaturalLanguageLab />} />
           
           {/* Configurações */}
           <Route path="configuracoes" element={<ModulePlaceholder module="Configurações CRM & Tasks" />} />
@@ -1507,40 +1352,22 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* ⭐ ROTA CONVENCIONADA - Dashboard Inicial - v1.0.103.267 - PROTEGIDA */}
-        {/* URL FIXA para troubleshooting: /dashboard */}
-        {/* Use esta URL quando precisar de um ponto de partida confiável */}
+        {/* ⭐ ROTA CONVENCIONADA - Dashboard Inicial - v1.0.103.267 - PROTEGIDA (ENCAPSULADA) */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-            <LoadingProgress 
-              isLoading={initialLoading}
-            />
-            
-            <MainSidebar
-              activeModule="painel-inicial"
+            <DashboardModule
+              sidebarCollapsed={sidebarCollapsed}
+              setSidebarCollapsed={setSidebarCollapsed}
+              initialLoading={initialLoading}
               onModuleChange={setActiveModule}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
               onSearchReservation={handleSearchReservation}
               onAdvancedSearch={handleAdvancedSearch}
+              conflicts={conflicts}
+              reservations={reservations}
+              properties={properties}
+              onReservationClick={handleReservationClick}
+              onDismissConflictAlert={() => setShowConflictAlert(false)}
             />
-
-            <div 
-              className={cn(
-                "flex flex-col min-h-screen transition-all duration-300",
-                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-              )}
-            >
-              <DashboardInicialSimple
-                conflicts={conflicts}
-                onReservationClick={handleReservationClick}
-                onDismissConflictAlert={() => setShowConflictAlert(false)}
-                reservations={reservations}
-                properties={properties}
-              />
-            </div>
-          </div>
           </ProtectedRoute>
         } />
         
@@ -1579,6 +1406,7 @@ function App() {
         } />
         
         </Routes>
+        </Suspense>
           </LanguageProvider>
         </ThemeProvider>
       </ErrorBoundary>
@@ -1606,11 +1434,6 @@ function getModuleName(moduleId: string): string {
     'reservas-incompletas': 'Reservas Incompletas',
     'reservas-avaliacoes-hospedes': 'Avaliações dos Hóspedes',
     'reservas-avaliacao-anfitriao': 'Avaliação do Anfitrião',
-    'central-tarefas': 'Tasks',
-    'tarefas-lista': 'Lista de Tarefas',
-    'tarefas-dashboard-imagens': 'Dashboard de Imagens',
-    'tarefas-dashboard-incutis': 'Dashboard Incutis',
-    'tarefas-dashboard-guiaturs': 'Dashboard Guiaturs',
     'usuarios-hospedes': 'Usuários e Clientes',
     'usuarios-usuarios': 'Usuários',
     'usuarios-clientes': 'Clientes e Hóspedes',
@@ -1625,11 +1448,9 @@ function getModuleName(moduleId: string): string {
     'assistentes-historico': 'Histórico de Login',
     'central-mensagens': 'Chat',
     'financeiro': 'Finanças',
-    'estatisticas': 'Estatísticas',
     'configuracoes': 'Configurações',
     'motor-reservas': 'Edição de site',
-    'app-center': 'Aplicativos',
-    'backend-tester-tenants': 'Gerenciamento de Imobiliárias',
+    'app-center': 'Loja de apps',
     'promocoes': 'Promoções',
     'notificacoes': 'Notificações'
   };
@@ -1655,11 +1476,6 @@ function getModuleDescription(moduleId: string): string {
     'reservas-incompletas': 'Gerencie reservas pendentes ou com informações incompletas.',
     'reservas-avaliacoes-hospedes': 'Visualize e responda avaliações feitas pelos hóspedes.',
     'reservas-avaliacao-anfitriao': 'Avalie seus hóspedes após o check-out.',
-    'central-tarefas': 'Organize e acompanhe tarefas relacionadas aos imóveis e reservas.',
-    'tarefas-lista': 'Visualize e gerencie todas as tarefas do sistema.',
-    'tarefas-dashboard-imagens': 'Dashboard para controle de qualidade de imagens dos imóveis.',
-    'tarefas-dashboard-incutis': 'Painel de integração com Incutis.',
-    'tarefas-dashboard-guiaturs': 'Painel de integração com Guiaturs.',
     'usuarios-hospedes': 'Gerencie usuários, clientes, hóspedes e proprietários.',
     'usuarios-usuarios': 'Administre usuários do sistema e suas permissões.',
     'usuarios-clientes': 'Gerencie clientes (compradores, locadores residenciais e hóspedes de temporada).',
@@ -1674,11 +1490,9 @@ function getModuleDescription(moduleId: string): string {
     'assistentes-historico': 'Visualize histórico completo de logins e acessos.',
     'central-mensagens': 'Central unificada de mensagens com WhatsApp, SMS, Email e chat interno.',
     'financeiro': 'Gestão financeira completa: contas a pagar/receber, DRE, fluxo de caixa e relatórios.',
-    'estatisticas': 'Relatórios e análises detalhadas sobre desempenho e métricas.',
     'configuracoes': 'Configure preferências, integrações e parâmetros do sistema.',
     'motor-reservas': 'Crie e personalize sites de reservas com inteligência artificial.',
-    'app-center': 'Central de aplicativos e integrações com plataformas externas.',
-    'backend-tester-tenants': 'Ferramenta administrativa para gerenciar múltiplas imobiliárias (SaaS).',
+    'app-center': 'Loja de apps e integrações com plataformas externas.',
     'promocoes': 'Crie e gerencie campanhas promocionais e descontos.',
     'notificacoes': 'Central de notificações e alertas do sistema.'
   };

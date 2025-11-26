@@ -5,7 +5,7 @@
  * Gerencia login, refresh, logout e validação de tokens
  */
 
-import { projectId } from '../utils/supabase/info';
+import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/rendizy-server`;
 
@@ -60,10 +60,14 @@ export interface UserResponse {
  */
 export async function login(username: string, password: string): Promise<LoginResponse> {
   try {
+    console.log('🔐 [authService] Fazendo login:', { username, apiBase: API_BASE });
+    
     const response = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'apikey': publicAnonKey, // ✅ Obrigatório para Supabase Edge Functions
+        'Authorization': `Bearer ${publicAnonKey}` // ✅ Obrigatório para Supabase Edge Functions
       },
       // ✅ TEMPORÁRIO: Removido credentials: 'include' para resolver CORS
       // Tokens em localStorage funcionam perfeitamente (seguindo regra: "Se funciona, não mudar")
@@ -71,15 +75,41 @@ export async function login(username: string, password: string): Promise<LoginRe
       body: JSON.stringify({ username, password })
     });
 
-    const data = await response.json();
+    console.log('🔐 [authService] Response status:', response.status);
+    console.log('🔐 [authService] Response ok:', response.ok);
     
-    if (data.success && data.accessToken) {
+    // ✅ Verificar se a resposta é JSON antes de fazer parse
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ [authService] Resposta não é JSON:', text.substring(0, 200));
+      return {
+        success: false,
+        error: `Erro HTTP ${response.status}: ${text.substring(0, 100)}`
+      };
+    }
+
+    const data = await response.json();
+    console.log('🔐 [authService] Response data:', JSON.stringify(data, null, 2));
+    console.log('🔐 [authService] Response data (parsed):', { success: data.success, hasToken: !!data.token, hasAccessToken: !!data.accessToken, error: data.error });
+    
+    if (!response.ok) {
+      console.error('❌ [authService] Login falhou:', { status: response.status, error: data.error, message: data.message, fullData: JSON.stringify(data, null, 2) });
+      return {
+        success: false,
+        error: data.error || data.message || `Erro HTTP ${response.status}`
+      };
+    }
+    
+    if (data.success && (data.accessToken || data.token)) {
       // ✅ Salvar access token no localStorage (temporário, até migrar para cookie)
-      localStorage.setItem('rendizy-token', data.accessToken);
-      // ✅ COMPATIBILIDADE: Se não tem accessToken mas tem token, usar token
-      if (!data.accessToken && data.token) {
-        localStorage.setItem('rendizy-token', data.token);
+      const token = data.accessToken || data.token;
+      if (token) {
+        localStorage.setItem('rendizy-token', token);
+        console.log('✅ [authService] Token salvo no localStorage');
       }
+    } else {
+      console.error('❌ [authService] Login retornou success mas sem token:', data);
     }
     
     return data;
@@ -148,8 +178,10 @@ export async function getCurrentUser(): Promise<UserResponse> {
     const response = await fetch(`${API_BASE}/auth/me`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'apikey': publicAnonKey, // ✅ Obrigatório para Supabase Edge Functions
+        'Authorization': `Bearer ${publicAnonKey}`, // ✅ Obrigatório para Supabase Edge Functions
+        'X-Auth-Token': token // ✅ Token do usuário no header customizado
       },
       // ✅ TEMPORÁRIO: Removido credentials: 'include' para resolver CORS
     });
@@ -166,8 +198,10 @@ export async function getCurrentUser(): Promise<UserResponse> {
           const retryResponse = await fetch(`${API_BASE}/auth/me`, {
             method: 'GET',
             headers: {
-              'Authorization': `Bearer ${newToken}`,
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'apikey': publicAnonKey, // ✅ Obrigatório para Supabase Edge Functions
+              'Authorization': `Bearer ${publicAnonKey}`, // ✅ Obrigatório para Supabase Edge Functions
+              'X-Auth-Token': newToken // ✅ Token do usuário no header customizado
             },
             // ✅ TEMPORÁRIO: Removido credentials: 'include' para resolver CORS
           });

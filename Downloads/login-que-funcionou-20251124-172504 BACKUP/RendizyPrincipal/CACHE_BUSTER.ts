@@ -1,18 +1,18 @@
 ﻿/**
  * RENDIZY - Cache Buster
  * Forca rebuild completo quando necessario
- * @version v1.0.103.324
+ * @version v1.0.103.325
  */
 
 export const CACHE_BUSTER = {
-  version: 'v1.0.103.324',
-  buildDate: '2025-11-26T03:11:03.000Z',
-  reason: 'Deploy automatico: Sistema de registro de campos financeiros',
+  version: 'v1.0.103.325',
+  buildDate: '2025-11-26T05:22:00.000Z',
+  reason: 'Copiloto IA integrado + laboratório de automações naturais',
   changes: [
-    'Sistema de registro automatico de campos financeiros',
-    'Integracao Airbnb com registro automatico de campo',
-    'Migration de campos financeiros aplicada',
-    'Filtro de modulos atualizado (inclui Integracoes)',
+    'Persistencia segura de provedores de IA (Supabase + criptografia)',
+    'Serviço AI centralizado com suporte OpenAI/Azure/HuggingFace',
+    'Endpoint IA -> automações em linguagem natural',
+    'Lab `/crm/automacoes-lab` para testar fluxos inteligentes',
   ],
 };
 

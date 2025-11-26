@@ -19,7 +19,8 @@ import {
   Clock,
   Settings,
   BarChart3,
-  TrendingUp
+  TrendingUp,
+  Bot
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -30,6 +31,7 @@ import StaysNetIntegration from './StaysNetIntegration';
 import { BookingComIntegration } from './BookingComIntegration';
 import WhatsAppIntegration from './WhatsAppIntegration';
 import { AirbnbIntegration } from './AirbnbIntegration';
+import { AIIntegration } from './AIIntegration';
 
 // ============================================================================
 // TYPES
@@ -133,6 +135,25 @@ const CHANNELS: IntegrationChannel[] = [
     },
     badge: {
       text: 'NOVO',
+      variant: 'success'
+    }
+  },
+  {
+    id: 'ai-provider',
+    name: 'Provedor de IA',
+    description: 'Integra ChatGPT / IA open-source para copilotar o Rendizy',
+    icon: Bot,
+    iconColor: 'text-white',
+    gradientFrom: 'from-purple-500',
+    gradientTo: 'to-indigo-500',
+    status: 'active',
+    stats: {
+      connected: 0,
+      active: 0,
+      inactive: 0
+    },
+    badge: {
+      text: 'Novo',
       variant: 'success'
     }
   },
@@ -408,6 +429,7 @@ export function IntegrationsManager() {
             {selectedChannel === 'whatsapp' && <WhatsAppIntegration />}
             {selectedChannel === 'bookingcom' && <BookingComIntegration />}
             {selectedChannel === 'airbnb' && <AirbnbIntegration />}
+            {selectedChannel === 'ai-provider' && <AIIntegration />}
           </div>
         </DialogContent>
       </Dialog>

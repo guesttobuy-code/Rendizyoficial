@@ -242,19 +242,6 @@ export function MainSidebar({
       title: 'Operacional',
       items: [
         {
-          id: 'central-tarefas',
-          label: 'Tasks',
-          icon: CheckSquare,
-          iconColor: 'text-white',
-          iconBg: 'bg-[#3d4451] dark:bg-[#4a5568]',
-          submenu: [
-            { id: 'tarefas-lista', label: 'Lista de Tarefas', icon: ClipboardCheck },
-            { id: 'tarefas-dashboard-imagens', label: 'Dashboard de Imagens', icon: ImageIcon },
-            { id: 'tarefas-dashboard-incutis', label: 'Dashboard Incutis', icon: PieChart },
-            { id: 'tarefas-dashboard-guiaturs', label: 'Dashboard Guiaturs', icon: TrendingUp }
-          ]
-        },
-        {
           id: 'usuarios-hospedes',
           label: 'Usuários e Clientes',
           icon: Users,
@@ -306,6 +293,17 @@ export function MainSidebar({
           externalPath: '/crm'
         },
         {
+          id: 'modulo-automacoes',
+          label: 'Automações',
+          icon: Zap,
+          iconColor: 'text-white',
+          iconBg: 'bg-gradient-to-br from-pink-500 to-orange-500',
+          badge: 'BETA',
+          isExternalModule: true,
+          // Por enquanto abre o laboratório de automações dentro do módulo CRM
+          externalPath: '/crm/automacoes-lab'
+        },
+        {
           id: 'modulo-bi',
           label: 'BI & Relatórios',
           icon: BarChart3,
@@ -321,30 +319,11 @@ export function MainSidebar({
       title: 'Avançado',
       items: [
         {
-          id: 'estatisticas',
-          label: 'Estatísticas',
-          icon: TrendingUp,
-          iconColor: 'text-white',
-          iconBg: 'bg-[#3d4451] dark:bg-[#4a5568]'
-        },
-        {
           id: 'app-center',
-          label: 'Aplicativos',
+          label: 'Loja de apps',
           icon: Grid3x3,
           iconColor: 'text-white',
           iconBg: 'bg-[#3d4451] dark:bg-[#4a5568]'
-        },
-        {
-          id: 'integracoes',
-          label: 'Integrações',
-          icon: Zap,
-          iconColor: 'text-white',
-          iconBg: 'bg-[#3d4451] dark:bg-[#4a5568]',
-          submenu: [
-            { id: 'integracoes-bookingcom', label: 'Booking.com', icon: Activity },
-            { id: 'integracoes-airbnb', label: 'Airbnb', icon: Home },
-            { id: 'integracoes-expedia', label: 'Expedia', icon: Activity }
-          ]
         },
         {
           id: 'configuracoes',
@@ -368,14 +347,6 @@ export function MainSidebar({
             { id: 'assistentes-historico', label: 'Histórico de Login', icon: LogIn }
           ]
         },
-        {
-          id: 'backend-tester',
-          label: 'Backend',
-          icon: Database,
-          iconColor: 'text-white',
-          iconBg: 'bg-[#3d4451] dark:bg-[#4a5568]',
-          badge: 'DEV'
-        }
       ]
     }
   ];
@@ -403,7 +374,6 @@ export function MainSidebar({
     'precos-em-lote': '/pricing',
     'promocoes': '/calendar',
     'financeiro': '/financeiro',
-    'central-tarefas': '/crm',
     'hospedes': '/guests',
     'bi-analytics': '/bi',
     'configuracoes': '/settings',

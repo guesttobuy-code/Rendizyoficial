@@ -198,6 +198,101 @@ export interface Guest {
 }
 
 // ============================================================================
+// AI PROVIDER INTEGRATION
+// ============================================================================
+
+export interface AIProviderConfigResponse {
+  exists?: boolean;
+  organizationId?: string;
+  enabled?: boolean;
+  provider?: string;
+  base_url?: string;
+  default_model?: string;
+  temperature?: number;
+  max_tokens?: number;
+  prompt_template?: string;
+  notes?: string | null;
+  hasApiKey?: boolean;
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface UpsertAIProviderConfigRequest {
+  provider: string;
+  baseUrl: string;
+  defaultModel: string;
+  enabled?: boolean;
+  temperature?: number;
+  maxTokens?: number;
+  promptTemplate?: string;
+  notes?: string;
+  apiKey?: string;
+}
+
+export interface AIProviderTestResponse {
+  provider: string;
+  url: string;
+  httpStatus: number;
+  modelsCount?: number;
+  testedAt: string;
+}
+
+// ============================================================================
+// AUTOMATIONS - NATURAL LANGUAGE
+// ============================================================================
+
+export type AutomationPriority = 'baixa' | 'media' | 'alta';
+
+export interface AutomationNaturalLanguageRequest {
+  input: string;
+  module?: string;
+  channel?: 'chat' | 'whatsapp' | 'email' | 'sms' | 'dashboard';
+  priority?: AutomationPriority;
+  language?: string;
+}
+
+export interface AutomationCondition {
+  field: string;
+  operator: string;
+  value: any;
+}
+
+export interface AutomationAction {
+  type: string;
+  channel?: string;
+  template?: string;
+  payload?: Record<string, any>;
+}
+
+export interface AutomationDefinition {
+  name: string;
+  description?: string;
+  trigger: {
+    type: string;
+    field?: string;
+    operator?: string;
+    value?: any;
+    schedule?: string | null;
+    threshold?: number | null;
+  };
+  conditions?: AutomationCondition[];
+  actions: AutomationAction[];
+  metadata?: {
+    priority?: AutomationPriority;
+    requiresApproval?: boolean;
+    notifyChannels?: string[];
+  };
+}
+
+export interface AutomationNaturalLanguageResponse {
+  definition: AutomationDefinition;
+  provider: string;
+  model: string;
+  rawText: string;
+}
+
+// ============================================================================
 // HELPER FUNCTION
 // ============================================================================
 
@@ -1681,6 +1776,48 @@ export const financeiroApi = {
 };
 
 // ============================================================================
+// INTEGRAÇÕES - PROVEDOR DE IA
+// ============================================================================
+
+export const integrationsApi = {
+  ai: {
+    getConfig: async (): Promise<ApiResponse<AIProviderConfigResponse>> => {
+      return apiRequest<AIProviderConfigResponse>('/make-server-67caf26a/integrations/ai/config');
+    },
+    upsertConfig: async (
+      payload: UpsertAIProviderConfigRequest
+    ): Promise<ApiResponse<AIProviderConfigResponse>> => {
+      return apiRequest<AIProviderConfigResponse>('/make-server-67caf26a/integrations/ai/config', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    },
+    testConfig: async (): Promise<ApiResponse<AIProviderTestResponse>> => {
+      return apiRequest<AIProviderTestResponse>('/make-server-67caf26a/integrations/ai/test', {
+        method: 'POST',
+      });
+    },
+  },
+};
+
+// ============================================================================
+// AUTOMAÇÕES - LAB IA
+// ============================================================================
+
+export const automationsApi = {
+  ai: {
+    interpretNaturalLanguage: async (
+      payload: AutomationNaturalLanguageRequest
+    ): Promise<ApiResponse<AutomationNaturalLanguageResponse>> => {
+      return apiRequest<AutomationNaturalLanguageResponse>('/make-server-67caf26a/automations/ai/interpret', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+  },
+};
+
+// ============================================================================
 // EXPORT DEFAULT
 // ============================================================================
 
@@ -1692,4 +1829,6 @@ export default {
   locations: locationsApi,
   dev: devApi,
   financeiro: financeiroApi,
+  integrations: integrationsApi,
+  automations: automationsApi,
 };

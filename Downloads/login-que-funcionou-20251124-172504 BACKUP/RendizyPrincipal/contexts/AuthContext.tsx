@@ -61,11 +61,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Isso garante que o hasTokenState seja atualizado imediatamente
     // IMPORTANTE: Executar de forma síncrona, antes de qualquer async
     if (typeof window !== 'undefined') {
+      // ✅ CORREÇÃO v1.0.103.1020: Limpar tokens JWT antigos (incompatíveis com novo sistema)
+      // Tokens JWT começam com "eyJ" e não são compatíveis com tokens simples (128 chars hex)
       const token = localStorage.getItem('rendizy-token');
-      const hasToken = !!token;
-      console.log('🔍 [AuthContext] Token no localStorage ao montar:', hasToken ? `SIM (${token!.substring(0, 20)}...)` : 'NÃO');
-      // ✅ CRÍTICO: Atualizar hasTokenState imediatamente (síncrono)
-      setHasTokenState(hasToken);
+      let hasToken = false;
+      
+      if (token && (token.startsWith('eyJ') || token.length < 80)) {
+        console.warn('⚠️ [AuthContext] Token antigo/JWT detectado - limpando:', token.substring(0, 30) + '...');
+        localStorage.removeItem('rendizy-token');
+        // Limpar também tokens do Supabase Auth se existirem
+        localStorage.removeItem('supabase.auth.token');
+        setHasTokenState(false);
+        hasToken = false;
+      } else {
+        hasToken = !!token;
+        console.log('🔍 [AuthContext] Token no localStorage ao montar:', hasToken ? `SIM (${token!.substring(0, 20)}...)` : 'NÃO');
+        // ✅ CRÍTICO: Atualizar hasTokenState imediatamente (síncrono)
+        setHasTokenState(hasToken);
+      }
       
       // ✅ Se não tem token, marcar como não carregando mas continuar
       // (deixar loadUser ser executado para garantir consistência)
@@ -148,9 +161,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'X-Auth-Token': token, // ✅ Usar APENAS header customizado para evitar validação JWT automática do Supabase
-            'apikey': publicAnonKey // ✅ Adicionar apikey para Supabase Edge Functions
-            // ❌ REMOVIDO: Authorization header (causa validação JWT automática do Supabase)
+            'apikey': publicAnonKey, // ✅ Obrigatório para Supabase Edge Functions
+            'Authorization': `Bearer ${publicAnonKey}`, // ✅ Obrigatório para Supabase Edge Functions
+            'X-Auth-Token': token // ✅ Token do usuário no header customizado
           },
           credentials: 'omit' // ✅ EXPLÍCITO: não enviar credentials (resolve CORS com origin: "*")
         });
@@ -331,12 +344,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // ✅ CORREÇÃO MANUS.IM: Validar imediatamente ao montar (1 retry apenas)
     // ✅ CORREÇÃO v1.0.103.1008: Executar loadUser após atualizar hasTokenState
-    // Pequeno delay para garantir que hasTokenState foi atualizado
+    // ✅ CORREÇÃO: Aumentar delay para evitar validação muito rápida após login
     setTimeout(() => {
       if (isMounted) {
         loadUser(1, false, false); // 1 retry, com delay, não é periódica
       }
-    }, 10); // Delay mínimo apenas para garantir ordem de execução
+    }, 500); // ✅ Aumentado para 500ms para dar tempo da sessão ser commitada após login
 
     // ✅ BOAS PRÁTICAS MUNDIAIS: Validação periódica (a cada 5 minutos)
     const periodicInterval = setInterval(() => {
@@ -504,7 +517,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(loggedUser);
       setHasTokenState(true);
       
-      // ✅ Buscar organização se houver
+      // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Notificar outras abas
+      const token = localStorage.getItem('rendizy-token');
+      if (token) {
+        authBroadcast.notifyLogin(token, loggedUser);
+      }
+      
+      // ✅ CORREÇÃO: Aguardar um pouco antes de buscar organização
+      // Isso garante que a sessão foi commitada no banco
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // ✅ Buscar organização se houver (após delay para garantir sessão commitada)
       if (backendUser.organizationId) {
         try {
           const userResult = await getCurrentUser();
@@ -522,13 +545,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (error) {
           console.warn('⚠️ [AuthContext] Erro ao buscar organização:', error);
+          // Não falhar o login se não conseguir buscar organização
         }
-      }
-      
-      // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Notificar outras abas
-      const token = localStorage.getItem('rendizy-token');
-      if (token) {
-        authBroadcast.notifyLogin(token, loggedUser);
       }
 
       console.log('✅ [AuthContext] Login bem-sucedido');

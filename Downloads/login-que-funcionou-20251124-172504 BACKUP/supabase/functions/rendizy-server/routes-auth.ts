@@ -92,9 +92,26 @@ function generateToken(bytes = 64): string {
 // POST /auth/login - Login
 app.post('/login', async (c) => {
   try {
+    console.log('🔐 ============================================');
     console.log('🔐 POST /auth/login - Tentativa de login');
+    console.log('🔐 URL:', c.req.url);
+    console.log('🔐 Path:', c.req.path);
+    console.log('🔐 Method:', c.req.method);
+    console.log('🔐 ============================================');
     
-    const { username, password } = await c.req.json();
+    let body;
+    try {
+      body = await c.req.json();
+      console.log('🔐 Body recebido:', { username: body.username, hasPassword: !!body.password });
+    } catch (e) {
+      console.error('❌ Erro ao parsear JSON:', e);
+      return c.json({
+        success: false,
+        error: 'Erro ao processar requisição'
+      }, 400);
+    }
+    
+    const { username, password } = body;
 
     if (!username || !password) {
       return c.json({
@@ -156,15 +173,22 @@ app.post('/login', async (c) => {
     // 1. Verificar se é SuperAdmin ou usuário de organização
     if (user.type === 'superadmin' || user.type === 'imobiliaria' || user.type === 'staff') {
       // ✅ ARQUITETURA SQL: Verificar senha usando hash do banco
+      const computedHash = hashPassword(password);
       console.log('🔍 Verificando senha:', { 
         username, 
+        passwordProvided: password ? 'SIM' : 'NÃO',
+        passwordLength: password?.length,
         passwordHashLength: user.password_hash?.length,
         passwordHashPrefix: user.password_hash?.substring(0, 20),
-        computedHash: hashPassword(password),
-        storedHash: user.password_hash
+        computedHash: computedHash,
+        storedHash: user.password_hash,
+        hashesMatch: computedHash === user.password_hash
       });
       
-      if (!verifyPassword(password, user.password_hash)) {
+      const passwordValid = verifyPassword(password, user.password_hash);
+      console.log('🔍 Resultado da verificação de senha:', passwordValid);
+      
+      if (!passwordValid) {
         console.log('❌ Senha incorreta para usuário:', username);
         console.log('🔍 Debug senha:', {
           computed: hashPassword(password),

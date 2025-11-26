@@ -61,9 +61,9 @@ const app = new Hono();
 // ============================================================================
 // CORS CONFIGURATION - DEVE VIR ANTES DE TUDO
 // ============================================================================
-// ✅ SOLUÇÃO SIMPLES - Como estava funcionando ontem
-// origin: "*" funciona quando NÃO usa credentials: true
-// ✅ GARANTIR que credentials seja false (não enviar Access-Control-Allow-Credentials)
+// ✅ SOLUÇÃO SIMPLES: origin: '*' SEM credentials: true
+// Seguindo regra: "Se funciona, não mudar"
+// Tokens em localStorage + header Authorization funcionam perfeitamente
 app.use(
   "/*",
   async (c, next) => {
@@ -72,7 +72,7 @@ app.use(
       c.header('Access-Control-Allow-Origin', '*');
       c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
       c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, apikey, X-Auth-Token');
-      // ✅ NÃO incluir Access-Control-Allow-Credentials
+      // ✅ NÃO incluir Access-Control-Allow-Credentials (não usa cookies)
       return c.body(null, 204);
     }
     await next();
@@ -80,7 +80,7 @@ app.use(
     c.header('Access-Control-Allow-Origin', '*');
     c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
     c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, apikey, X-Auth-Token');
-    // ✅ NÃO incluir Access-Control-Allow-Credentials
+    // ✅ NÃO incluir Access-Control-Allow-Credentials (não usa cookies)
   }
 );
 

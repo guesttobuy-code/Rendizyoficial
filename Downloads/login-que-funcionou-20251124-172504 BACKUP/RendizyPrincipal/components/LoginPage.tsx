@@ -23,7 +23,8 @@ export default function LoginPage() {
   // Se já está autenticado, redirecionar
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/');
+      console.log('✅ [LoginPage] Usuário já autenticado - redirecionando para dashboard');
+      navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
 
@@ -55,10 +56,23 @@ export default function LoginPage() {
           description: `Bem-vindo, ${result.user.name || username}!`
         });
         
-        // Aguardar um pouco para garantir que o estado foi atualizado
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // ✅ CORREÇÃO: Aguardar mais tempo para garantir que:
+        // 1. Token foi salvo no localStorage
+        // 2. AuthContext atualizou o estado (user e isAuthenticated)
+        // 3. Sessão foi validada no backend
+        // 4. ProtectedRoute reconhece o usuário como autenticado
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // ✅ Verificar se isAuthenticated foi atualizado antes de redirecionar
+        // Se ainda não estiver autenticado, aguardar mais um pouco
+        let attempts = 0;
+        while (!isAuthenticated && attempts < 10) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          attempts++;
+        }
         
         // Redirecionar para dashboard inicial (todos os usuários)
+        console.log('🚀 [LoginPage] Redirecionando para /dashboard...');
         navigate('/dashboard');
       } else {
         // ✅ CORREÇÃO: Mostrar erro específico se houver

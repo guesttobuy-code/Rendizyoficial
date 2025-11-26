@@ -23,6 +23,7 @@ import {
   Clock,
   Flag,
   Archive,
+  Sparkles,
   UsersIcon as TeamIcon
 } from 'lucide-react';
 
@@ -161,6 +162,18 @@ const menuSections = [
         label: 'Tarefas Arquivadas',
         icon: <Archive className="w-5 h-5" />,
         path: '/crm/tarefas-arquivadas',
+      },
+    ]
+  },
+  {
+    title: 'Inteligência',
+    items: [
+      {
+        id: 'automacoes-lab',
+        label: 'Automações IA (Beta)',
+        icon: <Sparkles className="w-5 h-5" />,
+        path: '/crm/automacoes-lab',
+        badge: 'LAB',
       },
     ]
   },
