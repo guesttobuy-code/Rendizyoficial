@@ -96,13 +96,16 @@ export async function upsertAIProviderConfig(c: Context) {
       return c.json(validationErrorResponse('Informe uma API Key para o provedor selecionado'), 400);
     }
 
+    // Garantir que temperature está no range válido (0-1 para NUMERIC(3,2))
+    const temperature = Math.max(0, Math.min(1, body.temperature ?? 0.2));
+    
     const payload = {
       organization_id: organizationId,
       provider: body.provider,
       base_url: body.baseUrl,
       default_model: body.defaultModel,
       enabled: body.enabled ?? true,
-      temperature: body.temperature ?? 0.2,
+      temperature: temperature,
       max_tokens: body.maxTokens ?? 512,
       prompt_template: body.promptTemplate ?? 'Você é o copiloto oficial do Rendizy. Responda sempre em português brasileiro.',
       notes: body.notes ?? null,
@@ -113,6 +116,8 @@ export async function upsertAIProviderConfig(c: Context) {
       organization_id: payload.organization_id,
       provider: payload.provider,
       enabled: payload.enabled,
+      temperature: payload.temperature,
+      max_tokens: payload.max_tokens,
       hasApiKey: !!payload.api_key_encrypted
     });
 

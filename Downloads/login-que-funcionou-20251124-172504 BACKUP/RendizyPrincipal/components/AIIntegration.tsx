@@ -18,6 +18,8 @@ import {
   Activity,
   Bot,
   CheckCircle2,
+  Eye,
+  EyeOff,
   Info,
   Link,
   MessageSquare,
@@ -158,6 +160,7 @@ export function AIIntegration() {
   const [isTesting, setIsTesting] = useState(false);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [lastTestResult, setLastTestResult] = useState<{
     status: 'success' | 'error' | 'idle';
     message?: string;
@@ -393,13 +396,30 @@ export function AIIntegration() {
 
             <div className="space-y-2">
               <Label>API Key / Token</Label>
-              <Input
-                type="password"
-                placeholder="Cole aqui sua API Key"
-                value={apiKeyInput}
-                disabled={disableInputs}
-                onChange={(event) => setApiKeyInput(event.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  type={showApiKey ? 'text' : 'password'}
+                  placeholder="Cole aqui sua API Key"
+                  value={apiKeyInput}
+                  disabled={disableInputs}
+                  onChange={(event) => setApiKeyInput(event.target.value)}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  disabled={disableInputs}
+                >
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 {hasRemoteApiKey
                   ? 'API Key já armazenada com segurança. Informe um novo valor apenas se quiser substituí-la.'
