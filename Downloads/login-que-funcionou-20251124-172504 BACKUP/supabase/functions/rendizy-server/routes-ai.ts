@@ -80,6 +80,23 @@ export async function upsertAIProviderConfig(c: Context) {
       return c.json(validationErrorResponse('provider, baseUrl e defaultModel são obrigatórios'), 400);
     }
 
+    // Verificar se a organização existe (para evitar foreign key constraint error)
+    const { data: orgCheck, error: orgError } = await client
+      .from('organizations')
+      .select('id')
+      .eq('id', organizationId)
+      .maybeSingle();
+
+    if (orgError) {
+      logError('[AI] Erro ao verificar organização', orgError);
+      return c.json(errorResponse('Erro ao verificar organização', { details: orgError.message }), 500);
+    }
+
+    if (!orgCheck) {
+      logError(`[AI] Organização ${organizationId} não encontrada`);
+      return c.json(errorResponse('Organização não encontrada', { details: `Organization ${organizationId} does not exist` }), 404);
+    }
+
     const { data: existing } = await client
       .from('ai_provider_configs')
       .select('id, api_key_encrypted')
@@ -88,8 +105,13 @@ export async function upsertAIProviderConfig(c: Context) {
 
     let apiKeyEncrypted = existing?.api_key_encrypted || null;
     if (body.apiKey) {
-      apiKeyEncrypted = await encryptSensitive(body.apiKey);
-      logInfo(`[AI] API Key criptografada com sucesso`);
+      try {
+        apiKeyEncrypted = await encryptSensitive(body.apiKey);
+        logInfo(`[AI] API Key criptografada com sucesso`);
+      } catch (encryptError: any) {
+        logError('[AI] Erro ao criptografar API Key', encryptError);
+        return c.json(errorResponse('Erro ao criptografar API Key', { details: encryptError.message }), 500);
+      }
     }
 
     if (!apiKeyEncrypted) {
