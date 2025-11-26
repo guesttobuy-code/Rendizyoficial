@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Organization, Permission, PermissionCheck, DEFAULT_PERMISSIONS } from '../types/tenancy';
 import { createClient } from '@jsr/supabase__supabase-js';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
+// ✅ ARQUITETURA OAuth2 v1.0.103.1010: Integração com authService e BroadcastChannel
+import { login as authServiceLogin, logout as authServiceLogout, getCurrentUser } from '../services/authService';
+import { getAuthBroadcast, authBroadcast } from '../utils/authBroadcast';
 
 // ✅ MELHORIA v1.0.103.400 - Usa user_metadata do Supabase como fallback
 // Cria cliente Supabase para acessar user_metadata
@@ -13,6 +16,7 @@ interface AuthContextType {
   organization: Organization | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  hasToken: boolean; // ✅ CORREÇÃO v1.0.103.1007: Expor hasTokenState para ProtectedRoute
   
   // Auth actions
   login: (username: string, password: string) => Promise<{ success: boolean; user?: User; error?: string }>;
@@ -54,6 +58,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true; // Flag para evitar atualizações após desmontar
     
+    // ✅ CORREÇÃO v1.0.103.1009: CRÍTICO - Ler token ANTES de qualquer async
+    // Isso garante que o hasTokenState seja atualizado imediatamente
+    // IMPORTANTE: Executar de forma síncrona, antes de qualquer async
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('rendizy-token');
+      const hasToken = !!token;
+      console.log('🔍 [AuthContext] Token no localStorage ao montar:', hasToken ? `SIM (${token!.substring(0, 20)}...)` : 'NÃO');
+      // ✅ CRÍTICO: Atualizar hasTokenState imediatamente (síncrono)
+      setHasTokenState(hasToken);
+      
+      // ✅ Se não tem token, marcar como não carregando mas continuar
+      // (deixar loadUser ser executado para garantir consistência)
+      if (!hasToken) {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+        // ✅ NÃO retornar aqui - deixar o loadUser ser executado para garantir consistência
+      }
+    }
+    
     // ✅ CORREÇÃO MANUS.IM: Simplificar loadUser - reduzir retries para 1
     const loadUser = async (retries = 1, skipDelay = false, isPeriodicCheck = false) => {
       try {
@@ -64,19 +88,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // ✅ SEMPRE validar token no backend SQL via /auth/me
         const { projectId, publicAnonKey } = await import('../utils/supabase/info');
+        // ✅ CORREÇÃO v1.0.103.1008: Ler token novamente (pode ter mudado)
         const token = localStorage.getItem('rendizy-token'); // ✅ Token salvo no localStorage
         
-        // ✅ CORREÇÃO v1.0.103.1005: Atualizar estado do token
+        // ✅ CORREÇÃO v1.0.103.1007: Atualizar estado do token IMEDIATAMENTE (síncrono)
+        // Isso garante que o ProtectedRoute veja o token antes de fazer qualquer verificação
         if (token) {
           setHasTokenState(true);
         } else {
           setHasTokenState(false);
+          // ✅ Se não tem token, não precisa continuar
+          if (!isPeriodicCheck) {
+            console.log('⚠️ [AuthContext] Token não encontrado no localStorage');
+          }
+          // ✅ CORREÇÃO: Não limpar user imediatamente - pode estar em navegação
+          // Apenas marcar como não carregando se não for periódica
+          if (isMounted && !isPeriodicCheck) {
+            // Não limpar user aqui - pode estar em transição de navegação
+            // ✅ CORREÇÃO v1.0.103.1006: Aguardar um pouco antes de setar isLoading como false
+            // Isso dá tempo para o ProtectedRoute aguardar a validação
+            setTimeout(() => {
+              if (isMounted) {
+                setIsLoading(false);
+                // ✅ CORREÇÃO v1.0.103.1003: Se não tem token e não tem user, limpar user
+                // Mas apenas se realmente não for uma navegação em andamento
+                if (!user) {
+                  setUser(null);
+                }
+              }
+            }, 100);
+          }
+          return;
         }
         
         // ✅ CORREÇÃO MANUS.IM: Verificar token curto/legado antes de fazer requisição
         if (token && token.length < 80) {
           console.warn(`⚠️ [AuthContext] Token muito curto (${token.length} chars). Limpando e solicitando novo login.`);
           localStorage.removeItem('rendizy-token');
+          setHasTokenState(false);
           if (isMounted && !isPeriodicCheck) {
             setUser(null);
             setOrganization(null);
@@ -85,28 +134,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         
-        if (!token) {
-          if (!isPeriodicCheck) {
-            console.log('⚠️ [AuthContext] Token não encontrado no localStorage');
-          }
-          // ✅ CORREÇÃO: Não limpar user imediatamente - pode estar em navegação
-          // Apenas marcar como não carregando se não for periódica
-          if (isMounted && !isPeriodicCheck) {
-            // Não limpar user aqui - pode estar em transição de navegação
-            setIsLoading(false);
-            // ✅ CORREÇÃO v1.0.103.1003: Se não tem token e não tem user, limpar user
-            // Mas apenas se realmente não for uma navegação em andamento
-            if (!user) {
-              setUser(null);
-            }
-          }
-          return;
-        }
-        
         // ✅ CORREÇÃO CRÍTICA: Aguardar um pouco após login para garantir que sessão foi commitada no banco
         // Mas apenas na primeira chamada (não em validações periódicas)
+        // ✅ CORREÇÃO v1.0.103.1006: Reduzir delay para 200ms (mais rápido, mas ainda dá tempo)
         if (!skipDelay) {
-          await new Promise(resolve => setTimeout(resolve, 500)); // Adicionado este delay
+          await new Promise(resolve => setTimeout(resolve, 200)); // Delay reduzido para validação mais rápida
         }
         
         // ✅ CORREÇÃO CRÍTICA: URL correta sem make-server-67caf26a
@@ -299,7 +331,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     // ✅ CORREÇÃO MANUS.IM: Validar imediatamente ao montar (1 retry apenas)
-    loadUser(1, false, false); // 1 retry, com delay, não é periódica
+    // ✅ CORREÇÃO v1.0.103.1008: Executar loadUser após atualizar hasTokenState
+    // Pequeno delay para garantir que hasTokenState foi atualizado
+    setTimeout(() => {
+      if (isMounted) {
+        loadUser(1, false, false); // 1 retry, com delay, não é periódica
+      }
+    }, 10); // Delay mínimo apenas para garantir ordem de execução
 
     // ✅ BOAS PRÁTICAS MUNDIAIS: Validação periódica (a cada 5 minutos)
     const periodicInterval = setInterval(() => {
@@ -337,175 +375,177 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleWindowFocus);
     
+    // ✅ ARQUITETURA OAuth2 v1.0.103.1010: BroadcastChannel - Sincronização entre abas
+    const broadcast = getAuthBroadcast();
+    
+    // ✅ Listener para LOGIN de outras abas
+    const unsubscribeLogin = broadcast.onMessage('LOGIN', (message) => {
+      if (message.type === 'LOGIN') {
+        console.log('🔄 [AuthContext] Login detectado em outra aba - sincronizando...');
+        const token = localStorage.getItem('rendizy-token');
+        if (token && token === message.token) {
+          // Token já está sincronizado, apenas atualizar user se necessário
+          if (message.user && !user) {
+            // Converter user do broadcast para formato User
+            const broadcastUser = message.user;
+            const loggedUser: User = {
+              id: broadcastUser.id,
+              email: broadcastUser.email,
+              name: broadcastUser.name,
+              username: broadcastUser.username,
+              role: broadcastUser.role || 'staff',
+              status: broadcastUser.status || 'active',
+              emailVerified: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              lastLoginAt: new Date(),
+              organizationId: broadcastUser.organizationId
+            };
+            setUser(loggedUser);
+            setHasTokenState(true);
+          }
+        } else if (message.token) {
+          // Token diferente - atualizar
+          localStorage.setItem('rendizy-token', message.token);
+          setHasTokenState(true);
+          if (message.user) {
+            const broadcastUser = message.user;
+            const loggedUser: User = {
+              id: broadcastUser.id,
+              email: broadcastUser.email,
+              name: broadcastUser.name,
+              username: broadcastUser.username,
+              role: broadcastUser.role || 'staff',
+              status: broadcastUser.status || 'active',
+              emailVerified: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              lastLoginAt: new Date(),
+              organizationId: broadcastUser.organizationId
+            };
+            setUser(loggedUser);
+          }
+        }
+      }
+    });
+    
+    // ✅ Listener para LOGOUT de outras abas
+    const unsubscribeLogout = broadcast.onMessage('LOGOUT', () => {
+      console.log('🔄 [AuthContext] Logout detectado em outra aba - sincronizando...');
+      localStorage.removeItem('rendizy-token');
+      setHasTokenState(false);
+      setUser(null);
+      setOrganization(null);
+    });
+    
+    // ✅ Listener para TOKEN_REFRESHED de outras abas
+    const unsubscribeTokenRefreshed = broadcast.onMessage('TOKEN_REFRESHED', (message) => {
+      if (message.type === 'TOKEN_REFRESHED') {
+        console.log('🔄 [AuthContext] Token renovado em outra aba - sincronizando...');
+        if (message.token) {
+          localStorage.setItem('rendizy-token', message.token);
+          setHasTokenState(true);
+        }
+      }
+    });
+    
+    // ✅ Listener para SESSION_EXPIRED de outras abas
+    const unsubscribeSessionExpired = broadcast.onMessage('SESSION_EXPIRED', () => {
+      console.log('🔄 [AuthContext] Sessão expirada em outra aba - sincronizando...');
+      localStorage.removeItem('rendizy-token');
+      setHasTokenState(false);
+      setUser(null);
+      setOrganization(null);
+    });
+    
     // Cleanup ao desmontar
     return () => {
       isMounted = false;
       clearInterval(periodicInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleWindowFocus);
+      unsubscribeLogin();
+      unsubscribeLogout();
+      unsubscribeTokenRefreshed();
+      unsubscribeSessionExpired();
     };
-  }, []);
+  }, [user]);
 
   const login = async (username: string, password: string) => {
     setIsLoading(true);
     try {
-      console.log('🔐 AuthContext: Fazendo login...', { username });
+      console.log('🔐 [AuthContext] Fazendo login via authService...', { username });
       
-      const { projectId, publicAnonKey } = await import('../utils/supabase/info');
-      const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/login`;
+      // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Usar authService
+      const result = await authServiceLogin(username, password);
       
-      console.log('🔐 AuthContext: URL de login:', url);
-      console.log('🔐 AuthContext: Fazendo requisição...');
-      
-      // ✅ CORREÇÃO DEFINITIVA: Usar Authorization Bearer com anon key
-      // O Supabase Edge Functions requer Authorization header para permitir requisições.
-      // O backend (routes-auth.ts) não valida JWT para a rota /auth/login, então o anon key é aceito.
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': publicAnonKey,
-          'Authorization': `Bearer ${publicAnonKey}` // ✅ Usar Authorization Bearer com anon key
-        },
-        body: JSON.stringify({ username, password }),
-        // ✅ GARANTIR que credentials não seja usado
-        credentials: 'omit' // ✅ Explícito: não enviar credentials
-      });
-      
-      // ✅ ARQUITETURA CORRETA: Ler body apenas UMA vez
-      console.log('🔐 AuthContext: Response status:', response.status, response.statusText);
-
-      // Ler resposta como texto primeiro (para poder fazer JSON.parse depois se necessário)
-      const responseText = await response.text();
-      console.log('🔐 AuthContext: Response text (primeiros 500 chars):', responseText.substring(0, 500));
-
-      // Tentar parsear como JSON
-      let data;
-      try {
-        data = JSON.parse(responseText);
-        console.log('🔐 AuthContext: Response data (parsed):', data);
-      } catch (parseError) {
-        // Se falhou JSON, logar erro completo
-        console.error('❌ AuthContext: Erro ao parsear JSON:', parseError);
-        console.error('❌ AuthContext: Resposta completa:', responseText.substring(0, 500));
-        throw new Error(`Erro HTTP ${response.status}: Resposta não é JSON válido - ${responseText.substring(0, 200)}`);
-      }
-
-      // Verificar se resposta é sucesso HTTP
-      if (!response.ok) {
-        console.error('❌ AuthContext: Login falhou - HTTP não OK:', { status: response.status, data });
-        throw new Error(data?.error || data?.message || `Erro HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      // Verificar se resposta indica sucesso
-      if (!data || !data.success) {
-        console.error('❌ AuthContext: Login falhou - success=false:', data);
-        throw new Error(data?.error || data?.message || 'Erro ao fazer login');
-      }
-
-      // ✅ Login bem-sucedido!
-      console.log('✅ AuthContext: Login bem-sucedido - token recebido do backend');
-      
-      // ✅ SOLUÇÃO SIMPLES: Salvar token no localStorage e usar no header
-      const token = data.token || data.data?.token;
-      if (token) {
-        localStorage.setItem('rendizy-token', token);
-        setHasTokenState(true); // ✅ CORREÇÃO v1.0.103.1005: Atualizar estado do token
-        console.log('✅ Token salvo no localStorage');
+      if (!result.success || !result.user) {
+        return {
+          success: false,
+          error: result.error || 'Erro ao fazer login'
+        };
       }
       
-      // ✅ SOLUÇÃO: Usar dados do usuário que já vêm na resposta do login
-      // Não chamar /auth/me para evitar problema de validação JWT do Supabase
-      console.log('✅ [AuthContext] Usando dados do usuário da resposta do login (evita problema JWT)');
-      
-      // ✅ Carregar dados do usuário da resposta do login (já vem completo)
-      const backendUser = data.user || data.data?.user;
-      
-      if (!backendUser) {
-        console.error('❌ [AuthContext] Dados do usuário não encontrados na resposta do login:', data);
-        throw new Error('Dados do usuário não encontrados na resposta do login');
-      }
+      // ✅ Carregar dados do usuário
+      const backendUser = result.user;
       const loggedUser: User = {
         id: backendUser.id,
         email: backendUser.email,
         name: backendUser.name,
         username: backendUser.username,
-        role: backendUser.type === 'superadmin' ? 'super_admin' : (backendUser.role || 'staff'),
+        role: backendUser.type === 'superadmin' ? 'super_admin' : (backendUser.type === 'imobiliaria' ? 'admin' : 'staff'),
         status: backendUser.status || 'active',
         emailVerified: true,
         createdAt: new Date(),
         updatedAt: new Date(),
         lastLoginAt: new Date(),
-        organizationId: backendUser.organizationId || backendUser.organization?.id || undefined
+        organizationId: backendUser.organizationId
       };
 
       setUser(loggedUser);
-
-      // ✅ Carregar organização do backend SQL se existir
-      if (backendUser.organization) {
-        const org: Organization = {
-          id: backendUser.organization.id,
-          name: backendUser.organization.name,
-          slug: backendUser.organization.slug,
-          plan: 'professional',
-          status: 'active',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-        setOrganization(org);
-        console.log('✅ [AuthContext] Organização carregada do backend SQL:', org);
-      } else if (backendUser.organizationId) {
-        // Buscar organização se tiver apenas o ID
+      setHasTokenState(true);
+      
+      // ✅ Buscar organização se houver
+      if (backendUser.organizationId) {
         try {
-          const orgResponse = await fetch(
-            `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${backendUser.organizationId}`,
-            {
-              headers: {
-                'X-Auth-Token': data.token,
-                'apikey': publicAnonKey
-              },
-              credentials: 'omit' // ✅ EXPLÍCITO: não enviar credentials (resolve CORS com origin: "*")
-            }
-          );
-          
-          if (orgResponse.ok) {
-            const orgResult = await orgResponse.json();
-            if (orgResult.success && orgResult.data) {
-              const org: Organization = {
-                id: orgResult.data.id,
-                name: orgResult.data.name,
-                slug: orgResult.data.slug,
-                plan: orgResult.data.plan || 'professional',
-                status: orgResult.data.status || 'active',
-                createdAt: new Date(orgResult.data.created_at || Date.now()),
-                updatedAt: new Date(orgResult.data.updated_at || Date.now())
-              };
-              setOrganization(org);
-            }
+          const userResult = await getCurrentUser();
+          if (userResult.success && userResult.organization) {
+            const org: Organization = {
+              id: userResult.organization.id,
+              name: userResult.organization.name,
+              slug: userResult.organization.slug,
+              plan: 'professional',
+              status: 'active',
+              createdAt: new Date(),
+              updatedAt: new Date()
+            };
+            setOrganization(org);
           }
         } catch (error) {
           console.warn('⚠️ [AuthContext] Erro ao buscar organização:', error);
         }
       }
+      
+      // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Notificar outras abas
+      const token = localStorage.getItem('rendizy-token');
+      if (token) {
+        authBroadcast.notifyLogin(token, loggedUser);
+      }
 
-      console.log('✅ [AuthContext] Usuário carregado do backend SQL:', loggedUser);
-
-      // ✅ Retornar user com type para compatibilidade com LoginPage
+      console.log('✅ [AuthContext] Login bem-sucedido');
       return { 
         success: true, 
         user: {
           ...loggedUser,
-          type: backendUser.type, // Manter type original da API para LoginPage
-          username: backendUser.username // Manter username também
+          type: backendUser.type,
+          username: backendUser.username
         }
       };
     } catch (error) {
-      console.error('❌ AuthContext: Erro no login:', error);
-      // ✅ CORREÇÃO: Sempre retornar objeto com success: false, nunca retornar undefined
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao fazer login';
+      console.error('❌ [AuthContext] Erro no login:', error);
       return {
         success: false,
-        error: errorMessage
+        error: error instanceof Error ? error.message : 'Erro desconhecido ao fazer login'
       };
     } finally {
       setIsLoading(false);
@@ -514,31 +554,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      // ✅ SOLUÇÃO SIMPLES: Token no header Authorization (não cookie)
-      const { projectId, publicAnonKey } = await import('../utils/supabase/info');
-      const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/auth/logout`;
-      const token = localStorage.getItem('rendizy-token');
+      // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Usar authService
+      await authServiceLogout();
       
-      try {
-        await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Auth-Token': token || '', // ✅ Usar header customizado para evitar validação JWT
-            'apikey': publicAnonKey
-          },
-          credentials: 'omit' // ✅ EXPLÍCITO: não enviar credentials (resolve CORS com origin: "*")
-        });
-        console.log('✅ [AuthContext] Sessão removida do backend SQL');
-        } catch (error) {
-          console.warn('⚠️ [AuthContext] Erro ao remover sessão do backend (continuando logout):', error);
-      }
+      // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Notificar outras abas
+      authBroadcast.notifyLogout();
     } catch (error) {
       console.error('❌ [AuthContext] Erro ao fazer logout:', error);
     } finally {
-      // ✅ Limpar estado local e token
+      // ✅ Limpar estado local
       localStorage.removeItem('rendizy-token');
-      setHasTokenState(false); // ✅ CORREÇÃO v1.0.103.1005: Atualizar estado do token
+      setHasTokenState(false);
       setUser(null);
       setOrganization(null);
       
@@ -610,10 +636,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextType = {
     user,
     organization,
-    // ✅ CORREÇÃO v1.0.103.1005: isAuthenticated deve considerar token também (evita deslogar durante validação)
-    // Usar hasTokenState ao invés de localStorage.getItem para ser reativo
-    isAuthenticated: !!user || hasTokenState,
+    // ✅ CORREÇÃO v1.0.103.1002: isAuthenticated deve considerar token também (evita deslogar durante validação)
+    // ✅ RESTAURADO: Usar localStorage.getItem diretamente como estava funcionando antes
+    // Isso garante que o token seja verificado mesmo se hasTokenState não estiver sincronizado
+    isAuthenticated: !!user || (typeof window !== 'undefined' ? !!localStorage.getItem('rendizy-token') : false),
     isLoading,
+    hasToken: hasTokenState, // ✅ CORREÇÃO v1.0.103.1007: Expor hasTokenState
     login,
     logout,
     switchOrganization,
@@ -638,11 +666,12 @@ export function useAuth() {
     // Isso permite que componentes usem useAuth mesmo se não estiverem
     // dentro de um AuthProvider (útil para desenvolvimento e testes)
     // console.warn('useAuth usado fora do AuthProvider - retornando valores padrão'); // SILENCIADO v1.0.103.299
-    return {
+      return {
       user: null,
       organization: null,
       isAuthenticated: false,
       isLoading: false,
+      hasToken: false, // ✅ CORREÇÃO v1.0.103.1007: Expor hasToken no fallback
       login: async () => {},
       logout: async () => {},
       switchOrganization: async () => {},
