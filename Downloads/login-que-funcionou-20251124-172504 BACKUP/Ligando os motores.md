@@ -267,7 +267,16 @@ headers: {
 ## 4.4.1. Persistência de Login - Boas Práticas Mundiais (✅ IMPLEMENTADO)
 
 ### 🎯 **PROBLEMA RESOLVIDO:**
-Login não persistia ao navegar diretamente via URL, trocar de aba ou janela.
+Login não persistia ao navegar diretamente via URL, trocar de aba ou janela, ou ao dar refresh (F5).
+
+### ✅ **ARQUITETURA OAuth2 v1.0.103.1010 (✅ IMPLEMENTADO COMPLETO):**
+- ✅ **Access/Refresh Tokens:** Sistema OAuth2 com tokens curtos (30 min) e longos (30 dias)
+- ✅ **Refresh Automático:** Interceptador 401 renova tokens automaticamente
+- ✅ **Sincronização entre Abas:** BroadcastChannel sincroniza login/logout em todas as abas
+- ✅ **State Machine:** Gerenciamento explícito de estados de autenticação
+- ✅ **Singleton Supabase Client:** Evita múltiplas instâncias e corridas de storage
+- 📚 **Documentação:** `RESUMO_IMPLEMENTACAO_OAUTH2_COMPLETA.md`
+- ⚠️ **IMPORTANTE:** Migration deve ser aplicada no banco antes de usar (ver `APLICAR_MIGRATION_REFRESH_TOKENS.sql`)
 
 ### ✅ **SOLUÇÕES IMPLEMENTADAS (BASEADAS EM BOAS PRÁTICAS MUNDIAIS):**
 
@@ -433,6 +442,8 @@ Login não persistia ao navegar diretamente via URL, trocar de aba ou janela.
 | `ARQUITETURA_CAPSULAS_MODULOS.md` | **NOVO** - Regra oficial de cápsulas por botão lateral (cada módulo em seu próprio shell) |
 | `RESUMO_FLUXO_AUTH_PROTECTEDROUTE_CAPSULAS.md` | **NOVO** - Fluxo completo Auth + ProtectedRoute + cápsulas, garantindo login estável mesmo com F5 |
 | `docs/ARQUITETURA_LOGIN_CONSISTENTE.md` | **NOVO** - Arquitetura completa de login com access/refresh tokens (OAuth2) para resolver problema crônico de logout no refresh |
+| `RESUMO_IMPLEMENTACAO_OAUTH2_COMPLETA.md` | **NOVO** - Resumo completo da implementação OAuth2 (v1.0.103.1010) - Backend, Frontend, Migration, Deploy |
+| `APLICAR_MIGRATION_REFRESH_TOKENS.sql` | **NOVO** - Script SQL para aplicar migration de refresh tokens no Supabase |
 
 ---
 
