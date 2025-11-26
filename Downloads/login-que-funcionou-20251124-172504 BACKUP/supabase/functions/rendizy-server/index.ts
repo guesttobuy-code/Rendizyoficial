@@ -34,6 +34,7 @@ import * as staysnetRoutes from './routes-staysnet.ts';
 import * as amenitiesRoutes from './routes-amenities.ts';
 import * as aiRoutes from './routes-ai.ts';
 import * as automationsAIRoutes from './routes-automations-ai.ts';
+import * as automationsRoutes from './routes-automations.ts';
 // ✅ MÓDULO FINANCEIRO v1.0.103.400
 import * as financeiroRoutes from './routes-financeiro.ts';
 import * as conciliacaoRoutes from './routes-conciliacao.ts';
@@ -559,14 +560,42 @@ app.get("/rendizy-server/settings/location-amenities/enabled", locationAmenities
 // ============================================================================
 // AI PROVIDER CONFIG ROUTES (v1.0.103.500)
 // ============================================================================
+// ✅ Middleware de autenticação para todas as rotas de AI
+app.use('/rendizy-server/make-server-67caf26a/integrations/ai/*', tenancyMiddleware);
+app.use('/rendizy-server/integrations/ai/*', tenancyMiddleware); // Rotas espelho
+
+// Rotas antigas (com hash)
 app.get("/rendizy-server/make-server-67caf26a/integrations/ai/config", aiRoutes.getAIProviderConfig);
 app.put("/rendizy-server/make-server-67caf26a/integrations/ai/config", aiRoutes.upsertAIProviderConfig);
 app.post("/rendizy-server/make-server-67caf26a/integrations/ai/test", aiRoutes.testAIProviderConfig);
+
+// Rotas espelho (sem hash)
+app.get("/rendizy-server/integrations/ai/config", aiRoutes.getAIProviderConfig);
+app.put("/rendizy-server/integrations/ai/config", aiRoutes.upsertAIProviderConfig);
+app.post("/rendizy-server/integrations/ai/test", aiRoutes.testAIProviderConfig);
 
 // ============================================================================
 // AUTOMATIONS AI ROUTES (v1.0.103.501)
 // ============================================================================
 app.post("/rendizy-server/make-server-67caf26a/automations/ai/interpret", automationsAIRoutes.interpretAutomationNaturalLanguage);
+app.post("/rendizy-server/automations/ai/interpret", automationsAIRoutes.interpretAutomationNaturalLanguage);
+
+// AUTOMATIONS CRUD ROUTES (v1.0.103.502)
+// ============================================================================
+app.get("/rendizy-server/make-server-67caf26a/automations", automationsRoutes.listAutomations);
+app.get("/rendizy-server/automations", automationsRoutes.listAutomations);
+app.get("/rendizy-server/make-server-67caf26a/automations/:id", automationsRoutes.getAutomation);
+app.get("/rendizy-server/automations/:id", automationsRoutes.getAutomation);
+app.post("/rendizy-server/make-server-67caf26a/automations", automationsRoutes.createAutomation);
+app.post("/rendizy-server/automations", automationsRoutes.createAutomation);
+app.put("/rendizy-server/make-server-67caf26a/automations/:id", automationsRoutes.updateAutomation);
+app.put("/rendizy-server/automations/:id", automationsRoutes.updateAutomation);
+app.delete("/rendizy-server/make-server-67caf26a/automations/:id", automationsRoutes.deleteAutomation);
+app.delete("/rendizy-server/automations/:id", automationsRoutes.deleteAutomation);
+app.patch("/rendizy-server/make-server-67caf26a/automations/:id/status", automationsRoutes.updateAutomationStatus);
+app.patch("/rendizy-server/automations/:id/status", automationsRoutes.updateAutomationStatus);
+app.get("/rendizy-server/make-server-67caf26a/automations/:id/executions", automationsRoutes.getAutomationExecutions);
+app.get("/rendizy-server/automations/:id/executions", automationsRoutes.getAutomationExecutions);
 
 // ============================================================================
 // STAYS.NET PMS INTEGRATION ROUTES (v1.0.103.17)

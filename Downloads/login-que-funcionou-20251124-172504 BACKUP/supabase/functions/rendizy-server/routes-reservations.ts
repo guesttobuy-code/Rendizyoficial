@@ -557,6 +557,17 @@ export async function createReservation(c: Context) {
 
     logInfo(`Reservation created: ${id} in organization ${organizationId}`);
 
+    // ✅ AUTOMATIONS: Publicar evento de reserva criada
+    if (organizationId) {
+      try {
+        const { publishReservationEvent } = await import('./services/event-bus.ts');
+        await publishReservationEvent('created', organizationId, createdReservation);
+      } catch (error) {
+        logError('[createReservation] Erro ao publicar evento de automação', error);
+        // Não falhar a criação da reserva se o evento falhar
+      }
+    }
+
     return c.json(
       successResponse(createdReservation, 'Reservation created successfully'),
       201

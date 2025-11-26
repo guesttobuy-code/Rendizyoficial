@@ -7,9 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { Loader2, Wand2, Sparkles, Copy, CheckCircle2, Bot, Workflow } from 'lucide-react';
+import { Loader2, Wand2, Sparkles, Copy, CheckCircle2, Bot, Workflow, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { automationsApi, type AutomationNaturalLanguageResponse, type AutomationPriority } from '../../utils/api';
+import { automationsApi, type AutomationNaturalLanguageResponse, type AutomationPriority, type CreateAutomationRequest } from '../../utils/api';
 
 interface NaturalLanguageForm {
   input: string;
@@ -32,6 +32,9 @@ export function AutomationsNaturalLanguageLab() {
   const [result, setResult] = useState<AutomationNaturalLanguageResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [automationName, setAutomationName] = useState('');
 
   const handleSubmit = async () => {
     if (!form.input.trim()) {
@@ -272,6 +275,26 @@ export function AutomationsNaturalLanguageLab() {
                   </>
                 )}
               </Button>
+              <Button 
+                size="sm" 
+                onClick={() => {
+                  setAutomationName(result.definition.name || '');
+                  setShowSaveModal(true);
+                }}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-1" />
+                    Salvar Automação
+                  </>
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -289,6 +312,85 @@ export function AutomationsNaturalLanguageLab() {
             </ul>
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Modal de Salvar Automação */}
+      {showSaveModal && result && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Salvar Automação</CardTitle>
+              <CardDescription>Dê um nome para sua automação</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nome da Automação</Label>
+                <Input
+                  value={automationName}
+                  onChange={(e) => setAutomationName(e.target.value)}
+                  placeholder="Ex: Alerta Faturamento Diário"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowSaveModal(false);
+                    setAutomationName('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!automationName.trim()) {
+                      toast.error('Digite um nome para a automação');
+                      return;
+                    }
+
+                    setIsSaving(true);
+                    try {
+                      const payload: CreateAutomationRequest = {
+                        name: automationName.trim(),
+                        description: result.definition.description,
+                        definition: result.definition,
+                        status: 'draft',
+                        module: form.module,
+                        channel: form.channel,
+                        priority: form.priority,
+                      };
+
+                      const response = await automationsApi.create(payload);
+
+                      if (!response.success) {
+                        throw new Error(response.error || 'Erro ao salvar automação');
+                      }
+
+                      toast.success('Automação salva com sucesso!');
+                      setShowSaveModal(false);
+                      setAutomationName('');
+                    } catch (error: any) {
+                      console.error('[AutomationsLab] Erro ao salvar automação', error);
+                      toast.error(error?.message || 'Erro ao salvar automação');
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  }}
+                  disabled={isSaving || !automationName.trim()}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      Salvando...
+                    </>
+                  ) : (
+                    'Salvar'
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

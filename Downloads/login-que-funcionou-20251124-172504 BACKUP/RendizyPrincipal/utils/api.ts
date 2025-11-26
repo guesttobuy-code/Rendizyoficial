@@ -250,6 +250,8 @@ export interface AutomationNaturalLanguageRequest {
   channel?: 'chat' | 'whatsapp' | 'email' | 'sms' | 'dashboard';
   priority?: AutomationPriority;
   language?: string;
+  conversationMode?: boolean;
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 export interface AutomationCondition {
@@ -286,7 +288,8 @@ export interface AutomationDefinition {
 }
 
 export interface AutomationNaturalLanguageResponse {
-  definition: AutomationDefinition;
+  definition: AutomationDefinition | null;
+  conversationalResponse?: string; // Resposta conversacional quando não há automação ainda
   provider: string;
   model: string;
   rawText: string;
@@ -1804,16 +1807,125 @@ export const integrationsApi = {
 // AUTOMAÇÕES - LAB IA
 // ============================================================================
 
+// Tipos para Automações
+export interface Automation {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string;
+  definition: {
+    name: string;
+    description?: string;
+    trigger: {
+      type: string;
+      field?: string;
+      operator?: string;
+      value?: any;
+      schedule?: string;
+      threshold?: number;
+    };
+    conditions?: Array<{
+      field: string;
+      operator: string;
+      value: any;
+    }>;
+    actions: Array<{
+      type: string;
+      channel?: string;
+      template?: string;
+      payload?: Record<string, any>;
+    }>;
+    metadata?: {
+      priority?: 'baixa' | 'media' | 'alta';
+      requiresApproval?: boolean;
+      notifyChannels?: string[];
+    };
+  };
+  status: 'draft' | 'active' | 'paused';
+  module?: string;
+  channel?: string;
+  priority: 'baixa' | 'media' | 'alta';
+  trigger_count: number;
+  last_triggered_at?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateAutomationRequest {
+  name: string;
+  description?: string;
+  definition: Automation['definition'];
+  status?: 'draft' | 'active' | 'paused';
+  module?: string;
+  channel?: string;
+  priority?: 'baixa' | 'media' | 'alta';
+}
+
+export interface UpdateAutomationRequest extends Partial<CreateAutomationRequest> {}
+
+export interface AutomationExecution {
+  id: string;
+  automation_id: string;
+  organization_id: string;
+  status: 'success' | 'failed' | 'skipped';
+  trigger_event?: string;
+  conditions_met: boolean;
+  actions_executed?: any;
+  error_message?: string;
+  execution_time_ms?: number;
+  created_at: string;
+}
+
 export const automationsApi = {
   ai: {
     interpretNaturalLanguage: async (
       payload: AutomationNaturalLanguageRequest
     ): Promise<ApiResponse<AutomationNaturalLanguageResponse>> => {
-      return apiRequest<AutomationNaturalLanguageResponse>('/make-server-67caf26a/automations/ai/interpret', {
+      return apiRequest<AutomationNaturalLanguageResponse>('/automations/ai/interpret', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
     },
+  },
+  // CRUD de Automações
+  list: async (): Promise<ApiResponse<Automation[]>> => {
+    return apiRequest<Automation[]>('/automations', {
+      method: 'GET',
+    });
+  },
+  get: async (id: string): Promise<ApiResponse<Automation>> => {
+    return apiRequest<Automation>(`/automations/${id}`, {
+      method: 'GET',
+    });
+  },
+  create: async (payload: CreateAutomationRequest): Promise<ApiResponse<Automation>> => {
+    return apiRequest<Automation>('/automations', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  update: async (id: string, payload: UpdateAutomationRequest): Promise<ApiResponse<Automation>> => {
+    return apiRequest<Automation>(`/automations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/automations/${id}`, {
+      method: 'DELETE',
+    });
+  },
+  updateStatus: async (id: string, status: 'draft' | 'active' | 'paused'): Promise<ApiResponse<Automation>> => {
+    return apiRequest<Automation>(`/automations/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
+  getExecutions: async (id: string, limit = 50, offset = 0): Promise<ApiResponse<AutomationExecution[]>> => {
+    return apiRequest<AutomationExecution[]>(`/automations/${id}/executions?limit=${limit}&offset=${offset}`, {
+      method: 'GET',
+    });
   },
 };
 

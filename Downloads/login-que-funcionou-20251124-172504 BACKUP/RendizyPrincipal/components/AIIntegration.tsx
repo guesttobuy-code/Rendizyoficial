@@ -28,7 +28,7 @@ import {
 import { toast } from 'sonner';
 import { integrationsApi, type AIProviderConfigResponse } from '../utils/api';
 
-type ProviderId = 'openai' | 'azure-openai' | 'huggingface' | 'custom';
+type ProviderId = 'openai' | 'azure-openai' | 'huggingface' | 'deepseek' | 'anthropic' | 'google-gemini' | 'groq' | 'together' | 'custom';
 
 interface ProviderMeta {
   id: ProviderId;
@@ -49,6 +49,51 @@ const PROVIDERS: ProviderMeta[] = [
     defaultModel: 'gpt-4o-mini',
     docsUrl: 'https://platform.openai.com/docs/introduction',
     labelVariant: 'success',
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    description: 'Modelo de IA de alta performance e custo-benefício (DeepSeek Chat, DeepSeek Coder).',
+    baseUrl: 'https://api.deepseek.com/v1',
+    defaultModel: 'deepseek-chat',
+    docsUrl: 'https://platform.deepseek.com/docs',
+    labelVariant: 'success',
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic (Claude)',
+    description: 'Claude 3.5 Sonnet, Opus e Haiku - modelos avançados da Anthropic.',
+    baseUrl: 'https://api.anthropic.com/v1',
+    defaultModel: 'claude-3-5-sonnet-20241022',
+    docsUrl: 'https://docs.anthropic.com/claude/reference/getting-started-with-the-api',
+    labelVariant: 'success',
+  },
+  {
+    id: 'google-gemini',
+    name: 'Google Gemini',
+    description: 'Modelos Gemini Pro e Ultra da Google (Gemini 1.5 Pro, Flash, etc.).',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    defaultModel: 'gemini-1.5-pro',
+    docsUrl: 'https://ai.google.dev/docs',
+    labelVariant: 'secondary',
+  },
+  {
+    id: 'groq',
+    name: 'Groq',
+    description: 'Inferência ultra-rápida com modelos Llama, Mixtral e outros (gratuito até certo limite).',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    defaultModel: 'llama-3.1-70b-versatile',
+    docsUrl: 'https://console.groq.com/docs',
+    labelVariant: 'default',
+  },
+  {
+    id: 'together',
+    name: 'Together AI',
+    description: 'Acesso a modelos open-source (Llama, Mistral, Mixtral) com preços competitivos.',
+    baseUrl: 'https://api.together.xyz/v1',
+    defaultModel: 'meta-llama/Llama-3-70b-chat-hf',
+    docsUrl: 'https://docs.together.ai',
+    labelVariant: 'default',
   },
   {
     id: 'azure-openai',
@@ -125,6 +170,10 @@ export function AIIntegration() {
     () => PROVIDERS.find((p) => p.id === config.provider) || PROVIDERS[0],
     [config.provider],
   );
+
+  // Desabilitar inputs durante carregamento, salvamento ou teste
+  const disableInputs = isLoadingConfig || isSaving || isTesting;
+  const disableTest = isLoadingConfig || isSaving || isTesting;
 
   const mapResponseToConfig = useCallback((data?: AIProviderConfigResponse): AIIntegrationConfig => {
     const providerId = (data?.provider as ProviderId) || 'openai';

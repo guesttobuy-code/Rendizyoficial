@@ -78,6 +78,8 @@ import { RelatoriosGerenciaisPage } from './components/financeiro/pages/Relatori
 import { ConfiguracoesFinanceirasPage } from './components/financeiro/pages/ConfiguracoesFinanceirasPage';
 import CRMTasksDashboard from './components/crm/CRMTasksDashboard';
 import AutomationsNaturalLanguageLab from './components/automations/AutomationsNaturalLanguageLab';
+import { AutomationsChatLab } from './components/automations/AutomationsChatLab';
+import { AutomationsModule } from './components/automations/AutomationsModule';
 import BIDashboard from './components/bi/BIDashboard';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -1220,10 +1222,18 @@ function App() {
           
           {/* Laboratório de Automações Inteligentes */}
           <Route path="automacoes-lab" element={<AutomationsNaturalLanguageLab />} />
+          <Route path="automacoes-chat" element={<AutomationsChatLab />} />
           
           {/* Configurações */}
           <Route path="configuracoes" element={<ModulePlaceholder module="Configurações CRM & Tasks" />} />
         </Route>
+        
+        {/* Módulo Automações - PROTEGIDO */}
+        <Route path="/automacoes/*" element={
+          <ProtectedRoute>
+            <AutomationsModule />
+          </ProtectedRoute>
+        } />
         
         {/* Módulo BI - PROTEGIDO */}
         <Route path="/bi/*" element={

@@ -1,0 +1,17 @@
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AutomationsList } from './AutomationsList';
+import { AutomationDetails } from './AutomationDetails';
+import { AutomationsNaturalLanguageLab } from './AutomationsNaturalLanguageLab';
+
+export function AutomationsModule() {
+  return (
+    <Routes>
+      <Route path="/" element={<AutomationsList />} />
+      <Route path="/:id" element={<AutomationDetails />} />
+      <Route path="/lab" element={<AutomationsNaturalLanguageLab />} />
+      <Route path="*" element={<Navigate to="/automacoes" replace />} />
+    </Routes>
+  );
+}
+

@@ -99,6 +99,19 @@ function buildChatUrl(provider: string, baseUrl: string, model: string) {
     return `${sanitized}/models/${encodedModel}`;
   }
 
+  if (provider === 'anthropic') {
+    // Anthropic usa /v1/messages
+    return sanitized.endsWith('/messages') ? sanitized : `${sanitized}/messages`;
+  }
+
+  if (provider === 'google-gemini') {
+    // Google Gemini usa /models/{model}:generateContent
+    const modelPath = model.includes(':') ? model : `${model}:generateContent`;
+    return sanitized.endsWith('/generateContent') 
+      ? sanitized 
+      : `${sanitized}/models/${modelPath}`;
+  }
+
   if (provider === 'azure-openai') {
     if (sanitized.includes('/chat/completions')) {
       return sanitized;
@@ -108,6 +121,7 @@ function buildChatUrl(provider: string, baseUrl: string, model: string) {
     return `${sanitized}/chat/completions${apiVersion}`;
   }
 
+  // OpenAI-compatible (OpenAI, DeepSeek, Groq, Together, etc.)
   return sanitized.endsWith('/chat/completions')
     ? sanitized
     : `${sanitized}/chat/completions`;
@@ -121,6 +135,20 @@ function buildProviderHeaders(provider: string, apiKey: string) {
     };
   }
 
+  if (provider === 'anthropic') {
+    return {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    };
+  }
+
+  if (provider === 'google-gemini') {
+    return {
+      'Content-Type': 'application/json',
+    };
+  }
+
   if (provider === 'huggingface') {
     return {
       Authorization: `Bearer ${apiKey}`,
@@ -128,6 +156,7 @@ function buildProviderHeaders(provider: string, apiKey: string) {
     };
   }
 
+  // OpenAI-compatible (OpenAI, DeepSeek, Groq, Together, etc.)
   return {
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
@@ -172,7 +201,55 @@ export async function generateAIChat(options: GenerateAIChatOptions): Promise<AI
       headers,
       body: JSON.stringify(payload),
     });
+  } else if (provider === 'anthropic') {
+    // Anthropic API format
+    const systemMessage = messages.find(m => m.role === 'system');
+    const otherMessages = messages.filter(m => m.role !== 'system');
+    payload = {
+      model,
+      max_tokens: maxTokens,
+      temperature,
+      messages: otherMessages.map(m => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      })),
+    };
+    if (systemMessage) {
+      payload.system = systemMessage.content;
+    }
+    response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+  } else if (provider === 'google-gemini') {
+    // Google Gemini API format
+    const systemInstruction = messages.find(m => m.role === 'system');
+    const conversationMessages = messages.filter(m => m.role !== 'system');
+    payload = {
+      contents: conversationMessages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      })),
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens,
+      },
+    };
+    if (systemInstruction) {
+      payload.systemInstruction = {
+        parts: [{ text: systemInstruction.content }],
+      };
+    }
+    // Gemini API key vai na URL, não no header
+    const urlWithKey = `${url}?key=${apiKey}`;
+    response = await fetch(urlWithKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
   } else {
+    // OpenAI-compatible (OpenAI, DeepSeek, Groq, Together, Azure, etc.)
     payload = {
       model,
       messages,
@@ -209,7 +286,14 @@ export async function generateAIChat(options: GenerateAIChatOptions): Promise<AI
     } else {
       text = typeof json === 'string' ? json : JSON.stringify(json);
     }
+  } else if (provider === 'anthropic') {
+    // Anthropic retorna { content: [{ type: 'text', text: '...' }] }
+    text = json?.content?.[0]?.text?.trim() || '';
+  } else if (provider === 'google-gemini') {
+    // Gemini retorna { candidates: [{ content: { parts: [{ text: '...' }] } }] }
+    text = json?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
   } else {
+    // OpenAI-compatible
     text = json?.choices?.[0]?.message?.content?.trim() || '';
   }
 

@@ -300,8 +300,7 @@ export function MainSidebar({
           iconBg: 'bg-gradient-to-br from-pink-500 to-orange-500',
           badge: 'BETA',
           isExternalModule: true,
-          // Por enquanto abre o laboratório de automações dentro do módulo CRM
-          externalPath: '/crm/automacoes-lab'
+          externalPath: '/crm/automacoes-chat'
         },
         {
           id: 'modulo-bi',

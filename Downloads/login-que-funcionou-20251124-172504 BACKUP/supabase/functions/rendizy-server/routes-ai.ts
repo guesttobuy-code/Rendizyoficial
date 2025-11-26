@@ -153,13 +153,24 @@ function buildModelsUrl(provider: string, baseUrl: string) {
     return `${sanitized}/models`;
   }
 
+  if (provider === 'anthropic') {
+    // Anthropic não tem endpoint de listagem de modelos público
+    // Retornamos a URL base para teste
+    return sanitized;
+  }
+
+  if (provider === 'google-gemini') {
+    // Gemini usa /models para listar modelos
+    return `${sanitized}/models`;
+  }
+
   if (provider === 'azure-openai') {
     // azure deployments usam /models mas podem exigir api-version
     const hasQuery = sanitized.includes('?');
     return hasQuery ? sanitized : `${sanitized}/models`;
   }
 
-  // OpenAI e custom compatível
+  // OpenAI-compatible (OpenAI, DeepSeek, Groq, Together, etc.)
   return `${sanitized}/models`;
 }
 
@@ -195,10 +206,16 @@ export async function testAIProviderConfig(c: Context) {
       ...buildProviderHeaders(data.provider, apiKey),
     };
 
-    const url = buildModelsUrl(data.provider, data.base_url);
+    let url = buildModelsUrl(data.provider, data.base_url);
+    
+    // Google Gemini precisa da API key na URL
+    if (data.provider === 'google-gemini') {
+      url = `${url}?key=${apiKey}`;
+    }
+
     const response = await fetch(url, {
       method: 'GET',
-      headers,
+      headers: data.provider === 'google-gemini' ? { 'Content-Type': 'application/json' } : headers,
     });
 
     if (!response.ok) {
