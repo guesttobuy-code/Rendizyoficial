@@ -124,6 +124,14 @@ Este script verifica automaticamente se você não violou regras estabelecidas.
    - `TOKENS_SALVOS.md`
    - `configurar-tokens.ps1`
 
+### 🔐 Variáveis de Ambiente Essenciais
+- `AI_PROVIDER_SECRET` → usada para criptografar/descriptografar as API keys dos provedores de IA (`ai_provider_configs.api_key_encrypted`).  
+  ```powershell
+  npx supabase secrets set AI_PROVIDER_SECRET="coloque-uma-chave-bem-aleatoria"
+  ```
+- `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL` → já utilizados pelas functions.
+- Sem esta variável o backend não consegue salvar/testar integrações de IA.
+
 ---
 
 ## 3. URLs do Sistema
@@ -421,6 +429,10 @@ Login não persistia ao navegar diretamente via URL, trocar de aba ou janela.
 | `VITORIA_WHATSAPP_E_LOGIN.md` | Quando login funcionou pela primeira vez (20/11/2025) |
 | `CORRECAO_LOGIN_FUNCIONANDO.md` | Correção anterior que funcionou |
 | `WHATSAPP_VENCIDO_CONSOLIDADO.md` | ⚠️ **CRÍTICO** - Tudo que já vencemos no WhatsApp (OBRIGATÓRIO LER) |
+| `ESTRUTURA_MODULOS_RENDIZY.md` | **NOVO** - Padrão oficial para módulos grandes (Financeiro, CRM/Tasks, BI, Automações) e lazy loading |
+| `ARQUITETURA_CAPSULAS_MODULOS.md` | **NOVO** - Regra oficial de cápsulas por botão lateral (cada módulo em seu próprio shell) |
+| `RESUMO_FLUXO_AUTH_PROTECTEDROUTE_CAPSULAS.md` | **NOVO** - Fluxo completo Auth + ProtectedRoute + cápsulas, garantindo login estável mesmo com F5 |
+| `docs/ARQUITETURA_LOGIN_CONSISTENTE.md` | **NOVO** - Arquitetura completa de login com access/refresh tokens (OAuth2) para resolver problema crônico de logout no refresh |
 
 ---
 

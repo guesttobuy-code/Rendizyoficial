@@ -199,10 +199,18 @@ app.post('/login', async (c) => {
         // Não bloquear login se falhar atualização
       }
 
-      // ✅ ARQUITETURA SQL: Gerar token e criar sessão no SQL
-      const token = generateToken();
-      const INACTIVITY_THRESHOLD = 7 * 24 * 60 * 60 * 1000; // 7 dias de inatividade
-      const expiresAt = new Date(now.getTime() + INACTIVITY_THRESHOLD);
+      // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Gerar access + refresh tokens
+      const accessToken = generateToken(); // Token curto (15-30 min)
+      const refreshToken = generateToken(); // Token longo (30-60 dias)
+      
+      // Expirações
+      const ACCESS_TOKEN_DURATION = 30 * 60 * 1000; // 30 minutos
+      const REFRESH_TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 dias
+      const accessExpiresAt = new Date(now.getTime() + ACCESS_TOKEN_DURATION);
+      const refreshExpiresAt = new Date(now.getTime() + REFRESH_TOKEN_DURATION);
+      
+      // ✅ COMPATIBILIDADE: Manter token antigo para compatibilidade durante migração
+      const token = accessToken; // Access token é o token principal
 
       // ✅ LIMPEZA: Remover sessões antigas do mesmo usuário antes de criar nova
       const { error: cleanupError } = await supabase
@@ -216,18 +224,34 @@ app.post('/login', async (c) => {
         console.log('✅ Sessões antigas do usuário removidas');
       }
 
-      // Salvar sessão no SQL
-      console.log('🔍 [login] Criando sessão com token:', token.substring(0, 30) + '...');
+      // ✅ Extrair user agent e IP para segurança
+      const userAgent = c.req.header('User-Agent') || null;
+      const ip = c.req.header('X-Forwarded-For') || c.req.header('X-Real-IP') || 'unknown';
+      const ipHash = createHash('sha256').update(ip).digest('hex').substring(0, 32);
+
+      // Salvar sessão no SQL com access + refresh tokens
+      console.log('🔍 [login] Criando sessão com access token:', accessToken.substring(0, 30) + '...');
       const { data: insertedSession, error: sessionError } = await supabase
         .from('sessions')
         .insert({
-          token,
+          // ✅ COMPATIBILIDADE: token antigo (será deprecado)
+          token: accessToken,
+          // ✅ NOVO: access + refresh tokens
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          access_expires_at: accessExpiresAt.toISOString(),
+          refresh_expires_at: refreshExpiresAt.toISOString(),
+          // Dados do usuário
           user_id: user.id,
           username: user.username,
           type: user.type,
           organization_id: user.organization_id || null,
-          expires_at: expiresAt.toISOString(),
-          last_activity: now.toISOString()
+          // Timestamps
+          expires_at: refreshExpiresAt.toISOString(), // ✅ COMPATIBILIDADE: expires_at = refresh_expires_at
+          last_activity: now.toISOString(),
+          // Segurança
+          user_agent: userAgent,
+          ip_hash: ipHash
         })
         .select()
         .single();
@@ -294,11 +318,19 @@ app.post('/login', async (c) => {
       // Cookie HttpOnly pode ser adicionado depois, por enquanto token no JSON funciona
       console.log('✅ Login bem-sucedido - token retornado no JSON');
 
+      // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Retornar access token + setar refresh token em cookie
+      // ✅ COMPATIBILIDADE: Manter token no JSON (será deprecado)
+      // ✅ NOVO: accessToken no JSON + refreshToken em cookie HttpOnly
+      
+      // Setar refresh token em cookie HttpOnly (mais seguro)
+      c.header('Set-Cookie', `rendizy-refresh-token=${refreshToken}; Max-Age=${REFRESH_TOKEN_DURATION / 1000}; Path=/; HttpOnly; Secure; SameSite=None`);
+      
       return c.json({
         success: true,
-        // ✅ Manter token no JSON para compatibilidade durante migração
-        // Frontend ainda pode usar temporariamente, mas cookie é a fonte da verdade
-        token,
+        // ✅ COMPATIBILIDADE: token antigo (será deprecado)
+        token: accessToken,
+        // ✅ NOVO: accessToken explícito
+        accessToken: accessToken,
         user: {
           id: user.id,
           username: user.username,
@@ -308,7 +340,8 @@ app.post('/login', async (c) => {
           status: user.status,
           organizationId: user.organization_id || undefined
         },
-        expiresAt: expiresAt.toISOString()
+        expiresAt: accessExpiresAt.toISOString(), // ✅ Access token expiration
+        refreshExpiresAt: refreshExpiresAt.toISOString() // ✅ Refresh token expiration
       });
     }
 
@@ -389,6 +422,150 @@ function parseCookies(cookieHeader: string): Record<string, string> {
   });
   return cookies;
 }
+
+// POST /auth/refresh - Renovar access token usando refresh token
+// ✅ ARQUITETURA OAuth2 v1.0.103.1010: Rotação de refresh tokens
+app.post('/refresh', async (c) => {
+  try {
+    console.log('🔄 POST /auth/refresh - Tentativa de renovar token');
+    
+    // ✅ Ler refresh token do cookie HttpOnly
+    const cookieHeader = c.req.header('Cookie') || '';
+    const cookies = parseCookies(cookieHeader);
+    const refreshToken = cookies['rendizy-refresh-token'];
+    
+    if (!refreshToken) {
+      console.log('❌ [refresh] Refresh token não encontrado no cookie');
+      return c.json({
+        success: false,
+        error: 'Refresh token não fornecido',
+        code: 'REFRESH_TOKEN_MISSING'
+      }, 401);
+    }
+    
+    console.log('🔍 [refresh] Refresh token encontrado:', refreshToken.substring(0, 20) + '...');
+    
+    // ✅ Buscar sessão pelo refresh token
+    const supabase = getSupabaseClient();
+    const { data: sessionRow, error: sessionError } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('refresh_token', refreshToken)
+      .is('revoked_at', null) // Não revogada
+      .maybeSingle();
+    
+    if (sessionError || !sessionRow) {
+      console.log('❌ [refresh] Sessão não encontrada ou inválida');
+      // Limpar cookie inválido
+      c.header('Set-Cookie', 'rendizy-refresh-token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=None');
+      return c.json({
+        success: false,
+        error: 'Refresh token inválido ou expirado',
+        code: 'REFRESH_TOKEN_INVALID'
+      }, 401);
+    }
+    
+    // ✅ Verificar se refresh token não expirou
+    const now = new Date();
+    const refreshExpiresAt = new Date(sessionRow.refresh_expires_at);
+    if (now > refreshExpiresAt) {
+      console.log('❌ [refresh] Refresh token expirado');
+      // Revogar sessão
+      await supabase
+        .from('sessions')
+        .update({ revoked_at: now.toISOString() })
+        .eq('id', sessionRow.id);
+      // Limpar cookie
+      c.header('Set-Cookie', 'rendizy-refresh-token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=None');
+      return c.json({
+        success: false,
+        error: 'Refresh token expirado',
+        code: 'REFRESH_TOKEN_EXPIRED'
+      }, 401);
+    }
+    
+    // ✅ Gerar novo par de tokens (rotating refresh tokens)
+    const newAccessToken = generateToken();
+    const newRefreshToken = generateToken();
+    
+    const ACCESS_TOKEN_DURATION = 30 * 60 * 1000; // 30 minutos
+    const REFRESH_TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 dias
+    const newAccessExpiresAt = new Date(now.getTime() + ACCESS_TOKEN_DURATION);
+    const newRefreshExpiresAt = new Date(now.getTime() + REFRESH_TOKEN_DURATION);
+    
+    // ✅ Revogar refresh token anterior (rotating)
+    await supabase
+      .from('sessions')
+      .update({ 
+        revoked_at: now.toISOString(),
+        rotated_to: null // Será atualizado quando nova sessão for criada
+      })
+      .eq('id', sessionRow.id);
+    
+    // ✅ Criar nova sessão com novos tokens
+    const { data: newSession, error: newSessionError } = await supabase
+      .from('sessions')
+      .insert({
+        // ✅ NOVO: access + refresh tokens
+        token: newAccessToken, // ✅ COMPATIBILIDADE: token antigo
+        access_token: newAccessToken,
+        refresh_token: newRefreshToken,
+        access_expires_at: newAccessExpiresAt.toISOString(),
+        refresh_expires_at: newRefreshExpiresAt.toISOString(),
+        // Dados do usuário
+        user_id: sessionRow.user_id,
+        username: sessionRow.username,
+        type: sessionRow.type,
+        organization_id: sessionRow.organization_id,
+        // Timestamps
+        expires_at: newRefreshExpiresAt.toISOString(), // ✅ COMPATIBILIDADE
+        last_activity: now.toISOString(),
+        // Rotação
+        rotated_from: sessionRow.id,
+        // Segurança
+        user_agent: sessionRow.user_agent,
+        ip_hash: sessionRow.ip_hash
+      })
+      .select()
+      .single();
+    
+    if (newSessionError || !newSession) {
+      console.error('❌ [refresh] Erro ao criar nova sessão:', newSessionError);
+      return c.json({
+        success: false,
+        error: 'Erro ao renovar sessão',
+        details: newSessionError?.message
+      }, 500);
+    }
+    
+    // ✅ Atualizar rotated_to na sessão anterior
+    await supabase
+      .from('sessions')
+      .update({ rotated_to: newSession.id })
+      .eq('id', sessionRow.id);
+    
+    console.log('✅ [refresh] Tokens renovados com sucesso');
+    
+    // ✅ Setar novo refresh token em cookie
+    c.header('Set-Cookie', `rendizy-refresh-token=${newRefreshToken}; Max-Age=${REFRESH_TOKEN_DURATION / 1000}; Path=/; HttpOnly; Secure; SameSite=None`);
+    
+    return c.json({
+      success: true,
+      accessToken: newAccessToken,
+      // ✅ COMPATIBILIDADE: token antigo
+      token: newAccessToken,
+      expiresAt: newAccessExpiresAt.toISOString(),
+      refreshExpiresAt: newRefreshExpiresAt.toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro no refresh:', error);
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro ao renovar token'
+    }, 500);
+  }
+});
 
 // GET /auth/me - Verificar sessão atual
 // ✅ ARQUITETURA SQL: Busca sessão e usuário do SQL
