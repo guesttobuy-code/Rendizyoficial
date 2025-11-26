@@ -152,12 +152,14 @@ export async function getCurrentUser(): Promise<UserResponse> {
     });
 
     if (response.status === 401) {
-      // ✅ Token expirado, tentar refresh
+      // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Token expirado, tentar refresh
+      console.log('🔄 [authService] 401 detectado - tentando refresh...');
       const refreshResult = await refreshToken();
       if (refreshResult.success && refreshResult.accessToken) {
         // ✅ Tentar novamente com novo token
         const newToken = refreshResult.accessToken || refreshResult.token;
         if (newToken) {
+          console.log('✅ [authService] Token renovado - retentando getCurrentUser...');
           const retryResponse = await fetch(`${API_BASE}/auth/me`, {
             method: 'GET',
             headers: {
@@ -168,13 +170,20 @@ export async function getCurrentUser(): Promise<UserResponse> {
           });
           
           if (retryResponse.ok) {
-            return await retryResponse.json();
+            const retryData = await retryResponse.json();
+            // ✅ Notificar outras abas sobre refresh
+            const { authBroadcast } = await import('../utils/authBroadcast');
+            authBroadcast.notifyTokenRefreshed(newToken);
+            return retryData;
           }
         }
       }
       
-      // ✅ Se refresh falhou, limpar token
+      // ✅ Se refresh falhou, limpar token e notificar outras abas
+      console.error('❌ [authService] Refresh falhou - limpando token');
       localStorage.removeItem('rendizy-token');
+      const { authBroadcast } = await import('../utils/authBroadcast');
+      authBroadcast.notifySessionExpired();
       return {
         success: false,
         error: 'Sessão expirada'
