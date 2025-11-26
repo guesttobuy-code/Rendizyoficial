@@ -1,15 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Organization, Permission, PermissionCheck, DEFAULT_PERMISSIONS } from '../types/tenancy';
-import { createClient } from '@jsr/supabase__supabase-js';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
 // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Integração com authService e BroadcastChannel
 import { login as authServiceLogin, logout as authServiceLogout, getCurrentUser } from '../services/authService';
 import { getAuthBroadcast, authBroadcast } from '../utils/authBroadcast';
+// ✅ ARQUITETURA OAuth2 v1.0.103.1010: Usar singleton do Supabase client
+import { getSupabaseClient } from '../utils/supabase/client';
 
 // ✅ MELHORIA v1.0.103.400 - Usa user_metadata do Supabase como fallback
-// Cria cliente Supabase para acessar user_metadata
-const supabaseUrl = `https://${projectId}.supabase.co`;
-const supabase = createClient(supabaseUrl, publicAnonKey);
+// ✅ ARQUITETURA OAuth2 v1.0.103.1010: Usar singleton
+const supabase = getSupabaseClient();
 
 interface AuthContextType {
   user: User | null;

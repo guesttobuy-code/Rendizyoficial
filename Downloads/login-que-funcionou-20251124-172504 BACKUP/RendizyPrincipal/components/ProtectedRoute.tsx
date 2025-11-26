@@ -2,13 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
-import { createClient } from '@jsr/supabase__supabase-js';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+// ✅ ARQUITETURA OAuth2 v1.0.103.1010: Usar singleton do Supabase client
+import { getSupabaseClient } from '../utils/supabase/client';
 
 // ✅ MELHORIA v1.0.103.400 - Usa user_metadata do Supabase como fallback
-// Cria cliente Supabase para verificar user_metadata se necessário
-const supabaseUrl = `https://${projectId}.supabase.co`;
-const supabase = createClient(supabaseUrl, publicAnonKey);
+// ✅ ARQUITETURA OAuth2 v1.0.103.1010: Usar singleton
+const supabase = getSupabaseClient();
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -40,15 +39,10 @@ export default function ProtectedRoute({
   requireOrganization = true,
   redirectTo = '/login' 
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, organization, user } = useAuth();
+  const { isAuthenticated, isLoading, organization, user, hasToken } = useAuth(); // ✅ CORREÇÃO v1.0.103.1007: Usar hasToken do AuthContext
   const location = useLocation();
   const path = location.pathname;
   const [checkingMetadata, setCheckingMetadata] = useState(false);
-  
-  // ✅ CORREÇÃO CRÍTICA v1.0.103.1004: Aguardar validação se houver token
-  // Se tem token no localStorage, SEMPRE aguardar validação completar antes de redirecionar
-  // Isso resolve o problema de logout ao navegar diretamente via URL
-  const hasToken = typeof window !== 'undefined' ? !!localStorage.getItem('rendizy-token') : false;
   
   // ✅ BOAS PRÁTICAS MUNDIAIS: SEMPRE aguardar validação se houver token
   // Mesmo que isLoading seja false, se tem token e não tem user, pode estar em processo de validação
@@ -82,27 +76,12 @@ export default function ProtectedRoute({
     }
   }, [hasToken, user, isLoading]);
   
-  // ✅ CORREÇÃO v1.0.103.1005: Mostrar loading enquanto verifica autenticação
+  // ✅ CORREÇÃO v1.0.103.1006: Mostrar loading enquanto verifica autenticação
   // Se está carregando E (tem token OU tem user), aguardar validação completar
   // OU se tem token mas ainda não validou (dentro do timeout de 5s)
-  if (isLoading && (hasToken || user)) {
+  // ✅ CORREÇÃO CRÍTICA: Se tem token, SEMPRE aguardar validação (mesmo que isLoading seja false)
+  if (isLoading || (hasToken && !user && !validationTimeout)) {
     // ✅ Se tem token ou user, aguardar validação completar (não redirecionar imediatamente)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
-          <p className="text-gray-600 dark:text-gray-400">
-            Verificando autenticação...
-          </p>
-        </div>
-      </div>
-    );
-  }
-  
-  // ✅ CORREÇÃO v1.0.103.1005: Se tem token mas ainda não validou (dentro do timeout), aguardar
-  // IMPORTANTE: Aguardar mesmo que isLoading seja false (pode estar em processo de validação)
-  if (hasToken && !user && !validationTimeout) {
-    console.log('⏳ [ProtectedRoute] Aguardando validação do token...', { hasToken, user, isLoading, validationTimeout });
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center space-y-4">
