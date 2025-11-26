@@ -14,6 +14,7 @@ interface UpsertAIConfigPayload {
   provider: string;
   baseUrl: string;
   defaultModel: string;
+  enabled?: boolean;
   temperature?: number;
   maxTokens?: number;
   promptTemplate?: string;
@@ -67,6 +68,13 @@ export async function upsertAIProviderConfig(c: Context) {
     const organizationId = await getOrganizationIdForRequest(c);
 
     logInfo(`[AI] Salvando configuração para org ${organizationId}: ${body.provider}`);
+    logInfo(`[AI] Payload recebido:`, { 
+      provider: body.provider, 
+      baseUrl: body.baseUrl, 
+      defaultModel: body.defaultModel,
+      enabled: body.enabled,
+      hasApiKey: !!body.apiKey 
+    });
 
     if (!body.provider || !body.baseUrl || !body.defaultModel) {
       return c.json(validationErrorResponse('provider, baseUrl e defaultModel são obrigatórios'), 400);
@@ -81,6 +89,7 @@ export async function upsertAIProviderConfig(c: Context) {
     let apiKeyEncrypted = existing?.api_key_encrypted || null;
     if (body.apiKey) {
       apiKeyEncrypted = await encryptSensitive(body.apiKey);
+      logInfo(`[AI] API Key criptografada com sucesso`);
     }
 
     if (!apiKeyEncrypted) {
@@ -92,12 +101,20 @@ export async function upsertAIProviderConfig(c: Context) {
       provider: body.provider,
       base_url: body.baseUrl,
       default_model: body.defaultModel,
+      enabled: body.enabled ?? true,
       temperature: body.temperature ?? 0.2,
       max_tokens: body.maxTokens ?? 512,
       prompt_template: body.promptTemplate ?? 'Você é o copiloto oficial do Rendizy. Responda sempre em português brasileiro.',
       notes: body.notes ?? null,
       api_key_encrypted: apiKeyEncrypted,
     };
+
+    logInfo(`[AI] Tentando upsert com payload:`, { 
+      organization_id: payload.organization_id,
+      provider: payload.provider,
+      enabled: payload.enabled,
+      hasApiKey: !!payload.api_key_encrypted
+    });
 
     const { data, error } = await client
       .from('ai_provider_configs')
