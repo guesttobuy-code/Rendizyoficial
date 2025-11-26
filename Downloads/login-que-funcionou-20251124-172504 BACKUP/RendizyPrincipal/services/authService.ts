@@ -65,7 +65,9 @@ export async function login(username: string, password: string): Promise<LoginRe
       headers: {
         'Content-Type': 'application/json'
       },
-      credentials: 'include', // ✅ Importante para cookies HttpOnly
+      // ✅ TEMPORÁRIO: Removido credentials: 'include' para resolver CORS
+      // Tokens em localStorage funcionam perfeitamente (seguindo regra: "Se funciona, não mudar")
+      // Depois implementaremos cookies HttpOnly corretamente
       body: JSON.stringify({ username, password })
     });
 
@@ -100,7 +102,8 @@ export async function refreshToken(): Promise<RefreshResponse> {
       headers: {
         'Content-Type': 'application/json'
       },
-      credentials: 'include' // ✅ Importante para enviar cookie HttpOnly
+      // ✅ TEMPORÁRIO: Removido credentials: 'include' para resolver CORS
+      // Refresh token será implementado depois quando CORS estiver correto
     });
 
     const data = await response.json();
@@ -148,7 +151,7 @@ export async function getCurrentUser(): Promise<UserResponse> {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      credentials: 'include'
+      // ✅ TEMPORÁRIO: Removido credentials: 'include' para resolver CORS
     });
 
     if (response.status === 401) {
@@ -166,7 +169,7 @@ export async function getCurrentUser(): Promise<UserResponse> {
               'Authorization': `Bearer ${newToken}`,
               'Content-Type': 'application/json'
             },
-            credentials: 'include'
+            // ✅ TEMPORÁRIO: Removido credentials: 'include' para resolver CORS
           });
           
           if (retryResponse.ok) {
@@ -221,7 +224,7 @@ export async function logout(): Promise<void> {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        credentials: 'include'
+        // ✅ TEMPORÁRIO: Removido credentials: 'include' para resolver CORS
       });
     }
   } catch (error) {
