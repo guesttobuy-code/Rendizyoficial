@@ -252,6 +252,7 @@ export async function generateAIChat(options: GenerateAIChatOptions): Promise<AI
       generationConfig: {
         temperature,
         maxOutputTokens: maxTokens,
+        responseMimeType: 'application/json', // ✅ Forçar resposta JSON puro
       },
     };
     if (systemInstruction) {

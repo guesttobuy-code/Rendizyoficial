@@ -200,7 +200,7 @@ Retorne um JSON com esta estrutura:
 
     // Ajustar temperatura e tokens baseado no modo
     const temperature = body.conversationMode ? 0.3 : 0.1; // Mais criativo em modo conversacional
-    const maxTokens = body.conversationMode ? 1000 : 800; // Mais tokens para conversas
+    const maxTokens = body.conversationMode ? 2000 : 2000; // ✅ Aumentado para 2000 tokens para garantir JSON completo
 
     logInfo('[AutomationsAI] Chamando generateAIChat', {
       organizationId,
@@ -266,12 +266,31 @@ Retorne um JSON com esta estrutura:
         // Continua para outras tentativas
       }
       
-      // 2. Procurar por blocos de código markdown (```json ... ```)
-      const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/g;
+      // 2. Procurar por blocos de código markdown (```json ... ``` ou ``` ... ```)
+      // Regex melhorada para capturar blocos markdown com ou sem "json"
+      const jsonBlockRegex = /```(?:json)?\s*\n?([\s\S]*?)\n?```/g;
       let match;
       while ((match = jsonBlockRegex.exec(text)) !== null) {
         try {
-          return JSON.parse(match[1].trim());
+          const jsonContent = match[1].trim();
+          if (jsonContent) {
+            return JSON.parse(jsonContent);
+          }
+        } catch {
+          // Continua procurando
+        }
+      }
+      
+      // 2b. Tentar também sem o "json" no início (apenas ``` ... ```)
+      const codeBlockRegex = /```\s*\n?([\s\S]*?)\n?```/g;
+      let codeMatch;
+      while ((codeMatch = codeBlockRegex.exec(text)) !== null) {
+        try {
+          const jsonContent = codeMatch[1].trim();
+          // Verificar se parece JSON (começa com { ou [)
+          if (jsonContent && (jsonContent.startsWith('{') || jsonContent.startsWith('['))) {
+            return JSON.parse(jsonContent);
+          }
         } catch {
           // Continua procurando
         }
@@ -372,8 +391,20 @@ Retorne um JSON com esta estrutura:
 
     // Se não for modo conversacional e não gerou automação, retornar erro
     if (!definition) {
+      logError('[AutomationsAI] Falha ao gerar automação - retornando erro com rawText para debug', {
+        textLength: result.text?.length || 0,
+        textPreview: result.text?.substring(0, 500) || 'N/A',
+        provider: result.provider,
+        model: result.model,
+      });
+      
       return c.json(
-        errorResponse('IA retornou um formato inválido. Tente reformular o pedido ou forneça mais detalhes.'),
+        errorResponse('IA retornou um formato inválido. Tente reformular o pedido ou forneça mais detalhes.', {
+          rawText: result.text, // ✅ Incluir rawText para debug
+          provider: result.provider,
+          model: result.model,
+          textLength: result.text?.length || 0,
+        }),
         422,
       );
     }
