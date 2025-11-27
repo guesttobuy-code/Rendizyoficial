@@ -52,7 +52,7 @@
 
 ### Passo 1: Acesse
 1. Abra seu navegador (Chrome/Firefox/Edge)
-2. Acesse: https://rendizyoficial.vercel.app/login
+2. Acesse: https://adorable-biscochitos-59023a.netlify.app/login
 3. Faça login com: `rppt / root`
 
 ### Passo 2: Crie o Imóvel

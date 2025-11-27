@@ -177,7 +177,7 @@ async function criarImovel(token) {
       console.log('📋 Tipo:', response.data.data?.type);
       console.log('📋 Endereço:', JSON.stringify(response.data.data?.address, null, 2));
       console.log('📋 Status:', response.data.data?.status);
-      console.log('\n🔗 Acesse: https://rendizyoficial.vercel.app/properties');
+      console.log('\n🔗 Acesse: https://adorable-biscochitos-59023a.netlify.app/properties');
       return response.data.data;
     } else {
       throw new Error(`Erro ao criar imóvel: ${response.data.error || response.data.message}`);

@@ -136,10 +136,11 @@ Este script verifica automaticamente se você não violou regras estabelecidas.
 
 ## 3. URLs do Sistema
 
-### **Produção (Vercel)**
-- **URL:** https://rendizyoficial.vercel.app
-- **Dashboard:** https://rendizyoficial.vercel.app/dashboard
+### **Produção (Netlify)**
+- **URL:** https://adorable-biscochitos-59023a.netlify.app
+- **Dashboard:** https://adorable-biscochitos-59023a.netlify.app/dashboard
 - **Status:** ✅ Ativo (conectado ao GitHub `guesttobuy-code/Rendizyoficial`)
+- **Nota:** Migrado do Vercel para Netlify devido a problemas de cache
 
 ### **Desenvolvimento Local**
 - **URL:** http://localhost:3000

@@ -4,18 +4,20 @@
 
 **URL Principal:**
 ```
-https://rendizy2producao-am7c.vercel.app
+https://adorable-biscochitos-59023a.netlify.app
 ```
 
 **URL Dashboard:**
 ```
-https://rendizy2producao-am7c.vercel.app/dashboard
+https://adorable-biscochitos-59023a.netlify.app/dashboard
 ```
 
 **URL Login:**
 ```
-https://rendizy2producao-am7c.vercel.app/login
+https://adorable-biscochitos-59023a.netlify.app/login
 ```
+
+**Nota:** Sistema migrado do Vercel para Netlify (27/11/2025)
 
 ---
 
@@ -42,13 +44,13 @@ https://rendizy2producao-am7c.vercel.app/login
 
 ## 🔗 LINKS RÁPIDOS
 
-- **Dashboard:** https://rendizy2producao-am7c.vercel.app/dashboard
-- **Login:** https://rendizy2producao-am7c.vercel.app/login
-- **Home:** https://rendizy2producao-am7c.vercel.app/
+- **Dashboard:** https://adorable-biscochitos-59023a.netlify.app/dashboard
+- **Login:** https://adorable-biscochitos-59023a.netlify.app/login
+- **Home:** https://adorable-biscochitos-59023a.netlify.app/
 
 ---
 
-**Última atualização:** 2025-01-19
+**Última atualização:** 2025-11-27 (Migrado para Netlify)
 
 ---
 
