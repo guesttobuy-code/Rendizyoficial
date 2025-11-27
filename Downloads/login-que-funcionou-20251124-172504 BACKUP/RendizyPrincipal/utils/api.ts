@@ -219,15 +219,34 @@ export interface AIProviderConfigResponse {
 }
 
 export interface UpsertAIProviderConfigRequest {
+  id?: string; // Se fornecido, edita configuração existente
+  name?: string; // Nome descritivo da configuração
   provider: string;
   baseUrl: string;
   defaultModel: string;
   enabled?: boolean;
+  isActive?: boolean; // Se true, ativa esta configuração e desativa outras
   temperature?: number;
   maxTokens?: number;
   promptTemplate?: string;
   notes?: string;
   apiKey?: string;
+}
+
+export interface AIProviderConfigListItem {
+  id: string;
+  name?: string;
+  provider: string;
+  base_url: string;
+  default_model: string;
+  enabled: boolean;
+  is_active: boolean;
+  temperature: number;
+  max_tokens: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  hasApiKey: boolean;
 }
 
 export interface AIProviderTestResponse {
@@ -246,7 +265,9 @@ export type AutomationPriority = 'baixa' | 'media' | 'alta';
 
 export interface AutomationNaturalLanguageRequest {
   input: string;
-  module?: string;
+  module?: string; // Mantido para compatibilidade
+  modules?: string[]; // NOVO: Array de módulos
+  properties?: string[]; // NOVO: IDs dos imóveis
   channel?: 'chat' | 'whatsapp' | 'email' | 'sms' | 'dashboard';
   priority?: AutomationPriority;
   language?: string;
@@ -290,6 +311,8 @@ export interface AutomationDefinition {
 export interface AutomationNaturalLanguageResponse {
   definition: AutomationDefinition | null;
   conversationalResponse?: string; // Resposta conversacional quando não há automação ainda
+  ai_interpretation_summary?: string; // NOVO: Resumo do que a IA interpretou
+  impact_description?: string; // NOVO: Descrição do impacto
   provider: string;
   model: string;
   rawText: string;
@@ -1787,6 +1810,9 @@ export const integrationsApi = {
     getConfig: async (): Promise<ApiResponse<AIProviderConfigResponse>> => {
       return apiRequest<AIProviderConfigResponse>('/make-server-67caf26a/integrations/ai/config');
     },
+    listConfigs: async (): Promise<ApiResponse<{ configs: AIProviderConfigListItem[]; organizationId: string }>> => {
+      return apiRequest<{ configs: AIProviderConfigListItem[]; organizationId: string }>('/make-server-67caf26a/integrations/ai/configs');
+    },
     upsertConfig: async (
       payload: UpsertAIProviderConfigRequest
     ): Promise<ApiResponse<AIProviderConfigResponse>> => {
@@ -1795,8 +1821,22 @@ export const integrationsApi = {
         body: JSON.stringify(payload),
       });
     },
-    testConfig: async (): Promise<ApiResponse<AIProviderTestResponse>> => {
-      return apiRequest<AIProviderTestResponse>('/make-server-67caf26a/integrations/ai/test', {
+    toggleStatus: async (configId: string, isActive: boolean): Promise<ApiResponse<AIProviderConfigResponse>> => {
+      return apiRequest<AIProviderConfigResponse>(`/make-server-67caf26a/integrations/ai/config/${configId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      });
+    },
+    deleteConfig: async (configId: string): Promise<ApiResponse<{ deleted: boolean; id: string }>> => {
+      return apiRequest<{ deleted: boolean; id: string }>(`/make-server-67caf26a/integrations/ai/config/${configId}`, {
+        method: 'DELETE',
+      });
+    },
+    testConfig: async (configId?: string): Promise<ApiResponse<AIProviderTestResponse>> => {
+      const url = configId 
+        ? `/make-server-67caf26a/integrations/ai/test?configId=${configId}`
+        : '/make-server-67caf26a/integrations/ai/test';
+      return apiRequest<AIProviderTestResponse>(url, {
         method: 'POST',
       });
     },
@@ -1842,9 +1882,13 @@ export interface Automation {
     };
   };
   status: 'draft' | 'active' | 'paused';
-  module?: string;
+  module?: string; // Mantido para compatibilidade
+  modules?: string[]; // NOVO: Array de módulos
   channel?: string;
   priority: 'baixa' | 'media' | 'alta';
+  properties?: string[]; // NOVO: IDs dos imóveis selecionados
+  ai_interpretation_summary?: string; // NOVO: Resumo do que a IA interpretou
+  impact_description?: string; // NOVO: Descrição do impacto da automação
   trigger_count: number;
   last_triggered_at?: string;
   created_by?: string;
@@ -1857,7 +1901,11 @@ export interface CreateAutomationRequest {
   description?: string;
   definition: Automation['definition'];
   status?: 'draft' | 'active' | 'paused';
-  module?: string;
+  module?: string; // Mantido para compatibilidade
+  modules?: string[]; // NOVO: Array de módulos
+  properties?: string[]; // NOVO: IDs dos imóveis
+  ai_interpretation_summary?: string; // NOVO: Resumo da interpretação da IA
+  impact_description?: string; // NOVO: Descrição do impacto
   channel?: string;
   priority?: 'baixa' | 'media' | 'alta';
 }

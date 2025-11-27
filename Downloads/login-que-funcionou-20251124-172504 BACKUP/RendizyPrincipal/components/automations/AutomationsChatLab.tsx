@@ -7,6 +7,8 @@ import { Badge } from '../ui/badge';
 import { Loader2, Send, Image as ImageIcon, X, Bot, User, Sparkles, Save, Workflow } from 'lucide-react';
 import { toast } from 'sonner';
 import { automationsApi, type AutomationNaturalLanguageResponse, type AutomationPriority, type CreateAutomationRequest } from '../../utils/api';
+import { ModuleSelector } from './ModuleSelector';
+import { PropertySelector } from './PropertySelector';
 // import { ScrollArea } from '../ui/scroll-area'; // Comentado temporariamente para evitar quebrar o sistema
 
 interface ChatMessage {
@@ -18,14 +20,16 @@ interface ChatMessage {
 }
 
 interface AutomationContext {
-  module: string;
+  modules: string[]; // Múltipla escolha
+  properties: string[]; // IDs dos imóveis selecionados
   channel: 'chat' | 'whatsapp' | 'email' | 'sms' | 'dashboard';
   priority: AutomationPriority;
   language: string;
 }
 
 const DEFAULT_CONTEXT: AutomationContext = {
-  module: 'financeiro',
+  modules: ['financeiro'], // Array por padrão
+  properties: [], // Nenhum imóvel selecionado = global
   channel: 'chat',
   priority: 'media',
   language: 'pt-BR',
@@ -112,6 +116,8 @@ export function AutomationsChatLab() {
 
   // Enviar mensagem
   const handleSend = async () => {
+    console.log('[AutomationsChatLab] handleSend chamado', { input: input.trim(), pendingImages: pendingImages.length });
+    
     if (!input.trim() && pendingImages.length === 0) {
       toast.error('Digite uma mensagem ou envie uma imagem');
       return;
@@ -124,6 +130,8 @@ export function AutomationsChatLab() {
       images: [],
       timestamp: new Date(),
     };
+    
+    console.log('[AutomationsChatLab] Mensagem do usuário criada', userMessage);
 
     // Processar imagens pendentes
     if (pendingImages.length > 0) {
@@ -171,9 +179,10 @@ export function AutomationsChatLab() {
       }
 
       // Chamar API de interpretação em modo conversacional
-      const response = await automationsApi.ai.interpretNaturalLanguage({
+      const requestPayload = {
         input: userMessage.content,
-        module: context.module,
+        modules: context.modules, // Array de módulos
+        properties: context.properties.length > 0 ? context.properties : undefined, // Array de imóveis
         channel: context.channel,
         priority: context.priority,
         language: context.language,
@@ -185,7 +194,13 @@ export function AutomationsChatLab() {
             role: m.role,
             content: m.content,
           })),
-      });
+      };
+      
+      console.log('[AutomationsChatLab] Chamando API com payload:', requestPayload);
+      
+      const response = await automationsApi.ai.interpretNaturalLanguage(requestPayload);
+      
+      console.log('[AutomationsChatLab] Resposta da API:', response);
 
       if (!response.success || !response.data) {
         throw new Error(response.error || 'Erro ao processar mensagem');
@@ -247,7 +262,10 @@ export function AutomationsChatLab() {
         description: automationResult.definition.description,
         definition: automationResult.definition,
         status: 'draft',
-        module: context.module,
+        modules: context.modules, // Array de módulos
+        properties: context.properties.length > 0 ? context.properties : undefined, // Array de imóveis
+        ai_interpretation_summary: automationResult.ai_interpretation_summary, // Resumo da interpretação
+        impact_description: automationResult.impact_description, // Descrição do impacto
         channel: context.channel,
         priority: context.priority,
       };
@@ -297,21 +315,17 @@ export function AutomationsChatLab() {
             <CardTitle className="text-sm">Configurações</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">Módulo</label>
-              <Select value={context.module} onValueChange={(v) => setContext(prev => ({ ...prev, module: v }))}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="financeiro">Financeiro</SelectItem>
-                  <SelectItem value="crm">CRM</SelectItem>
-                  <SelectItem value="reservas">Reservas</SelectItem>
-                  <SelectItem value="chat">Chat</SelectItem>
-                  <SelectItem value="operacoes">Operações</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Seleção de Módulos */}
+            <ModuleSelector
+              selectedModules={context.modules}
+              onChange={(modules) => setContext(prev => ({ ...prev, modules }))}
+            />
+
+            {/* Seleção de Imóveis */}
+            <PropertySelector
+              selectedProperties={context.properties}
+              onChange={(properties) => setContext(prev => ({ ...prev, properties }))}
+            />
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground">Canal</label>
               <Select value={context.channel} onValueChange={(v) => setContext(prev => ({ ...prev, channel: v as any }))}>
@@ -487,6 +501,27 @@ export function AutomationsChatLab() {
                 <p className="text-sm text-muted-foreground">{automationResult.definition.description}</p>
               )}
             </div>
+
+            {/* Resumo da Interpretação da IA */}
+            {automationResult.ai_interpretation_summary && (
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1">
+                  📋 O que a IA interpretou:
+                </p>
+                <p className="text-sm">{automationResult.ai_interpretation_summary}</p>
+              </div>
+            )}
+
+            {/* Descrição do Impacto */}
+            {automationResult.impact_description && (
+              <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">
+                  ⚡ Impacto desta automação:
+                </p>
+                <p className="text-sm">{automationResult.impact_description}</p>
+              </div>
+            )}
+
             <div className="flex gap-2">
               <Button onClick={() => setShowSaveModal(true)}>
                 <Save className="h-4 w-4 mr-2" />

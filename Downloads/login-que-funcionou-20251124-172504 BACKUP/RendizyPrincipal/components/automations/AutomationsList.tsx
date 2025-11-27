@@ -2,7 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Loader2, Plus, Play, Pause, Trash2, Edit, Eye, Workflow } from 'lucide-react';
+import { Loader2, Plus, Play, Pause, Trash2, Edit, Eye, Workflow, Info, Zap, Building2 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../ui/tooltip';
 import { toast } from 'sonner';
 import { automationsApi, type Automation } from '../../utils/api';
 import { useNavigate } from 'react-router-dom';
@@ -156,14 +162,77 @@ export function AutomationsList() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-2 flex-wrap">
-                  {automation.module && (
+                  {/* Módulos (array) */}
+                  {automation.modules && automation.modules.length > 0 ? (
+                    automation.modules.map((module) => (
+                      <Badge key={module} variant="outline">{module}</Badge>
+                    ))
+                  ) : automation.module ? (
                     <Badge variant="outline">{automation.module}</Badge>
-                  )}
+                  ) : null}
                   {automation.channel && (
                     <Badge variant="outline">{automation.channel}</Badge>
                   )}
                   {getPriorityBadge(automation.priority)}
+                  {automation.properties && automation.properties.length > 0 && (
+                    <Badge variant="outline" className="gap-1">
+                      <Building2 className="h-3 w-3" />
+                      {automation.properties.length} imóvel{automation.properties.length > 1 ? 'eis' : ''}
+                    </Badge>
+                  )}
                 </div>
+
+                {/* Resumo da Interpretação da IA */}
+                {automation.ai_interpretation_summary && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="p-2 bg-blue-500/5 border border-blue-500/20 rounded-lg cursor-help">
+                          <div className="flex items-start gap-2">
+                            <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1">
+                                O que a IA interpretou:
+                              </p>
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {automation.ai_interpretation_summary}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-md">
+                        <p className="text-sm">{automation.ai_interpretation_summary}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+
+                {/* Descrição do Impacto */}
+                {automation.impact_description && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="p-2 bg-green-500/5 border border-green-500/20 rounded-lg cursor-help">
+                          <div className="flex items-start gap-2">
+                            <Zap className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">
+                                Impacto desta automação:
+                              </p>
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {automation.impact_description}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-md">
+                        <p className="text-sm">{automation.impact_description}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
 
                 <div className="text-sm text-muted-foreground space-y-1">
                   <div>

@@ -106,7 +106,11 @@ export async function createAutomation(c: Context) {
         description: body.description || null,
         definition: body.definition,
         status: body.status || 'draft',
-        module: body.module || null,
+        module: body.module || null, // Mantido para compatibilidade
+        modules: body.modules || null, // NOVO: Array de módulos
+        properties: body.properties || null, // NOVO: Array de IDs de imóveis
+        ai_interpretation_summary: body.ai_interpretation_summary || null, // NOVO: Resumo da IA
+        impact_description: body.impact_description || null, // NOVO: Descrição do impacto
         channel: body.channel || null,
         priority: body.priority || 'media',
         created_by: createdBy,
@@ -170,7 +174,11 @@ export async function updateAutomation(c: Context) {
     if (body.description !== undefined) updateData.description = body.description;
     if (body.definition !== undefined) updateData.definition = body.definition;
     if (body.status !== undefined) updateData.status = body.status;
-    if (body.module !== undefined) updateData.module = body.module;
+    if (body.module !== undefined) updateData.module = body.module; // Compatibilidade
+    if (body.modules !== undefined) updateData.modules = body.modules; // NOVO
+    if (body.properties !== undefined) updateData.properties = body.properties; // NOVO
+    if (body.ai_interpretation_summary !== undefined) updateData.ai_interpretation_summary = body.ai_interpretation_summary; // NOVO
+    if (body.impact_description !== undefined) updateData.impact_description = body.impact_description; // NOVO
     if (body.channel !== undefined) updateData.channel = body.channel;
     if (body.priority !== undefined) updateData.priority = body.priority;
 
