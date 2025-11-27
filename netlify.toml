@@ -1,8 +1,13 @@
 # RENDIZY - Configuração Netlify (alternativa à Vercel)
+# IMPORTANTE: Este arquivo deve estar na RAIZ do repositório
 
 [build]
-  command = "npm run build"
-  publish = "dist"
+  # Comando para buildar o projeto (dentro de RendizyPrincipal)
+  command = "cd RendizyPrincipal && npm install && npm run build"
+  # Diretório de saída (relativo ao diretório do build, que é RendizyPrincipal)
+  publish = "RendizyPrincipal/dist"
+  # Diretório base para o build (Netlify vai fazer cd aqui primeiro)
+  base = "RendizyPrincipal"
 
 [[redirects]]
   from = "/*"
@@ -11,6 +16,13 @@
 
 [build.environment]
   NODE_VERSION = "18"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma = "no-cache"
+    Expires = "0"
 
 [[headers]]
   for = "/assets/*"

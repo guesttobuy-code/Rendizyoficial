@@ -1,4 +1,5 @@
 # RENDIZY - Configuração Netlify (alternativa à Vercel)
+# Este arquivo está em RendizyPrincipal/ mas o Netlify deve usar o da raiz
 
 [build]
   command = "npm run build"
@@ -11,6 +12,13 @@
 
 [build.environment]
   NODE_VERSION = "18"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma = "no-cache"
+    Expires = "0"
 
 [[headers]]
   for = "/assets/*"
