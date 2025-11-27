@@ -147,7 +147,16 @@ export function AutomationsNaturalLanguageLab() {
               rows={4}
               placeholder="Ex.: Todo dia às 18h resuma as vendas do dia e envie no chat financeiro"
               value={form.input}
-              onChange={(event) => setForm((prev) => ({ ...prev, input: event.target.value }))}
+              onChange={(event) => {
+                const newValue = event.target.value;
+                console.log('🟢 [AutomationsLab] Textarea onChange:', newValue);
+                console.log('🟢 [AutomationsLab] Valor anterior:', form.input);
+                setForm((prev) => {
+                  const updated = { ...prev, input: newValue };
+                  console.log('🟢 [AutomationsLab] Novo estado:', updated);
+                  return updated;
+                });
+              }}
             />
           </div>
 
