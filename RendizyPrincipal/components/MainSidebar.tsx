@@ -283,6 +283,16 @@ export function MainSidebar({
       title: 'Módulos Avançados',
       items: [
         {
+          id: 'modulo-financeiro',
+          label: 'Financeiro',
+          icon: DollarSign,
+          iconColor: 'text-white',
+          iconBg: 'bg-gradient-to-br from-green-500 to-emerald-600',
+          badge: 'BETA',
+          isExternalModule: true,
+          externalPath: '/financeiro'
+        },
+        {
           id: 'modulo-crm-tasks',
           label: 'CRM & Tasks',
           icon: UsersIcon,
