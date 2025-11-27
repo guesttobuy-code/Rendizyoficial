@@ -23,7 +23,7 @@ interface NaturalLanguageForm {
 }
 
 const DEFAULT_FORM: NaturalLanguageForm = {
-  input: '',
+  input: 'Todo dia às 18h envie um resumo das reservas do dia no chat interno',
   module: 'financeiro',
   channel: 'chat',
   priority: 'media',
