@@ -45,6 +45,7 @@ export function AutomationsChatLab() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [automationName, setAutomationName] = useState('');
   const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -296,6 +297,21 @@ export function AutomationsChatLab() {
     }
   };
 
+  // ✅ Tratamento de erro para prevenir crash
+  if (error) {
+    return (
+      <div className="p-6 space-y-6 max-w-6xl mx-auto">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+          <h3 className="text-red-500 font-semibold mb-2">Erro ao carregar Chat com IA</h3>
+          <p className="text-sm text-muted-foreground mb-4">{error}</p>
+          <Button onClick={() => setError(null)} variant="outline" size="sm">
+            Tentar novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div className="space-y-2">
@@ -316,16 +332,34 @@ export function AutomationsChatLab() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Seleção de Módulos */}
-            <ModuleSelector
-              selectedModules={context.modules}
-              onChange={(modules) => setContext(prev => ({ ...prev, modules }))}
-            />
+            <div className="space-y-2">
+              <ModuleSelector
+                selectedModules={context.modules}
+                onChange={(modules) => {
+                  try {
+                    setContext(prev => ({ ...prev, modules }));
+                  } catch (err: any) {
+                    console.error('[AutomationsChatLab] Erro ao atualizar módulos:', err);
+                    setError('Erro ao atualizar módulos selecionados');
+                  }
+                }}
+              />
+            </div>
 
             {/* Seleção de Imóveis */}
-            <PropertySelector
-              selectedProperties={context.properties}
-              onChange={(properties) => setContext(prev => ({ ...prev, properties }))}
-            />
+            <div className="space-y-2">
+              <PropertySelector
+                selectedProperties={context.properties}
+                onChange={(properties) => {
+                  try {
+                    setContext(prev => ({ ...prev, properties }));
+                  } catch (err: any) {
+                    console.error('[AutomationsChatLab] Erro ao atualizar imóveis:', err);
+                    setError('Erro ao atualizar imóveis selecionados');
+                  }
+                }}
+              />
+            </div>
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground">Canal</label>
               <Select value={context.channel} onValueChange={(v) => setContext(prev => ({ ...prev, channel: v as any }))}>
