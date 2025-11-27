@@ -25,9 +25,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: undefined,
-        entryFileNames: `assets/[name]-[hash]-v112.js`, // ✅ Incrementado para forçar novo hash e invalidar cache
-        chunkFileNames: `assets/[name]-[hash]-v112.js`,
-        assetFileNames: `assets/[name]-[hash]-v112.[ext]`
+        entryFileNames: `assets/[name]-[hash]-v113.js`, // ✅ Versão atualizada para invalidar cache e garantir sidebar atualizada
+        chunkFileNames: `assets/[name]-[hash]-v113.js`,
+        assetFileNames: `assets/[name]-[hash]-v113.[ext]`
       },
     },
   },
