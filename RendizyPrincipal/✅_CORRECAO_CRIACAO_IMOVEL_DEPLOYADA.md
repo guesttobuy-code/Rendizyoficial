@@ -101,7 +101,7 @@ let type = wizardData.contentType?.propertyTypeId ||
 
 ### Passo 1: Acesse a Página de Criação
 ```
-URL: https://rendizyoficial.vercel.app/properties/new
+URL: https://adorable-biscochitos-59023a.netlify.app/properties/new
 ```
 
 ### Passo 2: Preencha o Step 1 - Tipo e Identificação
