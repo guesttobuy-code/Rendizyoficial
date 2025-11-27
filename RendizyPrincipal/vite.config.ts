@@ -1,13 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { dirname, resolve } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export default defineConfig({
-  root: process.cwd(), // ✅ Usa o diretório de trabalho atual (RendizyPrincipal no Vercel)
+  // Não especificar root - Vite usa o diretório onde está o vite.config.ts por padrão
   plugins: [react()],
   resolve: {
     alias: {
