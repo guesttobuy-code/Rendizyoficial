@@ -40,33 +40,55 @@ export function AutomationsNaturalLanguageLab() {
   const [automationName, setAutomationName] = useState('');
 
   const handleSubmit = async () => {
+    console.log('🔵 [AutomationsLab] handleSubmit chamado');
+    console.log('🔵 [AutomationsLab] form.input:', form.input);
+    console.log('🔵 [AutomationsLab] form.input.trim():', form.input.trim());
+    console.log('🔵 [AutomationsLab] isSubmitting:', isSubmitting);
+    
     if (!form.input.trim()) {
+      console.log('🔴 [AutomationsLab] Validação falhou - campo vazio');
       toast.error('Descreva a automação em linguagem natural');
       return;
     }
 
+    console.log('🟢 [AutomationsLab] Validação passou - chamando API');
     setIsSubmitting(true);
     setCopied(false);
+    
+    const payload = {
+      input: form.input,
+      module: form.module,
+      channel: form.channel,
+      priority: form.priority,
+      language: form.language,
+    };
+    
+    console.log('📤 [AutomationsLab] Payload:', payload);
+    
     try {
-      const response = await automationsApi.ai.interpretNaturalLanguage({
-        input: form.input,
-        module: form.module,
-        channel: form.channel,
-        priority: form.priority,
-        language: form.language,
-      });
+      console.log('📡 [AutomationsLab] Chamando automationsApi.ai.interpretNaturalLanguage...');
+      const response = await automationsApi.ai.interpretNaturalLanguage(payload);
+      console.log('📥 [AutomationsLab] Resposta recebida:', response);
 
       if (!response.success || !response.data) {
+        console.error('🔴 [AutomationsLab] Resposta sem sucesso:', response);
         throw new Error(response.error || 'Falha ao interpretar automação');
       }
 
+      console.log('✅ [AutomationsLab] Automação gerada com sucesso:', response.data);
       setResult(response.data);
       toast.success('Automação gerada com sucesso!');
     } catch (error: any) {
-      console.error('[AutomationsLab] Erro ao gerar automação', error);
+      console.error('❌ [AutomationsLab] Erro ao gerar automação', error);
+      console.error('❌ [AutomationsLab] Erro completo:', {
+        message: error?.message,
+        stack: error?.stack,
+        response: error?.response,
+      });
       toast.error(error?.message || 'Erro ao gerar automação');
     } finally {
       setIsSubmitting(false);
+      console.log('🏁 [AutomationsLab] handleSubmit finalizado');
     }
   };
 
@@ -197,7 +219,16 @@ export function AutomationsNaturalLanguageLab() {
           </div>
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button onClick={handleSubmit} disabled={isSubmitting}>
+            <Button 
+              onClick={(e) => {
+                console.log('🟡 [AutomationsLab] Botão clicado!', e);
+                e.preventDefault();
+                e.stopPropagation();
+                handleSubmit();
+              }} 
+              disabled={isSubmitting}
+              type="button"
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
