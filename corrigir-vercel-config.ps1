@@ -48,3 +48,4 @@ if (Test-Path $vercelJsonRendizy) {
 Write-Host "`nConfiguracao corrigida! Pronto para deploy." -ForegroundColor Green
 
 
+

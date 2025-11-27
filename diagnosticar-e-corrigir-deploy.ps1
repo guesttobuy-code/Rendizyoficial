@@ -216,3 +216,4 @@ Write-Host "4. Verifique os logs de build no Vercel" -ForegroundColor White
 Write-Host ""
 
 
+

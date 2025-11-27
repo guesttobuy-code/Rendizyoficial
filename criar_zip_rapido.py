@@ -43,3 +43,4 @@ size_mb = zip_path.stat().st_size / (1024 * 1024)
 print(f"\nZIP criado: {zip_name} ({size_mb:.2f} MB)")
 
 
+
