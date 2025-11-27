@@ -310,7 +310,7 @@ export function MainSidebar({
           iconBg: 'bg-gradient-to-br from-pink-500 to-orange-500',
           badge: 'BETA',
           isExternalModule: true,
-          externalPath: '/crm/automacoes-chat'
+          externalPath: '/crm/automacoes-lab'
         },
         {
           id: 'modulo-bi',

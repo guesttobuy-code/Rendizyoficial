@@ -79,7 +79,7 @@ import { ConfiguracoesFinanceirasPage } from './components/financeiro/pages/Conf
 import CRMTasksDashboard from './components/crm/CRMTasksDashboard';
 import AutomationsNaturalLanguageLab from './components/automations/AutomationsNaturalLanguageLab';
 import { AutomationsChatLab } from './components/automations/AutomationsChatLab';
-import { AutomationsModule } from './components/automations/AutomationsModule';
+// AutomationsModule deprecado - redirecionando para /crm/automacoes-lab
 import BIDashboard from './components/bi/BIDashboard';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -1228,10 +1228,10 @@ function App() {
           <Route path="configuracoes" element={<ModulePlaceholder module="Configurações CRM & Tasks" />} />
         </Route>
         
-        {/* Módulo Automações - PROTEGIDO */}
+        {/* Módulo Automações - DEPRECADO - Redirecionando para nova tela no CRM */}
         <Route path="/automacoes/*" element={
           <ProtectedRoute>
-            <AutomationsModule />
+            <Navigate to="/crm/automacoes-lab" replace />
           </ProtectedRoute>
         } />
         
