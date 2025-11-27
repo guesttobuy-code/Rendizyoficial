@@ -25,10 +25,16 @@ import {
   MessageSquare,
   RefreshCcw,
   Shield,
-  XCircle
+  XCircle,
+  Edit,
+  Trash2,
+  Power,
+  PowerOff,
+  Clock,
+  Plus
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { integrationsApi, type AIProviderConfigResponse } from '../utils/api';
+import { integrationsApi, type AIProviderConfigResponse, type AIProviderConfigListItem } from '../utils/api';
 
 type ProviderId = 'openai' | 'azure-openai' | 'huggingface' | 'deepseek' | 'anthropic' | 'google-gemini' | 'groq' | 'together' | 'custom';
 
@@ -168,6 +174,9 @@ export function AIIntegration() {
   }>({
     status: 'idle',
   });
+  const [savedConfigs, setSavedConfigs] = useState<AIProviderConfigListItem[]>([]);
+  const [isLoadingConfigs, setIsLoadingConfigs] = useState(true);
+  const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
 
   const providerMeta = useMemo(
     () => PROVIDERS.find((p) => p.id === config.provider) || PROVIDERS[0],
@@ -238,11 +247,101 @@ export function AIIntegration() {
     }));
   };
 
+  const loadSavedConfigs = useCallback(async () => {
+    setIsLoadingConfigs(true);
+    try {
+      const response = await integrationsApi.ai.listConfigs();
+      if (response.success && response.data) {
+        setSavedConfigs(response.data.configs || []);
+      }
+    } catch (error: any) {
+      console.error('❌ [AIIntegration] Erro ao carregar lista de configs:', error);
+    } finally {
+      setIsLoadingConfigs(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSavedConfigs();
+  }, [loadSavedConfigs]);
+
+  const handleEditConfig = (savedConfig: AIProviderConfigListItem) => {
+    setEditingConfigId(savedConfig.id);
+    const providerId = savedConfig.provider as ProviderId;
+    const defaults = PROVIDERS.find((p) => p.id === providerId) || PROVIDERS[0];
+    setConfig({
+      enabled: savedConfig.enabled,
+      provider: providerId,
+      baseUrl: savedConfig.base_url,
+      defaultModel: savedConfig.default_model,
+      temperature: savedConfig.temperature,
+      maxTokens: savedConfig.max_tokens,
+      promptTemplate: 'Você é o copiloto oficial do Rendizy. Responda sempre em português brasileiro.',
+      notes: savedConfig.notes || '',
+    });
+    setApiKeyInput('');
+    setHasRemoteApiKey(savedConfig.hasApiKey);
+    // Scroll para o formulário
+    setTimeout(() => {
+      document.getElementById('ai-config-form')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  const handleToggleStatus = async (configId: string, currentStatus: boolean) => {
+    try {
+      const response = await integrationsApi.ai.toggleStatus(configId, !currentStatus);
+      if (response.success) {
+        toast.success(`Configuração ${!currentStatus ? 'ativada' : 'desativada'} com sucesso`);
+        await loadSavedConfigs();
+        await loadRemoteConfig(); // Recarregar config ativa
+      } else {
+        toast.error(response.error || 'Erro ao atualizar status');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao atualizar status');
+    }
+  };
+
+  const handleDeleteConfig = async (configId: string) => {
+    if (!confirm('Tem certeza que deseja deletar esta configuração? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    try {
+      const response = await integrationsApi.ai.deleteConfig(configId);
+      if (response.success) {
+        toast.success('Configuração deletada com sucesso');
+        await loadSavedConfigs();
+        if (editingConfigId === configId) {
+          setEditingConfigId(null);
+          setConfig(DEFAULT_STATE);
+          setApiKeyInput('');
+          setHasRemoteApiKey(false);
+        }
+      } else {
+        toast.error(response.error || 'Erro ao deletar configuração');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao deletar configuração');
+    }
+  };
+
+  const handleNewConfig = () => {
+    setEditingConfigId(null);
+    setConfig(DEFAULT_STATE);
+    setApiKeyInput('');
+    setHasRemoteApiKey(false);
+    setTimeout(() => {
+      document.getElementById('ai-config-form')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
   const handleSave = async () => {
     if (isLoadingConfig) return;
     setIsSaving(true);
     try {
       const response = await integrationsApi.ai.upsertConfig({
+        id: editingConfigId || undefined,
+        name: editingConfigId ? undefined : `${providerMeta.name} - ${new Date().toLocaleDateString('pt-BR')}`,
         provider: config.provider,
         baseUrl: config.baseUrl,
         defaultModel: config.defaultModel,
@@ -251,6 +350,7 @@ export function AIIntegration() {
         promptTemplate: config.promptTemplate,
         notes: config.notes,
         enabled: config.enabled,
+        isActive: !editingConfigId ? true : undefined, // Se criando nova, ativar automaticamente
         apiKey: apiKeyInput || undefined,
       });
 
@@ -258,11 +358,22 @@ export function AIIntegration() {
         throw new Error(response.error || 'Falha ao salvar configuração de IA');
       }
 
-      const nextConfig = mapResponseToConfig(response.data);
-      setConfig(nextConfig);
-      setHasRemoteApiKey(true);
+      toast.success(editingConfigId ? 'Configuração atualizada com sucesso' : 'Nova configuração criada com sucesso');
+      await loadSavedConfigs();
+      await loadRemoteConfig();
+      
+      if (!editingConfigId) {
+        // Se criou nova, limpar formulário
+        setConfig(DEFAULT_STATE);
+        setEditingConfigId(null);
+      } else {
+        // Se editou, atualizar estado
+        const nextConfig = mapResponseToConfig(response.data);
+        setConfig(nextConfig);
+      }
+      
+      setHasRemoteApiKey(Boolean(response.data?.hasApiKey));
       setApiKeyInput('');
-      toast.success('Integração de IA atualizada');
     } catch (error: any) {
       console.error('❌ [AIIntegration] Erro ao salvar:', error);
       toast.error(error?.message || 'Falha ao salvar configuração de IA');
@@ -337,13 +448,133 @@ export function AIIntegration() {
         </Alert>
       )}
 
-      <Card>
+      {/* Timeline de Configurações Salvas */}
+      {savedConfigs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-blue-500" />
+                  Configurações Salvas
+                </CardTitle>
+                <CardDescription>
+                  Histórico de integrações de IA configuradas. Você pode ter múltiplas configurações e alternar entre elas.
+                </CardDescription>
+              </div>
+              <Button onClick={handleNewConfig} variant="outline" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Configuração
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {savedConfigs.map((savedConfig) => {
+                const providerMeta = PROVIDERS.find((p) => p.id === savedConfig.provider as ProviderId);
+                return (
+                  <div
+                    key={savedConfig.id}
+                    className={`p-4 rounded-lg border-2 ${
+                      savedConfig.is_active
+                        ? 'border-green-500 bg-green-50 dark:bg-green-950/20'
+                        : 'border-border bg-muted/30'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="font-semibold text-sm">
+                            {savedConfig.name || providerMeta?.name || savedConfig.provider}
+                          </h4>
+                          {savedConfig.is_active && (
+                            <Badge variant="default" className="text-xs bg-green-500 text-white">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Ativa
+                            </Badge>
+                          )}
+                          {!savedConfig.enabled && (
+                            <Badge variant="secondary" className="text-xs">
+                              Desabilitada
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <p>
+                            <strong>Provedor:</strong> {providerMeta?.name || savedConfig.provider}
+                          </p>
+                          <p>
+                            <strong>Modelo:</strong> {savedConfig.default_model}
+                          </p>
+                          <p>
+                            <strong>Base URL:</strong> {savedConfig.base_url}
+                          </p>
+                          {savedConfig.notes && (
+                            <p>
+                              <strong>Notas:</strong> {savedConfig.notes}
+                            </p>
+                          )}
+                          <p className="text-xs opacity-70">
+                            Criada em {new Date(savedConfig.created_at).toLocaleString('pt-BR')}
+                            {savedConfig.updated_at !== savedConfig.created_at &&
+                              ` • Atualizada em ${new Date(savedConfig.updated_at).toLocaleString('pt-BR')}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleToggleStatus(savedConfig.id, savedConfig.is_active)}
+                          disabled={isLoadingConfigs}
+                          title={savedConfig.is_active ? 'Desativar' : 'Ativar'}
+                        >
+                          {savedConfig.is_active ? (
+                            <PowerOff className="h-4 w-4" />
+                          ) : (
+                            <Power className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditConfig(savedConfig)}
+                          disabled={isLoadingConfigs}
+                          title="Editar"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteConfig(savedConfig.id)}
+                          disabled={isLoadingConfigs}
+                          title="Deletar"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card id="ai-config-form">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-purple-500" />
-            Provedor de IA
+            {editingConfigId ? 'Editar Configuração' : 'Nova Configuração de IA'}
           </CardTitle>
-          <CardDescription>Selecione o provedor principal que abastecerá os módulos inteligentes.</CardDescription>
+          <CardDescription>
+            {editingConfigId
+              ? 'Edite os detalhes da configuração selecionada.'
+              : 'Crie uma nova integração com um provedor de IA. Esta configuração será salva no histórico.'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/30">

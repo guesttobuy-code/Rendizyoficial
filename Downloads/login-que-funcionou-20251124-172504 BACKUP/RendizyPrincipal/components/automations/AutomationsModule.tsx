@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AutomationsList } from './AutomationsList';
 import { AutomationDetails } from './AutomationDetails';
 import { AutomationsNaturalLanguageLab } from './AutomationsNaturalLanguageLab';
+import { AutomationsChatLab } from './AutomationsChatLab';
 
 export function AutomationsModule() {
   return (
@@ -10,6 +11,7 @@ export function AutomationsModule() {
       <Route path="/" element={<AutomationsList />} />
       <Route path="/:id" element={<AutomationDetails />} />
       <Route path="/lab" element={<AutomationsNaturalLanguageLab />} />
+      <Route path="/chat" element={<AutomationsChatLab />} />
       <Route path="*" element={<Navigate to="/automacoes" replace />} />
     </Routes>
   );
