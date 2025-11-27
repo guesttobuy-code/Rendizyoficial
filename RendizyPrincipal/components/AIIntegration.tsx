@@ -79,9 +79,9 @@ const PROVIDERS: ProviderMeta[] = [
   {
     id: 'google-gemini',
     name: 'Google Gemini',
-    description: 'Modelos Gemini Pro e Ultra da Google (Gemini 1.5 Pro, Flash, etc.).',
+    description: 'Modelos Gemini Pro e Ultra da Google (Gemini 2.5 Pro, Flash, etc.).',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-1.5-pro',
+    defaultModel: 'gemini-2.5-flash', // ✅ Atualizado: gemini-1.5-pro não está mais disponível
     docsUrl: 'https://ai.google.dev/docs',
     labelVariant: 'secondary',
   },
