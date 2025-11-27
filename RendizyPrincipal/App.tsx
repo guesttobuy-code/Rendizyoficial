@@ -106,6 +106,8 @@ import { initAutoRecovery } from './utils/autoRecovery';
 import { ChevronLeft, ChevronRight, Plus, Filter, Download, Tag, Sparkles, TrendingUp, Database, AlertTriangle } from 'lucide-react';
 import { detectConflicts } from './utils/conflictDetection';
 import { initializeEvolutionContactsService, getEvolutionContactsService } from './utils/services/evolutionContactsService';
+// ✅ PREVENÇÃO DE LOOPS: Importar navigation guard
+import './utils/navigationGuard';
 import { Button } from './components/ui/button';
 import { reservationsApi, guestsApi, propertiesApi, calendarApi } from './utils/api';
 import { cn } from './components/ui/utils';

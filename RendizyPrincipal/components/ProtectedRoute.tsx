@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Usar singleton do Supabase client
 import { getSupabaseClient } from '../utils/supabase/client';
+import { navigationGuard } from '../utils/navigationGuard';
 
 // ✅ MELHORIA v1.0.103.400 - Usa user_metadata do Supabase como fallback
 // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Usar singleton
@@ -43,6 +44,10 @@ export default function ProtectedRoute({
   const location = useLocation();
   const path = location.pathname;
   const [checkingMetadata, setCheckingMetadata] = useState(false);
+  
+  // ✅ PREVENÇÃO DE LOOPS: Usar ref para rastrear redirecionamentos
+  const redirectCountRef = useRef(0);
+  const lastRedirectPathRef = useRef<string>('');
   
   // ✅ BOAS PRÁTICAS MUNDIAIS: SEMPRE aguardar validação se houver token
   // Mesmo que isLoading seja false, se tem token e não tem user, pode estar em processo de validação
@@ -109,19 +114,49 @@ export default function ProtectedRoute({
   // E já passou o timeout de validação (5 segundos)
   // Se tem token, aguardar validação completar (não redirecionar durante validação)
   // ✅ IMPORTANTE: Não verificar isAuthenticated aqui - pode estar false mesmo com token (durante validação)
+  // ✅ PREVENÇÃO DE LOOPS: Verificar se não está em loop de redirecionamento
   if (requireAuth && !user && !isLoading && !hasToken) {
+    // Prevenir loop: se já redirecionou para login recentemente, não redirecionar novamente
+    if (lastRedirectPathRef.current === redirectTo && redirectCountRef.current > 2) {
+      console.error('❌ [ProtectedRoute] Loop de redirecionamento detectado! Parando...');
+      // Forçar navegação segura
+      navigationGuard.safeNavigate('/dashboard');
+      return <div>Erro de navegação. Redirecionando...</div>;
+    }
+    
     console.log('🔒 [ProtectedRoute] Rota protegida: redirecionando para login (sem token)');
+    redirectCountRef.current += 1;
+    lastRedirectPathRef.current = redirectTo;
+    navigationGuard.recordNavigation();
     return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
   
   // ✅ CORREÇÃO v1.0.103.1005: Se tem token mas ainda não validou após timeout, considerar inválido
   // Mas apenas se realmente passou o timeout (5 segundos)
   // ✅ IMPORTANTE: Não verificar isAuthenticated aqui - pode estar false mesmo com token (durante validação)
+  // ✅ PREVENÇÃO DE LOOPS: Verificar se não está em loop de redirecionamento
   if (requireAuth && !user && !isLoading && hasToken && validationTimeout) {
+    // Prevenir loop: se já redirecionou para login recentemente, não redirecionar novamente
+    if (lastRedirectPathRef.current === redirectTo && redirectCountRef.current > 2) {
+      console.error('❌ [ProtectedRoute] Loop de redirecionamento detectado! Parando...');
+      // Forçar navegação segura
+      navigationGuard.safeNavigate('/dashboard');
+      return <div>Erro de navegação. Redirecionando...</div>;
+    }
+    
     console.log('🔒 [ProtectedRoute] Token não validado após timeout - redirecionando para login');
     // Limpar token inválido antes de redirecionar
     localStorage.removeItem('rendizy-token');
+    redirectCountRef.current += 1;
+    lastRedirectPathRef.current = redirectTo;
+    navigationGuard.recordNavigation();
     return <Navigate to={redirectTo} state={{ from: location }} replace />;
+  }
+  
+  // ✅ Resetar contador se navegação foi bem-sucedida
+  if (user && path !== redirectTo) {
+    redirectCountRef.current = 0;
+    lastRedirectPathRef.current = '';
   }
 
   // 3. ✅ CORREÇÃO CRÍTICA v1.0.103.1002 - NÃO deslogar ao verificar organização
