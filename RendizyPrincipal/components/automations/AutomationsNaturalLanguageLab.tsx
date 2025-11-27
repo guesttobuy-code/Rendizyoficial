@@ -7,9 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-import { Loader2, Wand2, Sparkles, Copy, CheckCircle2, Bot, Workflow, Save } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+import { Loader2, Wand2, Sparkles, Copy, CheckCircle2, Bot, Workflow, Save, MessageSquare, List, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { automationsApi, type AutomationNaturalLanguageResponse, type AutomationPriority, type CreateAutomationRequest } from '../../utils/api';
+import { AutomationsChatLab } from './AutomationsChatLab';
+import { AutomationsList } from './AutomationsList';
 
 interface NaturalLanguageForm {
   input: string;
@@ -76,7 +79,7 @@ export function AutomationsNaturalLanguageLab() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-purple-500" />
@@ -87,6 +90,25 @@ export function AutomationsNaturalLanguageLab() {
           gatilho, condições e ações.
         </p>
       </div>
+
+      <Tabs defaultValue="formulario" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="formulario" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            Formulário Rápido
+          </TabsTrigger>
+          <TabsTrigger value="chat" className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Chat com IA
+            <Badge variant="secondary" className="ml-1 text-xs">Avançado</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="lista" className="flex items-center gap-2">
+            <List className="h-4 w-4" />
+            Minhas Automações
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="formulario" className="mt-6">
 
       <Card>
         <CardHeader>
@@ -392,6 +414,16 @@ export function AutomationsNaturalLanguageLab() {
           </Card>
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="chat" className="mt-6">
+          <AutomationsChatLab />
+        </TabsContent>
+
+        <TabsContent value="lista" className="mt-6">
+          <AutomationsList />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
