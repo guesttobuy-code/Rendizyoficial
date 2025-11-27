@@ -14,23 +14,36 @@ import type { Reservation } from './types.ts';
  * Converte Reservation (TypeScript) para formato SQL (tabela reservations)
  */
 export function reservationToSql(reservation: Reservation, organizationId: string): any {
+  // ✅ Garantir que propertyId e guestId sejam UUIDs válidos (não 'system' ou null)
+  const propertyId = (reservation.propertyId && reservation.propertyId !== 'system' && reservation.propertyId.length === 36) 
+    ? reservation.propertyId 
+    : null;
+  const guestId = (reservation.guestId && reservation.guestId !== 'system' && reservation.guestId.length === 36) 
+    ? reservation.guestId 
+    : null;
+  
+  // ✅ Garantir que organizationId seja UUID válido (não 'system')
+  const orgId = (organizationId && organizationId !== 'system' && organizationId.length === 36) 
+    ? organizationId 
+    : null;
+  
   return {
     id: reservation.id,
-    organization_id: organizationId, // ✅ Multi-tenant: sempre usar organization_id do tenant
-    property_id: reservation.propertyId,
-    guest_id: reservation.guestId,
+    organization_id: orgId, // ✅ Multi-tenant: sempre usar organization_id do tenant
+    property_id: propertyId,
+    guest_id: guestId,
     
     // Datas
     check_in: reservation.checkIn,
     check_out: reservation.checkOut,
-    nights: reservation.nights,
+    nights: Math.floor(Math.abs(Number(reservation.nights) || 0)), // ✅ GARANTIR INTEGER (Math.floor + Math.abs)
     
-    // Hóspedes (flat)
-    guests_adults: reservation.guests?.adults || 1,
-    guests_children: reservation.guests?.children || 0,
-    guests_infants: reservation.guests?.infants || 0,
-    guests_pets: reservation.guests?.pets || 0,
-    guests_total: reservation.guests?.total || reservation.guests?.adults || 1,
+    // Hóspedes (flat) - ✅ GARANTIR INTEGER (Math.floor + Math.abs)
+    guests_adults: Math.floor(Math.abs(Number(reservation.guests?.adults || 1))),
+    guests_children: Math.floor(Math.abs(Number(reservation.guests?.children || 0))),
+    guests_infants: Math.floor(Math.abs(Number(reservation.guests?.infants || 0))),
+    guests_pets: Math.floor(Math.abs(Number(reservation.guests?.pets || 0))),
+    guests_total: Math.floor(Math.abs(Number(reservation.guests?.total || reservation.guests?.adults || 1))),
     
     // Precificação (flat)
     pricing_price_per_night: reservation.pricing?.pricePerNight || 0,
@@ -77,7 +90,10 @@ export function reservationToSql(reservation: Reservation, organizationId: strin
     // Metadata
     created_at: reservation.createdAt || new Date().toISOString(),
     updated_at: reservation.updatedAt || new Date().toISOString(),
-    created_by: reservation.createdBy || 'system',
+    // ✅ Garantir que created_by seja UUID válido (não 'system')
+    created_by: (reservation.createdBy && reservation.createdBy !== 'system' && reservation.createdBy.length === 36)
+      ? reservation.createdBy
+      : '00000000-0000-0000-0000-000000000001', // UUID fallback ao invés de 'system'
     confirmed_at: reservation.confirmedAt || null,
   };
 }

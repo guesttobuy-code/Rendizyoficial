@@ -26,17 +26,25 @@ export interface Session {
 
 /**
  * Interface SessionRow - Estrutura da sessão no banco SQL
+ * ✅ ARQUITETURA OAuth2 v1.0.103.1010: Suporte a access/refresh tokens
  */
 interface SessionRow {
   id: string;
-  token: string;
+  token: string; // ✅ COMPATIBILIDADE: token antigo
+  access_token: string | null; // ✅ NOVO: access token
+  refresh_token: string | null; // ✅ NOVO: refresh token
+  access_expires_at: string | null; // ✅ NOVO: expiração do access token
+  refresh_expires_at: string | null; // ✅ NOVO: expiração do refresh token
   user_id: string;
   username: string;
   type: string;
   organization_id: string | null;
   created_at: string;
-  expires_at: string;
+  expires_at: string; // ✅ COMPATIBILIDADE: expires_at antigo
   last_activity: string | null;
+  revoked_at: string | null; // ✅ NOVO: data de revogação
+  rotated_from: string | null; // ✅ NOVO: sessão anterior (rotação)
+  rotated_to: string | null; // ✅ NOVO: sessão seguinte (rotação)
 }
 
 /**
@@ -48,6 +56,14 @@ interface SessionRow {
  */
 export async function getSessionFromToken(token: string | undefined): Promise<Session | null> {
   if (!token) {
+    return null;
+  }
+
+  // ✅ CORREÇÃO CRÍTICA: Tokens legados (ex.: "micjk8ts_qffa7w735o_...") tinham ~30 caracteres e não existem mais
+  // na tabela SQL. Para evitar consultas inúteis e 401 repetidos, considere-os inválidos.
+  // O novo token tem 128 caracteres. Usar 80 como limite de segurança.
+  if (token.length < 80) {
+    console.warn(`⚠️ [getSessionFromToken] Token muito curto (${token.length} chars). Ignorando e solicitando novo login.`);
     return null;
   }
 
@@ -82,10 +98,12 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
     let attempts = 0;
     
     while (attempts < 3 && !sessionRow) {
+      // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Buscar por access_token OU token (compatibilidade)
       const result = await client
         .from('sessions')
         .select('*')
-        .eq('token', token)
+        .or(`token.eq.${token},access_token.eq.${token}`) // ✅ Buscar por token antigo OU access_token
+        .is('revoked_at', null) // ✅ Não revogada
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -131,12 +149,24 @@ export async function getSessionFromToken(token: string | undefined): Promise<Se
       return null;
     }
 
-    // ✅ Verificar se sessão expirou
+    // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Verificar expiração do access token
     const now = new Date();
-    const expiresAt = new Date(sessionRow.expires_at);
-    if (now > expiresAt) {
-      console.log('⚠️ [getSessionFromToken] Sessão expirada');
-      return null;
+    
+    // ✅ Se tem access_expires_at, verificar access token (mais restritivo)
+    if (sessionRow.access_expires_at) {
+      const accessExpiresAt = new Date(sessionRow.access_expires_at);
+      if (now > accessExpiresAt) {
+        console.log('⚠️ [getSessionFromToken] Access token expirado (mas refresh token pode estar válido)');
+        // ✅ Retornar null para forçar refresh no frontend
+        return null;
+      }
+    } else {
+      // ✅ COMPATIBILIDADE: Verificar expires_at antigo
+      const expiresAt = new Date(sessionRow.expires_at);
+      if (now > expiresAt) {
+        console.log('⚠️ [getSessionFromToken] Sessão expirada');
+        return null;
+      }
     }
 
     // ✅ SLIDING EXPIRATION: Atualizar last_activity e estender expires_at se usuário está ativo

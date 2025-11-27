@@ -33,6 +33,7 @@ import { getTenant, isSuperAdmin, getImobiliariaId } from './utils-tenancy.ts';
 import { getSupabaseClient } from './kv_store.tsx';
 // ✅ REFATORADO v1.0.103.500 - Helper híbrido para organization_id (UUID)
 import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
+import { getOrganizationIdForRequest } from './utils-multi-tenant.ts';
 // ✅ MIGRAÇÃO v1.0.103.400 - SQL + RLS + Multi-tenant
 import { propertyToSql, sqlToProperty, PROPERTY_SELECT_FIELDS } from './utils-property-mapper.ts';
 // ✅ MELHORIA v1.0.103.400 - Listings separados de Properties
@@ -56,17 +57,10 @@ export async function listProperties(c: Context) {
       .from('properties')
       .select(PROPERTY_SELECT_FIELDS);
     
-    // ✅ FILTRO MULTI-TENANT: Se for imobiliária, filtrar por organization_id (UUID)
-    // SuperAdmin vê todas as properties, imobiliária vê apenas as suas
-    if (tenant.type === 'imobiliaria') {
-      // ✅ REFATORADO: Usar helper híbrido para obter organization_id (UUID)
-      const organizationId = await getOrganizationIdOrThrow(c);
-      query = query.eq('organization_id', organizationId);
-      logInfo(`Filtering properties by organization_id: ${organizationId}`);
-    } else if (isSuperAdmin(c)) {
-      // SuperAdmin vê todas (sem filtro)
-      logInfo(`SuperAdmin viewing all properties (no filter)`);
-    }
+    // ✅ REGRA MESTRE: Filtrar por organization_id (superadmin = Rendizy master, outros = sua organização)
+    const organizationId = await getOrganizationIdForRequest(c);
+    query = query.eq('organization_id', organizationId);
+    logInfo(`✅ [listProperties] Filtering properties by organization_id: ${organizationId}`);
     
     // Aplicar filtros de query params
     const statusFilter = c.req.query('status');
@@ -224,15 +218,39 @@ export async function createProperty(c: Context) {
     const body = await c.req.json<CreatePropertyDTO>();
     logInfo('Creating property', body);
 
-    // Validações
-    if (!body.name || !body.code || !body.type) {
+    // ✅ BOAS PRÁTICAS v1.0.103.1000 - NORMALIZAR ANTES DE VALIDAR
+    // Normalizar dados do wizard (converte estrutura aninhada para plana)
+    const normalized = normalizeWizardData(body);
+    
+    // Usar dados normalizados para validações e criação
+    const dataToValidate = {
+      ...body,
+      name: normalized.name || body.name,
+      code: normalized.code || body.code,
+      type: normalized.type || body.type,
+      address: normalized.address || body.address,
+    };
+
+    // Validações (agora usando dados normalizados)
+    if (!dataToValidate.name || !dataToValidate.code || !dataToValidate.type) {
+      console.error('❌ [createProperty] Validação falhou:', {
+        name: dataToValidate.name,
+        code: dataToValidate.code,
+        type: dataToValidate.type,
+        rawBody: {
+          name: body.name,
+          code: body.code,
+          type: body.type,
+          contentType: body.contentType
+        }
+      });
       return c.json(
         validationErrorResponse('Name, code, and type are required'),
         400
       );
     }
 
-    if (!body.address || !body.address.city || !body.address.state) {
+    if (!dataToValidate.address || !dataToValidate.address.city || !dataToValidate.address.state) {
       return c.json(
         validationErrorResponse('Address with city and state is required'),
         400
@@ -321,23 +339,22 @@ export async function createProperty(c: Context) {
       }
     }
 
-    // Verificar se código já existe
+    // Verificar se código já existe (usando código normalizado)
     const existingProperties = await kv.getByPrefix<Property>('property:');
-    const codeExists = existingProperties.some(p => p.code === body.code);
+    const codeExists = existingProperties.some(p => p.code === dataToValidate.code);
 
     if (codeExists) {
       return c.json(
-        validationErrorResponse(`Property code '${body.code}' already exists`),
+        validationErrorResponse(`Property code '${dataToValidate.code}' already exists`),
         400
       );
     }
 
-    // 🆕 v1.0.103.315 - NORMALIZAR DADOS DO WIZARD
-    const normalized = normalizeWizardData(body);
-    
+    // ✅ Dados já normalizados acima - usar normalized
     console.log('📝 [CREATE] Dados normalizados prontos para criar:', {
       name: normalized.name,
       code: normalized.code,
+      type: normalized.type,
       photos: normalized.photos?.length || 0,
       locationAmenities: normalized.locationAmenities?.length || 0,
       listingAmenities: normalized.listingAmenities?.length || 0,
@@ -351,6 +368,25 @@ export async function createProperty(c: Context) {
     let organizationId: string | undefined;
     if (tenant.type !== 'superadmin') {
       organizationId = await getOrganizationIdOrThrow(c);
+    } else {
+      // Para superadmin, buscar a primeira organização disponível ou usar UUID fixo
+      try {
+        const { data: defaultOrg, error: orgError } = await client
+          .from('organizations')
+          .select('id')
+          .limit(1)
+          .maybeSingle();
+        
+        if (orgError) {
+          console.warn('⚠️ [createProperty] Erro ao buscar organização padrão:', orgError);
+        }
+        
+        organizationId = defaultOrg?.id || '00000000-0000-0000-0000-000000000001';
+        console.log('✅ [createProperty] Usando organization_id para superadmin:', organizationId);
+      } catch (error) {
+        console.warn('⚠️ [createProperty] Erro ao buscar organização, usando fallback:', error);
+        organizationId = '00000000-0000-0000-0000-000000000001';
+      }
     }
     
     // Criar propriedade
@@ -364,24 +400,24 @@ export async function createProperty(c: Context) {
     const property: Property = {
       id,
       shortId, // 🆕 v1.0.103.271 - ID curto para exibição
-      name: sanitizeString(normalized.name || body.name),
-      code: (normalized.code || body.code).toUpperCase(),
-      type: normalized.type || body.type,
+      name: sanitizeString(normalized.name || dataToValidate.name),
+      code: (normalized.code || dataToValidate.code).toUpperCase(),
+      type: normalized.type || dataToValidate.type,
       status: 'active',
       propertyType: body.propertyType || 'individual', // 🆕 v1.0.103.262
       locationId: body.locationId, // 🆕 v1.0.103.262
       
-      address: {
-        street: body.address.street || '',
-        number: body.address.number || '',
-        complement: body.address.complement,
-        neighborhood: body.address.neighborhood || '',
-        city: body.address.city,
-        state: body.address.state,
-        stateCode: body.address.stateCode, // 🆕 v1.0.103.262
-        zipCode: body.address.zipCode || '',
-        country: body.address.country || 'BR',
-        coordinates: body.address.coordinates, // 🆕 v1.0.103.262
+      address: normalized.address || {
+        street: body.address?.street || '',
+        number: body.address?.number || '',
+        complement: body.address?.complement,
+        neighborhood: body.address?.neighborhood || '',
+        city: body.address?.city || dataToValidate.address?.city || '',
+        state: body.address?.state || dataToValidate.address?.state || '',
+        stateCode: body.address?.stateCode || dataToValidate.address?.stateCode, // 🆕 v1.0.103.262
+        zipCode: body.address?.zipCode || '',
+        country: body.address?.country || 'BR',
+        coordinates: body.address?.coordinates || dataToValidate.address?.coordinates, // 🆕 v1.0.103.262
       },
       
       maxGuests: body.maxGuests,
@@ -493,7 +529,20 @@ export async function createProperty(c: Context) {
     };
 
     // ✅ MIGRAÇÃO: Salvar no SQL ao invés de KV Store
-    const sqlData = propertyToSql(property, organizationId || 'system');
+    // Garantir que organizationId sempre tenha um valor válido
+    const finalOrganizationId = organizationId || '00000000-0000-0000-0000-000000000001';
+    console.log('🔍 [createProperty] Usando organization_id:', finalOrganizationId);
+    const sqlData = propertyToSql(property, finalOrganizationId);
+    
+    // 🔍 DEBUG: Log dos dados antes de inserir
+    console.log('🔍 [createProperty] SQL Data antes de inserir:', {
+      id: sqlData.id,
+      organization_id: sqlData.organization_id,
+      owner_id: sqlData.owner_id,
+      location_id: sqlData.location_id,
+      name: sqlData.name,
+      code: sqlData.code
+    });
     
     const { data: insertedRow, error } = await client
       .from('properties')
@@ -503,6 +552,7 @@ export async function createProperty(c: Context) {
     
     if (error) {
       console.error('❌ [createProperty] SQL error:', error);
+      console.error('❌ [createProperty] SQL Data que causou erro:', JSON.stringify(sqlData, null, 2));
       return c.json(errorResponse('Erro ao criar propriedade', { details: error.message }), 500);
     }
     
@@ -550,20 +600,51 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
   console.log('📊 [NORMALIZAÇÃO] Dados brutos:', wizardData);
   
   // Extrair campos do wizard (estrutura aninhada)
-  const name = wizardData.contentType?.internalName || 
-               wizardData.name || 
-               existing?.name || 
-               null;
+  let name = wizardData.contentType?.internalName || 
+             wizardData.name || 
+             existing?.name || 
+             null;
   
-  const code = wizardData.contentType?.code || 
-               wizardData.code || 
-               existing?.code || 
-               null;
+  let code = wizardData.contentType?.code || 
+             wizardData.code || 
+             existing?.code || 
+             null;
   
-  const type = wizardData.contentType?.propertyTypeId || 
-               wizardData.type || 
-               existing?.type || 
-               null;
+  let type = wizardData.contentType?.propertyTypeId || 
+             wizardData.contentType?.accommodationTypeId || // Fallback para accommodationTypeId
+             wizardData.type || 
+             existing?.type || 
+             null;
+  
+  // ✅ BOAS PRÁTICAS v1.0.103.1000 - Gerar name e code se não existirem
+  // Gerar nome a partir do tipo de acomodação se não existir
+  if (!name && wizardData.contentType?.accommodationTypeId) {
+    const accommodationTypeId = wizardData.contentType.accommodationTypeId;
+    // Mapear IDs para nomes (baseado nos tipos do sistema)
+    const accommodationTypeNames: Record<string, string> = {
+      'acc_casa': 'Casa',
+      'acc_apartamento': 'Apartamento',
+      'acc_chale': 'Chalé',
+      'acc_bangalo': 'Bangalô',
+      'acc_estudio': 'Estúdio',
+      'acc_loft': 'Loft',
+      'acc_suite': 'Suíte',
+      'acc_villa': 'Villa',
+      'acc_quarto_inteiro': 'Quarto Inteiro',
+      'acc_quarto_privado': 'Quarto Privado',
+      'acc_quarto_compartilhado': 'Quarto Compartilhado',
+    };
+    name = accommodationTypeNames[accommodationTypeId] || accommodationTypeId.replace('acc_', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    console.log('✅ [NORMALIZAÇÃO] Nome gerado a partir do accommodationTypeId:', name);
+  }
+  
+  // Gerar código único se não existir
+  if (!code) {
+    const timestamp = Date.now().toString(36).slice(-6).toUpperCase();
+    const typePrefix = type ? type.replace('loc_', '').replace('acc_', '').substring(0, 3).toUpperCase() : 'PRP';
+    code = `${typePrefix}${timestamp}`;
+    console.log('✅ [NORMALIZAÇÃO] Código gerado automaticamente:', code);
+  }
   
   // Fotos: converter de contentPhotos.photos para photos (raiz)
   let photos = wizardData.photos || existing?.photos || [];

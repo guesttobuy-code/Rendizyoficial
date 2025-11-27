@@ -311,6 +311,33 @@ export async function getOrganizationIdOrThrow(c: Context): Promise<string> {
     // ❌ REMOVIDO: Fallback para KV Store - sistema antigo removido
     // ✅ ARQUITETURA SQL v1.0.103.950 - APENAS SQL AGORA
     
+    // Se não encontrou sessão no SQL, verificar se é superadmin
+    // Se for superadmin, usar organização Rendizy (master)
+    if (session?.user_id) {
+      const { data: user } = await client
+        .from('users')
+        .select('type, organization_id')
+        .eq('id', session.user_id)
+        .maybeSingle();
+      
+      if (user?.type === 'superadmin') {
+        // Superadmin sempre usa organização Rendizy (master)
+        const rendizyOrgId = '00000000-0000-0000-0000-000000000000';
+        console.log(`✅ [getOrganizationIdOrThrow] Superadmin detectado - usando organização Rendizy: ${rendizyOrgId}`);
+        
+        // Se o superadmin ainda não tem organization_id, atualizar
+        if (!user.organization_id || user.organization_id !== rendizyOrgId) {
+          await client
+            .from('users')
+            .update({ organization_id: rendizyOrgId })
+            .eq('id', session.user_id);
+          console.log(`✅ [getOrganizationIdOrThrow] Superadmin atualizado para usar organização Rendizy`);
+        }
+        
+        return rendizyOrgId;
+      }
+    }
+    
     // Se não encontrou sessão no SQL, retornar erro (não mais fallback para KV Store)
     console.error(`❌ [getOrganizationIdOrThrow] Sessão não encontrada na tabela SQL - usuário não autenticado`);
     console.error(`❌ [getOrganizationIdOrThrow] Token: ${token ? `${token.substring(0, 20)}...` : 'NONE'}`);

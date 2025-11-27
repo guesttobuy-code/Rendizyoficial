@@ -93,14 +93,9 @@ app.get('/', async (c) => {
     const tenant = getTenant(c);
     const client = kv.getSupabaseClient();
     
-    // ✅ REFATORADO v1.0.103.500 - Usar helper híbrido para obter organization_id (UUID)
-    let organizationId: string | undefined;
-    if (tenant.type === 'imobiliaria') {
-      organizationId = await getOrganizationIdOrThrow(c);
-      console.log(`[Listings] Listando listings para organização: ${organizationId}`);
-    } else {
-      console.log(`[Listings] Listando listings para superadmin`);
-    }
+    // ✅ REGRA MESTRE: Obter organization_id garantido
+    const organizationId = await getOrganizationIdOrThrow(c);
+    console.log(`✅ [Listings] Listando listings para organização: ${organizationId}`);
 
     // Construir query com filtros
     let query = client
@@ -108,10 +103,8 @@ app.get('/', async (c) => {
       .select(LISTING_SELECT_FIELDS)
       .order('updated_at', { ascending: false });
 
-    // ✅ MELHORIA v1.0.103.400 - Filtrar por organização se não for superadmin
-    if (tenant.type === 'imobiliaria' && organizationId) {
-      query = query.eq('organization_id', organizationId);
-    }
+    // ✅ REGRA MESTRE: Filtrar por organization_id
+    query = query.eq('organization_id', organizationId);
 
     // Filtros opcionais via query params
     const url = new URL(c.req.url);

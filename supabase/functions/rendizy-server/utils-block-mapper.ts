@@ -22,7 +22,7 @@ export function blockToSql(block: Block, organizationId: string): any {
     // Datas
     start_date: block.startDate,
     end_date: block.endDate,
-    nights: block.nights,
+    nights: Math.round(Number(block.nights || 0)), // ✅ Garantir INTEGER (não decimal)
     
     // Tipo
     type: block.type || 'block', // Sempre 'block'

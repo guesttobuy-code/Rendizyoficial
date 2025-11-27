@@ -15,11 +15,50 @@ import { getSupabaseClient } from './kv_store.tsx';
  * Converte Property (TypeScript) para formato SQL (tabela properties)
  */
 export function propertyToSql(property: Property, organizationId: string): any {
+  // ✅ CORREÇÃO: Remover prefixo do ID se existir (ex: "acc_" -> UUID puro)
+  // O banco SQL espera UUID puro, mas o sistema usa prefixos para compatibilidade
+  let propertyId = property.id;
+  console.log('🔍 [propertyToSql] ID original:', propertyId);
+  if (propertyId && propertyId.includes('_')) {
+    // Se tem prefixo (ex: "acc_uuid"), extrair apenas o UUID
+    const parts = propertyId.split('_');
+    if (parts.length > 1) {
+      // Pegar a última parte (UUID) ou todas as partes após o primeiro underscore
+      propertyId = parts.slice(1).join('_');
+      console.log('✅ [propertyToSql] ID após remover prefixo:', propertyId);
+    }
+  }
+  
+  // ✅ CORREÇÃO: organizationId deve ser UUID válido ou null (não 'system')
+  let orgId = organizationId;
+  if (orgId === 'system' || !orgId) {
+    orgId = null;
+  }
+  
   return {
-    id: property.id,
-    organization_id: organizationId, // ✅ Multi-tenant: sempre usar organization_id do tenant
-    owner_id: property.ownerId || 'system', // TODO: Pegar do auth
-    location_id: property.locationId || null,
+    id: propertyId,
+    organization_id: orgId, // ✅ Multi-tenant: sempre usar organization_id do tenant (ou null para SuperAdmin)
+    owner_id: (() => {
+      const ownerId = property.ownerId;
+      // Se ownerId for 'system' ou null, usar null
+      if (!ownerId || ownerId === 'system') {
+        return null;
+      }
+      // Se tiver prefixo, remover
+      if (typeof ownerId === 'string' && ownerId.includes('_')) {
+        const parts = ownerId.split('_');
+        return parts.length > 1 ? parts.slice(1).join('_') : ownerId;
+      }
+      return ownerId;
+    })(),
+    location_id: (() => {
+      const locationId = property.locationId || null;
+      if (locationId && typeof locationId === 'string' && locationId.includes('_')) {
+        const parts = locationId.split('_');
+        return parts.length > 1 ? parts.slice(1).join('_') : locationId;
+      }
+      return locationId;
+    })(),
     
     // Identificação
     name: property.name,

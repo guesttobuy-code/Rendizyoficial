@@ -32,6 +32,12 @@ import propertyWizardApp from './routes-property-wizard.ts';
 import * as locationAmenitiesRoutes from './routes-location-amenities.ts';
 import * as staysnetRoutes from './routes-staysnet.ts';
 import * as amenitiesRoutes from './routes-amenities.ts';
+import * as aiRoutes from './routes-ai.ts';
+import * as automationsAIRoutes from './routes-automations-ai.ts';
+import * as automationsRoutes from './routes-automations.ts';
+// ✅ MÓDULO FINANCEIRO v1.0.103.400
+import * as financeiroRoutes from './routes-financeiro.ts';
+import * as conciliacaoRoutes from './routes-conciliacao.ts';
 // v1.0.103.319: WhatsApp Evolution API COMPLETA (40/40 rotas)
 import { whatsappEvolutionRoutes } from './routes-whatsapp-evolution.ts';
 import { whatsappDataRoutes } from './routes-whatsapp-data.ts';
@@ -56,15 +62,27 @@ const app = new Hono();
 // ============================================================================
 // CORS CONFIGURATION - DEVE VIR ANTES DE TUDO
 // ============================================================================
-// ✅ SOLUÇÃO SIMPLES - Como estava funcionando ontem
-// origin: "*" funciona quando NÃO usa credentials: true
+// ✅ SOLUÇÃO SIMPLES: origin: '*' SEM credentials: true
+// Seguindo regra: "Se funciona, não mudar"
+// Tokens em localStorage + header Authorization funcionam perfeitamente
 app.use(
   "/*",
-  cors({
-    origin: "*",
-    allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "apikey", "X-Auth-Token"],
-    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
-  }),
+  async (c, next) => {
+    // Handle preflight OPTIONS requests
+    if (c.req.method === 'OPTIONS') {
+      c.header('Access-Control-Allow-Origin', '*');
+      c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+      c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, apikey, X-Auth-Token');
+      // ✅ NÃO incluir Access-Control-Allow-Credentials (não usa cookies)
+      return c.body(null, 204);
+    }
+    await next();
+    // Add CORS headers to all responses
+    c.header('Access-Control-Allow-Origin', '*');
+    c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, apikey, X-Auth-Token');
+    // ✅ NÃO incluir Access-Control-Allow-Credentials (não usa cookies)
+  }
 );
 
 // Enable logger (DEPOIS do CORS)
@@ -90,7 +108,7 @@ app.use('*', async (c, next) => {
 // HEALTH CHECK
 // ============================================================================
 
-app.get("/rendizy-server/make-server-67caf26a/health", (c) => {
+app.get("/rendizy-server/health", (c) => {
   return c.json({ 
     status: "ok",
     timestamp: new Date().toISOString(),
@@ -106,9 +124,11 @@ app.get("/rendizy-server/make-server-67caf26a/health", (c) => {
 // ✅ SOLUÇÃO DEFINITIVA: Rota /auth/me usando o mesmo padrão das outras rotas (com make-server-67caf26a)
 // ✅ IMPORTANTE: Registrar ANTES do middleware genérico para garantir que seja capturada primeiro
 // Isso garante que funcione igual às outras rotas que já estão funcionando
-app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
-  console.log('🚀 [index.ts] ROTA /make-server-67caf26a/auth/me CHAMADA DIRETAMENTE!');
-  console.log('🔍 [index.ts] Headers recebidos:', {
+
+// ✅ Função helper compartilhada para /auth/me
+async function handleAuthMe(c: Context) {
+  console.log('🚀 [auth/me] ROTA CHAMADA');
+  console.log('🔍 [auth/me] Headers recebidos:', {
     'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present (' + (c.req.header('X-Auth-Token')?.substring(0, 20) || '') + '...)' : 'missing',
     'Authorization': c.req.header('Authorization') ? 'present' : 'missing',
     'apikey': c.req.header('apikey') ? 'present' : 'missing'
@@ -125,51 +145,23 @@ app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
       token = authHeader?.split(' ')[1];
     }
     
-    console.log('🔍 [index.ts] Token extraído:', token ? token.substring(0, 20) + '...' : 'NONE');
-    console.log('🔍 [index.ts] Token completo (primeiros 50 chars):', token ? token.substring(0, 50) : 'NONE');
-    console.log('🔍 [index.ts] Token length:', token ? token.length : 0);
+    console.log('🔍 [auth/me] Token extraído:', token ? token.substring(0, 20) + '...' : 'NONE');
     
     if (!token) {
-      console.log('❌ [index.ts] Token não fornecido - retornando 401');
+      console.log('❌ [auth/me] Token não fornecido - retornando 401');
       return c.json({
         success: false,
         error: 'Token não fornecido'
       }, 401);
     }
     
-    console.log('🔍 [index.ts] Buscando sessão com token:', token?.substring(0, 20) + '...');
-    console.log('🔍 [index.ts] Chamando getSessionFromToken...');
+    console.log('🔍 [auth/me] Buscando sessão com token:', token?.substring(0, 20) + '...');
     const session = await getSessionFromToken(token);
     
-    console.log('🔍 [index.ts] Resultado de getSessionFromToken:', session ? `Sessão encontrada: ${session.userId}` : 'Sessão NÃO encontrada');
+    console.log('🔍 [auth/me] Resultado de getSessionFromToken:', session ? `Sessão encontrada: ${session.userId}` : 'Sessão NÃO encontrada');
     
     if (!session) {
-      console.log('❌ [index.ts] Sessão não encontrada ou inválida');
-      console.log('❌ [index.ts] Token usado na busca:', token.substring(0, 30) + '...');
-      
-      // ✅ DEBUG: Verificar se há alguma sessão na tabela (mesmo que não seja a correta)
-      try {
-        const { getSupabaseClient } = await import('./kv_store.tsx');
-        const supabase = getSupabaseClient();
-        const { data: allSessions, error: checkError } = await supabase
-          .from('sessions')
-          .select('token, user_id, created_at, expires_at')
-          .limit(5)
-          .order('created_at', { ascending: false });
-        
-        console.log('🔍 [index.ts] DEBUG: Últimas 5 sessões na tabela:', {
-          count: allSessions?.length || 0,
-          sessions: allSessions?.map(s => ({
-            token: s.token?.substring(0, 20) + '...',
-            userId: s.user_id,
-            createdAt: s.created_at
-          })) || [],
-          error: checkError?.message
-        });
-      } catch (debugError) {
-        console.error('❌ [index.ts] Erro ao verificar sessões na tabela:', debugError);
-      }
-      
+      console.log('❌ [auth/me] Sessão não encontrada ou inválida');
       return c.json({
         success: false,
         error: 'Sessão inválida ou expirada',
@@ -177,7 +169,7 @@ app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
       }, 401);
     }
     
-    console.log('✅ [index.ts] Sessão encontrada:', session.userId);
+    console.log('✅ [auth/me] Sessão encontrada:', session.userId);
     
     const supabase = getSupabaseClient();
     const { data: user, error: userError } = await supabase
@@ -187,7 +179,7 @@ app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
       .single();
     
     if (userError || !user) {
-      console.error('❌ [index.ts] Usuário não encontrado:', userError);
+      console.error('❌ [auth/me] Usuário não encontrado:', userError);
       return c.json({
         success: false,
         error: 'Usuário não encontrado'
@@ -207,7 +199,7 @@ app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
       }
     }
     
-    console.log('✅ [index.ts] Retornando dados do usuário:', user.username);
+    console.log('✅ [auth/me] Retornando dados do usuário:', user.username);
     
     return c.json({
       success: true,
@@ -232,13 +224,22 @@ app.get('/rendizy-server/make-server-67caf26a/auth/me', async (c) => {
       }
     });
   } catch (error) {
-    console.error('❌ [index.ts] Erro ao verificar sessão:', error);
+    console.error('❌ [auth/me] Erro ao verificar sessão:', error);
     return c.json({
       success: false,
       error: 'Erro ao verificar sessão'
     }, 500);
   }
-});
+}
+
+// ✅ Rota alternativa sem make-server-67caf26a para compatibilidade com frontend
+app.get('/rendizy-server/auth/me', handleAuthMe);
+
+app.get('/rendizy-server/make-server-67caf26a/auth/me', handleAuthMe);
+
+// ============================================================================
+// FINANCIAL MODULE ROUTES
+// ============================================================================
 
 // ✅ ARQUITETURA SQL: Rota de autenticação sem make-server-67caf26a
 // ✅ DEBUG: Log antes de registrar rota
@@ -258,13 +259,25 @@ app.route('/rendizy-server/auth', authApp);
 // ============================================================================
 // LOCATIONS ROUTES
 // ============================================================================
+// 🔄 COMPATIBILIDADE v1.0.103.xxx
+// Mantém rotas antigas com hash (/make-server-67caf26a) e adiciona espelhos
+// sem hash para alinhar com o frontend (`utils/api.ts` → /locations).
 
+// Rotas antigas (com hash)
 app.get("/rendizy-server/make-server-67caf26a/locations", locationsRoutes.listLocations);
 app.get("/rendizy-server/make-server-67caf26a/locations/:id", locationsRoutes.getLocation);
 app.post("/rendizy-server/make-server-67caf26a/locations", locationsRoutes.createLocation);
 app.put("/rendizy-server/make-server-67caf26a/locations/:id", locationsRoutes.updateLocation);
 app.delete("/rendizy-server/make-server-67caf26a/locations/:id", locationsRoutes.deleteLocation);
 app.get("/rendizy-server/make-server-67caf26a/locations/:id/accommodations", locationsRoutes.getLocationAccommodations);
+
+// ✅ Novas rotas sem hash (usadas pelo frontend atual)
+app.get("/rendizy-server/locations", locationsRoutes.listLocations);
+app.get("/rendizy-server/locations/:id", locationsRoutes.getLocation);
+app.post("/rendizy-server/locations", locationsRoutes.createLocation);
+app.put("/rendizy-server/locations/:id", locationsRoutes.updateLocation);
+app.delete("/rendizy-server/locations/:id", locationsRoutes.deleteLocation);
+app.get("/rendizy-server/locations/:id/accommodations", locationsRoutes.getLocationAccommodations);
 
 // ============================================================================
 // PROPERTIES/ACCOMMODATIONS ROUTES
@@ -273,7 +286,10 @@ app.get("/rendizy-server/make-server-67caf26a/locations/:id/accommodations", loc
 
 // ✅ Middleware de autenticação para todas as rotas de properties
 app.use('/rendizy-server/make-server-67caf26a/properties/*', tenancyMiddleware);
+// ✅ Novas rotas sem hash também protegidas
+app.use('/rendizy-server/properties/*', tenancyMiddleware);
 
+// Rotas antigas (com hash)
 app.get("/rendizy-server/make-server-67caf26a/properties", propertiesRoutes.listProperties);
 app.get("/rendizy-server/make-server-67caf26a/properties/:id", propertiesRoutes.getProperty);
 app.post("/rendizy-server/make-server-67caf26a/properties", propertiesRoutes.createProperty);
@@ -283,14 +299,29 @@ app.get("/rendizy-server/make-server-67caf26a/properties/:id/stats", propertiesR
 // ✅ MELHORIA v1.0.103.400 - Listings separados de Properties
 app.get("/rendizy-server/make-server-67caf26a/properties/:id/listings", propertiesRoutes.getPropertyListings);
 
+// ✅ Novas rotas sem hash (usadas por `utils/api.ts` → `/properties`)
+app.get("/rendizy-server/properties", propertiesRoutes.listProperties);
+app.get("/rendizy-server/properties/:id", propertiesRoutes.getProperty);
+app.post("/rendizy-server/properties", propertiesRoutes.createProperty);
+app.put("/rendizy-server/properties/:id", propertiesRoutes.updateProperty);
+app.delete("/rendizy-server/properties/:id", propertiesRoutes.deleteProperty);
+app.get("/rendizy-server/properties/:id/stats", propertiesRoutes.getPropertyStats);
+app.get("/rendizy-server/properties/:id/listings", propertiesRoutes.getPropertyListings);
+
 // ============================================================================
 // AMENITIES ROUTES (v1.0.103.80)
 // Gerenciamento de Location Amenities vs Listing Amenities
 // ============================================================================
 
+// Rotas antigas (com hash)
 app.get("/rendizy-server/make-server-67caf26a/properties/:id/amenities", amenitiesRoutes.getPropertyAmenities);
 app.put("/rendizy-server/make-server-67caf26a/properties/:id/location-amenities", amenitiesRoutes.updateLocationAmenities);
 app.put("/rendizy-server/make-server-67caf26a/properties/:id/listing-amenities", amenitiesRoutes.updateListingAmenities);
+
+// ✅ Novas rotas sem hash
+app.get("/rendizy-server/properties/:id/amenities", amenitiesRoutes.getPropertyAmenities);
+app.put("/rendizy-server/properties/:id/location-amenities", amenitiesRoutes.updateLocationAmenities);
+app.put("/rendizy-server/properties/:id/listing-amenities", amenitiesRoutes.updateListingAmenities);
 
 // ============================================================================
 // RESERVATIONS ROUTES
@@ -299,7 +330,10 @@ app.put("/rendizy-server/make-server-67caf26a/properties/:id/listing-amenities",
 
 // ✅ Middleware de autenticação para todas as rotas de reservations
 app.use('/rendizy-server/make-server-67caf26a/reservations/*', tenancyMiddleware);
+// ✅ Novas rotas sem hash também protegidas
+app.use('/rendizy-server/reservations/*', tenancyMiddleware);
 
+// Rotas antigas (com hash)
 app.get("/rendizy-server/make-server-67caf26a/reservations", reservationsRoutes.listReservations);
 app.get("/rendizy-server/make-server-67caf26a/reservations/:id", reservationsRoutes.getReservation);
 app.post("/rendizy-server/make-server-67caf26a/reservations", reservationsRoutes.createReservation);
@@ -309,6 +343,16 @@ app.post("/rendizy-server/make-server-67caf26a/reservations/:id/cancel", reserva
 app.post("/rendizy-server/make-server-67caf26a/reservations/check-availability", reservationsRoutes.checkAvailability);
 app.get("/rendizy-server/make-server-67caf26a/reservations/detect-conflicts", reservationsRoutes.detectConflicts);
 
+// ✅ Novas rotas sem hash (usadas por `utils/api.ts` → `/reservations`)
+app.get("/rendizy-server/reservations", reservationsRoutes.listReservations);
+app.get("/rendizy-server/reservations/:id", reservationsRoutes.getReservation);
+app.post("/rendizy-server/reservations", reservationsRoutes.createReservation);
+app.put("/rendizy-server/reservations/:id", reservationsRoutes.updateReservation);
+app.delete("/rendizy-server/reservations/:id", reservationsRoutes.deleteReservation);
+app.post("/rendizy-server/reservations/:id/cancel", reservationsRoutes.cancelReservation);
+app.post("/rendizy-server/reservations/check-availability", reservationsRoutes.checkAvailability);
+app.get("/rendizy-server/reservations/detect-conflicts", reservationsRoutes.detectConflicts);
+
 // ============================================================================
 // GUESTS ROUTES
 // ✅ MELHORIA v1.0.103.400 - Aplicado tenancyMiddleware (Prompt 4)
@@ -316,7 +360,10 @@ app.get("/rendizy-server/make-server-67caf26a/reservations/detect-conflicts", re
 
 // ✅ Middleware de autenticação para todas as rotas de guests
 app.use('/rendizy-server/make-server-67caf26a/guests/*', tenancyMiddleware);
+// ✅ Novas rotas sem hash também protegidas
+app.use('/rendizy-server/guests/*', tenancyMiddleware);
 
+// Rotas antigas (com hash)
 app.get("/rendizy-server/make-server-67caf26a/guests", guestsRoutes.listGuests);
 app.get("/rendizy-server/make-server-67caf26a/guests/:id", guestsRoutes.getGuest);
 app.post("/rendizy-server/make-server-67caf26a/guests", guestsRoutes.createGuest);
@@ -325,6 +372,15 @@ app.delete("/rendizy-server/make-server-67caf26a/guests/:id", guestsRoutes.delet
 app.get("/rendizy-server/make-server-67caf26a/guests/:id/history", guestsRoutes.getGuestHistory);
 app.post("/rendizy-server/make-server-67caf26a/guests/:id/blacklist", guestsRoutes.toggleBlacklist);
 
+// ✅ Novas rotas sem hash (usadas por `utils/api.ts` → `/guests`)
+app.get("/rendizy-server/guests", guestsRoutes.listGuests);
+app.get("/rendizy-server/guests/:id", guestsRoutes.getGuest);
+app.post("/rendizy-server/guests", guestsRoutes.createGuest);
+app.put("/rendizy-server/guests/:id", guestsRoutes.updateGuest);
+app.delete("/rendizy-server/guests/:id", guestsRoutes.deleteGuest);
+app.get("/rendizy-server/guests/:id/history", guestsRoutes.getGuestHistory);
+app.post("/rendizy-server/guests/:id/blacklist", guestsRoutes.toggleBlacklist);
+
 // ============================================================================
 // CALENDAR ROUTES
 // ✅ MELHORIA v1.0.103.400 - Aplicado tenancyMiddleware (Prompt 4)
@@ -332,7 +388,10 @@ app.post("/rendizy-server/make-server-67caf26a/guests/:id/blacklist", guestsRout
 
 // ✅ Middleware de autenticação para todas as rotas de calendar
 app.use('/rendizy-server/make-server-67caf26a/calendar/*', tenancyMiddleware);
+// ✅ Novas rotas sem hash também protegidas
+app.use('/rendizy-server/calendar/*', tenancyMiddleware);
 
+// Rotas antigas (com hash)
 app.get("/rendizy-server/make-server-67caf26a/calendar", calendarRoutes.getCalendarData);
 app.get("/rendizy-server/make-server-67caf26a/calendar/stats", calendarRoutes.getCalendarStats);
 app.post("/rendizy-server/make-server-67caf26a/calendar/blocks", calendarRoutes.createBlock);
@@ -341,15 +400,32 @@ app.post("/rendizy-server/make-server-67caf26a/calendar/bulk-update-prices", cal
 app.post("/rendizy-server/make-server-67caf26a/calendar/bulk-update-min-nights", calendarRoutes.bulkUpdateMinNights);
 app.post("/rendizy-server/make-server-67caf26a/calendar/delete-custom-prices", calendarRoutes.deleteCustomPrices);
 
+// ✅ Novas rotas sem hash (usadas por `utils/api.ts` → `/calendar`)
+app.get("/rendizy-server/calendar", calendarRoutes.getCalendarData);
+app.get("/rendizy-server/calendar/stats", calendarRoutes.getCalendarStats);
+app.post("/rendizy-server/calendar/blocks", calendarRoutes.createBlock);
+app.delete("/rendizy-server/calendar/blocks/:id", calendarRoutes.deleteBlock);
+app.post("/rendizy-server/calendar/bulk-update-prices", calendarRoutes.bulkUpdatePrices);
+app.post("/rendizy-server/calendar/bulk-update-min-nights", calendarRoutes.bulkUpdateMinNights);
+app.post("/rendizy-server/calendar/delete-custom-prices", calendarRoutes.deleteCustomPrices);
+
 // ============================================================================
 // PHOTOS ROUTES
 // ============================================================================
 
+// Rotas antigas (com hash)
 app.post("/rendizy-server/make-server-67caf26a/photos", photosRoutes.uploadPhotoBase64); // Base64 upload (for FigmaTestPropertyCreator)
 app.post("/rendizy-server/make-server-67caf26a/photos/upload", photosRoutes.uploadPhoto); // FormData upload (for PhotoManager)
 app.put("/rendizy-server/make-server-67caf26a/photos/:photoId", photosRoutes.updatePhoto); // Update photo metadata
 app.delete("/rendizy-server/make-server-67caf26a/photos/:path", photosRoutes.deletePhoto);
 app.get("/rendizy-server/make-server-67caf26a/photos/property/:propertyId", photosRoutes.listPropertyPhotos);
+
+// ✅ Novas rotas sem hash (usadas por `photosApi` → `/photos/...`)
+app.post("/rendizy-server/photos", photosRoutes.uploadPhotoBase64);
+app.post("/rendizy-server/photos/upload", photosRoutes.uploadPhoto);
+app.put("/rendizy-server/photos/:photoId", photosRoutes.updatePhoto);
+app.delete("/rendizy-server/photos/:path", photosRoutes.deletePhoto);
+app.get("/rendizy-server/photos/property/:propertyId", photosRoutes.listPropertyPhotos);
 
 // ============================================================================
 // ORGANIZATIONS ROUTES
@@ -455,6 +531,8 @@ app.route("/rendizy-server/make-server-67caf26a/blocks", blocksApp);
 // ============================================================================
 
 app.route("/rendizy-server/make-server-67caf26a/property-types", propertyTypesApp);
+// ✅ Nova rota sem hash (usada pelo frontend atual)
+app.route("/rendizy-server/property-types", propertyTypesApp);
 
 // ============================================================================
 // PROPERTY WIZARD ROUTES (v1.0.103.111)
@@ -462,6 +540,8 @@ app.route("/rendizy-server/make-server-67caf26a/property-types", propertyTypesAp
 // ============================================================================
 
 app.route("/rendizy-server/make-server-67caf26a/properties/wizard", propertyWizardApp);
+// ✅ Nova rota sem hash (para uso futuro no frontend)
+app.route("/rendizy-server/properties/wizard", propertyWizardApp);
 
 // ============================================================================
 // LOCATION AMENITIES ROUTES (v1.0.103.11)
@@ -471,6 +551,60 @@ app.get("/rendizy-server/make-server-67caf26a/settings/location-amenities", loca
 app.put("/rendizy-server/make-server-67caf26a/settings/location-amenities", locationAmenitiesRoutes.updateLocationAmenitiesConfig);
 app.post("/rendizy-server/make-server-67caf26a/settings/location-amenities/reset", locationAmenitiesRoutes.resetLocationAmenitiesConfig);
 app.get("/rendizy-server/make-server-67caf26a/settings/location-amenities/enabled", locationAmenitiesRoutes.getEnabledAmenitiesForLocation);
+// ✅ Novas rotas sem hash
+app.get("/rendizy-server/settings/location-amenities", locationAmenitiesRoutes.getLocationAmenitiesConfig);
+app.put("/rendizy-server/settings/location-amenities", locationAmenitiesRoutes.updateLocationAmenitiesConfig);
+app.post("/rendizy-server/settings/location-amenities/reset", locationAmenitiesRoutes.resetLocationAmenitiesConfig);
+app.get("/rendizy-server/settings/location-amenities/enabled", locationAmenitiesRoutes.getEnabledAmenitiesForLocation);
+
+// ============================================================================
+// AI PROVIDER CONFIG ROUTES (v1.0.103.500)
+// ============================================================================
+// ✅ Middleware de autenticação para todas as rotas de AI
+app.use('/rendizy-server/make-server-67caf26a/integrations/ai/*', tenancyMiddleware);
+app.use('/rendizy-server/integrations/ai/*', tenancyMiddleware); // Rotas espelho
+
+// Rotas antigas (com hash)
+app.get("/rendizy-server/make-server-67caf26a/integrations/ai/config", aiRoutes.getAIProviderConfig);
+app.get("/rendizy-server/make-server-67caf26a/integrations/ai/configs", aiRoutes.listAIProviderConfigs);
+app.put("/rendizy-server/make-server-67caf26a/integrations/ai/config", aiRoutes.upsertAIProviderConfig);
+app.patch("/rendizy-server/make-server-67caf26a/integrations/ai/config/:id/status", aiRoutes.toggleAIConfigStatus);
+app.delete("/rendizy-server/make-server-67caf26a/integrations/ai/config/:id", aiRoutes.deleteAIProviderConfig);
+app.post("/rendizy-server/make-server-67caf26a/integrations/ai/test", aiRoutes.testAIProviderConfig);
+
+// Rotas espelho (sem hash)
+app.get("/rendizy-server/integrations/ai/config", aiRoutes.getAIProviderConfig);
+app.get("/rendizy-server/integrations/ai/configs", aiRoutes.listAIProviderConfigs);
+app.put("/rendizy-server/integrations/ai/config", aiRoutes.upsertAIProviderConfig);
+app.patch("/rendizy-server/integrations/ai/config/:id/status", aiRoutes.toggleAIConfigStatus);
+app.delete("/rendizy-server/integrations/ai/config/:id", aiRoutes.deleteAIProviderConfig);
+app.post("/rendizy-server/integrations/ai/test", aiRoutes.testAIProviderConfig);
+
+// ============================================================================
+// AUTOMATIONS AI ROUTES (v1.0.103.501)
+// ============================================================================
+app.use('/rendizy-server/make-server-67caf26a/automations/ai/*', tenancyMiddleware);
+app.use('/rendizy-server/automations/ai/*', tenancyMiddleware); // Rotas espelho
+
+app.post("/rendizy-server/make-server-67caf26a/automations/ai/interpret", automationsAIRoutes.interpretAutomationNaturalLanguage);
+app.post("/rendizy-server/automations/ai/interpret", automationsAIRoutes.interpretAutomationNaturalLanguage);
+
+// AUTOMATIONS CRUD ROUTES (v1.0.103.502)
+// ============================================================================
+app.get("/rendizy-server/make-server-67caf26a/automations", automationsRoutes.listAutomations);
+app.get("/rendizy-server/automations", automationsRoutes.listAutomations);
+app.get("/rendizy-server/make-server-67caf26a/automations/:id", automationsRoutes.getAutomation);
+app.get("/rendizy-server/automations/:id", automationsRoutes.getAutomation);
+app.post("/rendizy-server/make-server-67caf26a/automations", automationsRoutes.createAutomation);
+app.post("/rendizy-server/automations", automationsRoutes.createAutomation);
+app.put("/rendizy-server/make-server-67caf26a/automations/:id", automationsRoutes.updateAutomation);
+app.put("/rendizy-server/automations/:id", automationsRoutes.updateAutomation);
+app.delete("/rendizy-server/make-server-67caf26a/automations/:id", automationsRoutes.deleteAutomation);
+app.delete("/rendizy-server/automations/:id", automationsRoutes.deleteAutomation);
+app.patch("/rendizy-server/make-server-67caf26a/automations/:id/status", automationsRoutes.updateAutomationStatus);
+app.patch("/rendizy-server/automations/:id/status", automationsRoutes.updateAutomationStatus);
+app.get("/rendizy-server/make-server-67caf26a/automations/:id/executions", automationsRoutes.getAutomationExecutions);
+app.get("/rendizy-server/automations/:id/executions", automationsRoutes.getAutomationExecutions);
 
 // ============================================================================
 // STAYS.NET PMS INTEGRATION ROUTES (v1.0.103.17)
@@ -483,6 +617,7 @@ app.post("/rendizy-server/make-server-67caf26a/staysnet/test-endpoint", staysnet
 app.post("/rendizy-server/make-server-67caf26a/staysnet/sync/properties", staysnetRoutes.syncStaysNetProperties);
 app.post("/rendizy-server/make-server-67caf26a/staysnet/sync/reservations", staysnetRoutes.syncStaysNetReservations);
 app.get("/rendizy-server/make-server-67caf26a/staysnet/reservations/preview", staysnetRoutes.previewStaysNetReservations);
+app.post("/rendizy-server/make-server-67caf26a/staysnet/import/full", staysnetRoutes.importFullStaysNet);
 
 // ============================================================================
 // CLIENT SITES ROUTES (v1.0.103.187)
@@ -516,6 +651,81 @@ app.route("/rendizy-server/make-server-67caf26a/clients", clientsApp);
 app.route("/rendizy-server/make-server-67caf26a/owners", ownersApp);
 // ✅ MELHORIA v1.0.103.400 - Tenants Routes (Passo 3)
 app.route("/rendizy-server/make-server-67caf26a/tenants", tenantsApp);
+
+// ============================================================================
+// FINANCEIRO ROUTES (v1.0.103.400)
+// ============================================================================
+
+// ✅ Middleware de autenticação para todas as rotas financeiras
+app.use('/rendizy-server/make-server-67caf26a/financeiro/*', tenancyMiddleware);
+app.use('/rendizy-server/make-server-67caf26a/financeiro/conciliacao/*', tenancyMiddleware);
+
+// Lançamentos
+app.get("/financeiro/lancamentos", financeiroRoutes.listLancamentos);
+app.get("/financeiro/lancamentos/:id", financeiroRoutes.getLancamento);
+app.post("/financeiro/lancamentos", financeiroRoutes.createLancamento);
+app.put("/financeiro/lancamentos/:id", financeiroRoutes.updateLancamento);
+app.delete("/financeiro/lancamentos/:id", financeiroRoutes.deleteLancamento);
+
+// Títulos
+app.get("/financeiro/titulos", financeiroRoutes.listTitulos);
+app.get("/financeiro/titulos/:id", financeiroRoutes.getTitulo);
+app.post("/financeiro/titulos", financeiroRoutes.createTitulo);
+app.put("/financeiro/titulos/:id", financeiroRoutes.updateTitulo);
+app.delete("/financeiro/titulos/:id", financeiroRoutes.deleteTitulo);
+app.post("/financeiro/titulos/:id/quitar", financeiroRoutes.quitarTitulo);
+
+// Contas Bancárias
+app.get("/financeiro/contas-bancarias", financeiroRoutes.listContasBancarias);
+app.get("/financeiro/contas-bancarias/:id", financeiroRoutes.getContaBancaria);
+app.post("/financeiro/contas-bancarias", financeiroRoutes.createContaBancaria);
+app.put("/financeiro/contas-bancarias/:id", financeiroRoutes.updateContaBancaria);
+app.delete("/financeiro/contas-bancarias/:id", financeiroRoutes.deleteContaBancaria);
+
+// Categorias
+app.get("/rendizy-server/make-server-67caf26a/financeiro/categorias", financeiroRoutes.listCategorias);
+app.get("/rendizy-server/make-server-67caf26a/financeiro/categorias/:id", financeiroRoutes.getCategoria);
+app.post("/rendizy-server/make-server-67caf26a/financeiro/categorias", financeiroRoutes.createCategoria);
+app.put("/rendizy-server/make-server-67caf26a/financeiro/categorias/:id", financeiroRoutes.updateCategoria);
+app.delete("/rendizy-server/make-server-67caf26a/financeiro/categorias/:id", financeiroRoutes.deleteCategoria);
+
+// Mapeamento de Campos do Sistema para Plano de Contas
+app.get("/rendizy-server/make-server-67caf26a/financeiro/campo-mappings", financeiroRoutes.listCampoMappings);
+app.post("/rendizy-server/make-server-67caf26a/financeiro/campo-mappings", financeiroRoutes.createCampoMapping);
+app.put("/rendizy-server/make-server-67caf26a/financeiro/campo-mappings/:id", financeiroRoutes.updateCampoMapping);
+app.delete("/rendizy-server/make-server-67caf26a/financeiro/campo-mappings/:id", financeiroRoutes.deleteCampoMapping);
+// Registrar campo financeiro do sistema (para módulos)
+app.post("/rendizy-server/make-server-67caf26a/financeiro/campo-mappings/register", financeiroRoutes.registerFinancialField);
+
+// Centro de Custos
+app.get("/financeiro/centro-custos", financeiroRoutes.listCentroCustos);
+app.get("/financeiro/centro-custos/:id", financeiroRoutes.getCentroCusto);
+app.post("/financeiro/centro-custos", financeiroRoutes.createCentroCusto);
+app.put("/financeiro/centro-custos/:id", financeiroRoutes.updateCentroCusto);
+app.delete("/financeiro/centro-custos/:id", financeiroRoutes.deleteCentroCusto);
+
+// ============================================================================
+// CONCILIAÇÃO BANCÁRIA
+// ============================================================================
+
+// Importar extrato
+app.post("/financeiro/conciliacao/importar", conciliacaoRoutes.importarExtrato);
+
+// Linhas de extrato
+app.get("/financeiro/conciliacao/pendentes", conciliacaoRoutes.listarPendentes);
+
+// Conciliação
+app.post("/financeiro/conciliacao/match", conciliacaoRoutes.conciliarLinha);
+app.post("/financeiro/conciliacao/aplicar-regras", conciliacaoRoutes.aplicarRegras);
+
+// Fechamento de caixa
+app.get("/financeiro/conciliacao/fechamento", conciliacaoRoutes.fechamentoCaixa);
+
+// Regras de conciliação
+app.get("/financeiro/conciliacao/regras", conciliacaoRoutes.listarRegras);
+app.post("/financeiro/conciliacao/regras", conciliacaoRoutes.criarRegra);
+app.put("/financeiro/conciliacao/regras/:id", conciliacaoRoutes.atualizarRegra);
+app.delete("/financeiro/conciliacao/regras/:id", conciliacaoRoutes.deletarRegra);
 
 // ============================================================================
 // DATABASE RESET ROUTES (v1.0.103.267)

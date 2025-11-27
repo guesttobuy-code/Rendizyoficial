@@ -35,6 +35,7 @@ import { getSupabaseClient } from './kv_store.tsx';
 import { reservationToSql, sqlToReservation, RESERVATION_SELECT_FIELDS } from './utils-reservation-mapper.ts';
 // ✅ REFATORADO v1.0.103.500 - Helper híbrido para organization_id (UUID)
 import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
+import { getOrganizationIdForRequest } from './utils-multi-tenant.ts';
 
 // ============================================================================
 // LISTAR TODAS AS RESERVAS
@@ -53,17 +54,10 @@ export async function listReservations(c: Context) {
       .from('reservations')
       .select(RESERVATION_SELECT_FIELDS);
     
-    // ✅ FILTRO MULTI-TENANT: Se for imobiliária, filtrar por organization_id
-    // SuperAdmin vê todas as reservations, imobiliária vê apenas as suas
-    if (tenant.type === 'imobiliaria') {
-      // ✅ REFATORADO: Usar helper híbrido para obter organization_id (UUID)
-      const organizationId = await getOrganizationIdOrThrow(c);
-      query = query.eq('organization_id', organizationId);
-      logInfo(`Filtering reservations by organization_id: ${organizationId}`);
-    } else if (isSuperAdmin(c)) {
-      // SuperAdmin vê todas (sem filtro)
-      logInfo(`SuperAdmin viewing all reservations (no filter)`);
-    }
+    // ✅ REGRA MESTRE: Filtrar por organization_id (superadmin = Rendizy master, outros = sua organização)
+    const organizationId = await getOrganizationIdForRequest(c);
+    query = query.eq('organization_id', organizationId);
+    logInfo(`✅ [listReservations] Filtering reservations by organization_id: ${organizationId}`);
     
     // Aplicar filtros de query params
     const propertyIdFilter = c.req.query('propertyId');
@@ -511,7 +505,68 @@ export async function createReservation(c: Context) {
     // ✅ Converter resultado SQL para Reservation (TypeScript)
     const createdReservation = sqlToReservation(insertedRow);
 
+    // ✅ NOVO: Criar block no calendário automaticamente quando reserva é criada
+    try {
+      const { blockToSql } = await import('./utils-block-mapper.ts');
+      const blockId = `blk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const now = getCurrentDateTime();
+      
+      const block = {
+        id: blockId,
+        propertyId: body.propertyId,
+        startDate: body.checkIn,
+        endDate: body.checkOut,
+        nights: nights,
+        type: 'block' as const,
+        subtype: 'reservation' as const,
+        reason: `Reserva: ${id}`,
+        notes: `Reserva criada automaticamente para ${body.adults} hóspede(s)`,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: tenant.userId || 'system',
+      };
+      
+      const blockSqlData = blockToSql(block, organizationId || 'system');
+      
+      // Verificar se já existe block para este período
+      const { data: existingBlock } = await client
+        .from('blocks')
+        .select('id')
+        .eq('organization_id', organizationId || 'system')
+        .eq('property_id', body.propertyId)
+        .eq('start_date', body.checkIn)
+        .eq('end_date', body.checkOut)
+        .maybeSingle();
+      
+      if (!existingBlock) {
+        const { error: blockError } = await client
+          .from('blocks')
+          .insert(blockSqlData);
+        
+        if (blockError) {
+          console.error('⚠️ [createReservation] Erro ao criar block no calendário:', blockError);
+          // Não falhar a criação da reserva se o block falhar
+        } else {
+          logInfo(`Block created in calendar for reservation: ${id}`);
+        }
+      }
+    } catch (blockError: any) {
+      console.error('⚠️ [createReservation] Erro ao criar block no calendário:', blockError);
+      // Não falhar a criação da reserva se o block falhar
+    }
+
     logInfo(`Reservation created: ${id} in organization ${organizationId}`);
+
+    // ✅ AUTOMATIONS: Publicar evento de reserva criada
+    if (organizationId) {
+      try {
+        const { publishReservationEvent } = await import('./services/event-bus.ts');
+        await publishReservationEvent('created', organizationId, createdReservation);
+      } catch (error) {
+        logError('[createReservation] Erro ao publicar evento de automação', error);
+        // Não falhar a criação da reserva se o evento falhar
+      }
+    }
 
     return c.json(
       successResponse(createdReservation, 'Reservation created successfully'),

@@ -31,6 +31,7 @@ import { getSupabaseClient } from './kv_store.tsx';
 import { guestToSql, sqlToGuest, GUEST_SELECT_FIELDS } from './utils-guest-mapper.ts';
 // ✅ REFATORADO v1.0.103.500 - Helper híbrido para organization_id (UUID)
 import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
+import { getOrganizationIdForRequest } from './utils-multi-tenant.ts';
 import { sqlToReservation, RESERVATION_SELECT_FIELDS } from './utils-reservation-mapper.ts';
 
 // ============================================================================
@@ -50,17 +51,10 @@ export async function listGuests(c: Context) {
       .from('guests')
       .select(GUEST_SELECT_FIELDS);
     
-    // ✅ FILTRO MULTI-TENANT: Se for imobiliária, filtrar por organization_id
-    // SuperAdmin vê todas as guests, imobiliária vê apenas as suas
-    if (tenant.type === 'imobiliaria') {
-      // ✅ REFATORADO: Usar helper híbrido para obter organization_id (UUID)
-      const organizationId = await getOrganizationIdOrThrow(c);
-      query = query.eq('organization_id', organizationId);
-      logInfo(`Filtering guests by organization_id: ${organizationId}`);
-    } else if (isSuperAdmin(c)) {
-      // SuperAdmin vê todas (sem filtro)
-      logInfo(`SuperAdmin viewing all guests (no filter)`);
-    }
+    // ✅ REGRA MESTRE: Filtrar por organization_id (superadmin = Rendizy master, outros = sua organização)
+    const organizationId = await getOrganizationIdForRequest(c);
+    query = query.eq('organization_id', organizationId);
+    logInfo(`✅ [listGuests] Filtering guests by organization_id: ${organizationId}`);
     
     // Filtro por blacklist
     const isBlacklistedFilter = c.req.query('blacklisted');
