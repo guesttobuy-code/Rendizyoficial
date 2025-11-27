@@ -21,6 +21,7 @@
     "recharts": "^2.15.2",
     "sonner": "^2.0.3",
     "react-hook-form": "^7.55.0",
+    "react-day-picker": "^8.10.1",
     "date-fns": "*",
     "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-select": "^2.1.6",
