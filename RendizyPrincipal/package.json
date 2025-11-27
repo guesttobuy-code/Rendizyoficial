@@ -51,6 +51,11 @@
     "@radix-ui/react-aspect-ratio": "^1.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "*",
+    "cmdk": "^1.1.1",
+    "embla-carousel-react": "^8.6.0",
+    "input-otp": "^1.4.2",
+    "react-resizable-panels": "^2.1.7",
+    "vaul": "^1.1.2",
     "tailwind-merge": "*",
     "next-themes": "^0.4.6",
     "xlsx": "*"
