@@ -53,7 +53,7 @@ Você está em uma conversa com o usuário. Seu objetivo é entender completamen
 
 REGRAS IMPORTANTES:
 1. Se você precisa de mais informações ou algo não está claro, responda de forma CONVERSACIONAL (texto livre, sem JSON) fazendo perguntas específicas.
-2. Quando tiver TODAS as informações necessárias, SEMPRE retorne APENAS um JSON válido (sem texto adicional) seguindo este schema:
+2. Quando tiver TODAS as informações necessárias, SEMPRE retorne APENAS um JSON válido (sem texto adicional, sem markdown, sem explicações antes ou depois) seguindo este schema:
 {
   "definition": {
     "name": string,
@@ -96,8 +96,9 @@ REGRAS IMPORTANTES:
 6. Use o campo metadata.notifyChannels para avisar canais (ex.: ["chat", "email"]).
 7. IMPORTANTE: O campo "ai_interpretation_summary" deve ser um resumo claro e objetivo do que você entendeu que o usuário quer automatizar.
 8. IMPORTANTE: O campo "impact_description" deve explicar o que esta automação faz, quando é acionada e qual o impacto no sistema.
-9. IMPORTANTE: Se você retornar JSON, retorne APENAS o JSON, sem texto antes ou depois.
+9. IMPORTANTE: Se você retornar JSON, retorne APENAS o JSON puro, sem markdown (sem blocos de código), sem texto antes ou depois, sem explicações. Apenas o JSON válido.
 10. IMPORTANTE: Se você retornar resposta conversacional, NÃO inclua JSON, apenas texto livre.
+11. CRÍTICO: O JSON deve começar com { e terminar com }. Não use blocos de código markdown. Não adicione explicações antes ou depois do JSON.
 `;
 
 export async function interpretAutomationNaturalLanguage(c: Context) {
@@ -254,6 +255,64 @@ Retorne um JSON com esta estrutura:
       );
     }
 
+    // Função para extrair JSON do texto (pode ter markdown ou texto antes/depois)
+    function extractJSONFromText(text: string): any | null {
+      if (!text || !text.trim()) return null;
+      
+      // 1. Tentar parse direto
+      try {
+        return JSON.parse(text.trim());
+      } catch {
+        // Continua para outras tentativas
+      }
+      
+      // 2. Procurar por blocos de código markdown (```json ... ```)
+      const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/g;
+      let match;
+      while ((match = jsonBlockRegex.exec(text)) !== null) {
+        try {
+          return JSON.parse(match[1].trim());
+        } catch {
+          // Continua procurando
+        }
+      }
+      
+      // 3. Procurar por objeto JSON entre chaves { ... }
+      const jsonObjectRegex = /\{[\s\S]*\}/;
+      const jsonMatch = text.match(jsonObjectRegex);
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch {
+          // Continua
+        }
+      }
+      
+      // 4. Tentar encontrar JSON válido em qualquer parte do texto
+      // Procura por padrões que começam com { e terminam com }
+      let braceCount = 0;
+      let startIndex = -1;
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === '{') {
+          if (startIndex === -1) startIndex = i;
+          braceCount++;
+        } else if (text[i] === '}') {
+          braceCount--;
+          if (braceCount === 0 && startIndex !== -1) {
+            const jsonCandidate = text.substring(startIndex, i + 1);
+            try {
+              return JSON.parse(jsonCandidate);
+            } catch {
+              // Continua procurando
+            }
+            startIndex = -1;
+          }
+        }
+      }
+      
+      return null;
+    }
+
     // Tentar parsear como JSON (automação completa)
     let definition: AutomationDefinition | null = null;
     let aiInterpretationSummary: string | undefined = undefined;
@@ -261,27 +320,41 @@ Retorne um JSON com esta estrutura:
     let isConversational = false;
     
     try {
-      const parsed = JSON.parse(result.text);
+      const parsed = extractJSONFromText(result.text);
       
-      // Verificar se tem estrutura com definition separado
-      if (parsed.definition) {
-        definition = parsed.definition;
-        aiInterpretationSummary = parsed.ai_interpretation_summary;
-        impactDescription = parsed.impact_description;
+      if (!parsed) {
+        // Não encontrou JSON válido
+        isConversational = true;
+        logInfo('[AutomationsAI] Nenhum JSON encontrado no texto', { text: result.text.substring(0, 200) });
       } else {
-        // Formato antigo: JSON direto é a definition
-        definition = parsed;
+        // Verificar se tem estrutura com definition separado
+        if (parsed.definition) {
+          definition = parsed.definition;
+          aiInterpretationSummary = parsed.ai_interpretation_summary;
+          impactDescription = parsed.impact_description;
+        } else {
+          // Formato antigo: JSON direto é a definition
+          definition = parsed;
+        }
+        
+        // Verificar se é uma automação válida
+        if (!definition?.name || !definition?.trigger || !definition?.actions?.length) {
+          isConversational = true; // Não é automação completa, é resposta conversacional
+          definition = null;
+          logInfo('[AutomationsAI] JSON encontrado mas não é automação válida', { 
+            hasName: !!definition?.name,
+            hasTrigger: !!definition?.trigger,
+            hasActions: !!definition?.actions?.length 
+          });
+        }
       }
-      
-      // Verificar se é uma automação válida
-      if (!definition?.name || !definition?.trigger || !definition?.actions?.length) {
-        isConversational = true; // Não é automação completa, é resposta conversacional
-        definition = null;
-      }
-    } catch (error) {
-      // Não é JSON, é resposta conversacional
+    } catch (error: any) {
+      // Erro ao processar JSON
       isConversational = true;
-      logInfo('[AutomationsAI] Resposta conversacional (não JSON)', { text: result.text.substring(0, 100) });
+      logError('[AutomationsAI] Erro ao processar JSON', { 
+        error: error?.message,
+        text: result.text.substring(0, 200) 
+      });
     }
 
     // Se for modo conversacional e não gerou automação, retornar resposta conversacional
