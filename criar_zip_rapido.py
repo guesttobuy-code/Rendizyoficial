@@ -44,3 +44,5 @@ print(f"\nZIP criado: {zip_name} ({size_mb:.2f} MB)")
 
 
 
+
+

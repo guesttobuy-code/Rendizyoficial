@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -13,17 +13,21 @@ import { toast } from 'sonner';
 import { automationsApi, type Automation } from '../../utils/api';
 import { useNavigate } from 'react-router-dom';
 
-export function AutomationsList() {
+interface AutomationsListProps {
+  /**
+   * Sempre que o valor mudar a lista recarrega.
+   * Útil para sincronizar criações feitas em outras abas/telas.
+   */
+  refreshToken?: number;
+}
+
+export function AutomationsList({ refreshToken }: AutomationsListProps = {}) {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadAutomations();
-  }, []);
-
-  const loadAutomations = async () => {
+  const loadAutomations = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await automationsApi.list();
@@ -38,7 +42,18 @@ export function AutomationsList() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadAutomations();
+  }, [loadAutomations]);
+
+  useEffect(() => {
+    if (refreshToken === undefined) {
+      return;
+    }
+    loadAutomations();
+  }, [refreshToken, loadAutomations]);
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
     setUpdatingStatus(id);

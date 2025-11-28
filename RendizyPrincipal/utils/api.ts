@@ -7,6 +7,7 @@
 
 import { projectId, publicAnonKey } from './supabase/info';
 import { Photo } from '../components/PhotoManager';
+import type { Deal, DealStage, DealSource, DealActivity, DealMessage, DealProduct, ActivityType } from '../types/crm';
 // Mock backend desabilitado em v1.0.103.305 - Sistema usa apenas Supabase
 
 // Base URL da API
@@ -328,7 +329,7 @@ export interface AutomationNaturalLanguageResponse {
 
 let backendOfflineDetected = false;
 
-async function apiRequest<T>(
+export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
@@ -342,7 +343,7 @@ async function apiRequest<T>(
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase Edge Functions
-      ...options.headers,
+      ...(options.headers as Record<string, string> || {}),
     };
     
     // ✅ Adicionar token customizado em header separado para evitar validação JWT automática
@@ -1981,6 +1982,269 @@ export const automationsApi = {
 // EXPORT DEFAULT
 // ============================================================================
 
+// ============================================================================
+// DEALS API (CRM - Pipeline de Vendas)
+// ============================================================================
+
+export interface CreateDealRequest {
+  title: string;
+  value: number;
+  currency: 'BRL' | 'USD' | 'EUR';
+  stage: DealStage;
+  source: DealSource;
+  probability: number;
+  contactId?: string;
+  contactName: string;
+  ownerId: string;
+  ownerName: string;
+  expectedCloseDate?: string;
+  notes?: string;
+  products?: DealProduct[];
+}
+
+export interface UpdateDealRequest extends Partial<CreateDealRequest> {
+  stage?: DealStage;
+}
+
+export interface CreateDealActivityRequest {
+  dealId: string;
+  type: ActivityType;
+  title: string;
+  description?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface CreateDealMessageRequest {
+  dealId: string;
+  contactId: string;
+  content: string;
+  source: DealSource;
+}
+
+export const dealsApi = {
+  list: async (): Promise<ApiResponse<Deal[]>> => {
+    return apiRequest<Deal[]>('/crm/deals', {
+      method: 'GET',
+    });
+  },
+  get: async (id: string): Promise<ApiResponse<Deal>> => {
+    return apiRequest<Deal>(`/crm/deals/${id}`, {
+      method: 'GET',
+    });
+  },
+  create: async (payload: CreateDealRequest): Promise<ApiResponse<Deal>> => {
+    return apiRequest<Deal>('/crm/deals', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  update: async (id: string, payload: UpdateDealRequest): Promise<ApiResponse<Deal>> => {
+    return apiRequest<Deal>(`/crm/deals/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+  updateStage: async (id: string, newStage: DealStage, note?: string): Promise<ApiResponse<Deal>> => {
+    return apiRequest<Deal>(`/crm/deals/${id}/stage`, {
+      method: 'PATCH',
+      body: JSON.stringify({ stage: newStage, note }),
+    });
+  },
+  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/crm/deals/${id}`, {
+      method: 'DELETE',
+    });
+  },
+  // Activities
+  getActivities: async (dealId: string): Promise<ApiResponse<DealActivity[]>> => {
+    return apiRequest<DealActivity[]>(`/crm/deals/${dealId}/activities`, {
+      method: 'GET',
+    });
+  },
+  createActivity: async (payload: CreateDealActivityRequest): Promise<ApiResponse<DealActivity>> => {
+    return apiRequest<DealActivity>(`/crm/deals/${payload.dealId}/activities`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  // Messages
+  getMessages: async (dealId: string): Promise<ApiResponse<DealMessage[]>> => {
+    return apiRequest<DealMessage[]>(`/crm/deals/${dealId}/messages`, {
+      method: 'GET',
+    });
+  },
+  sendMessage: async (payload: CreateDealMessageRequest): Promise<ApiResponse<DealMessage>> => {
+    return apiRequest<DealMessage>(`/crm/deals/${payload.dealId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+};
+
+// ============================================================================
+// SERVICES TICKETS API (Funil de Serviços)
+// ============================================================================
+
+import type { ServiceTicket, ServiceTask, Funnel, ServiceTicketTemplate } from '../types/funnels';
+
+export interface CreateServiceTicketRequest {
+  funnelId: string;
+  stageId: string;
+  title: string;
+  description?: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  assignedTo?: string;
+  productId?: string;
+  value?: number;
+  currency?: 'BRL' | 'USD' | 'EUR';
+  dueDate?: string;
+  templateId?: string; // Se foi criado de um template
+  tasks?: ServiceTask[]; // Tarefas iniciais (se criado de template)
+}
+
+export interface UpdateServiceTicketRequest extends Partial<CreateServiceTicketRequest> {
+  status?: ServiceTicket['status'];
+  stageId?: string;
+}
+
+export interface CreateServiceTaskRequest {
+  ticketId: string;
+  title: string;
+  description?: string;
+  assignedTo?: string;
+  dueDate?: string;
+}
+
+export const servicesTicketsApi = {
+  list: async (funnelId?: string): Promise<ApiResponse<ServiceTicket[]>> => {
+    const url = funnelId ? `/crm/services/tickets?funnelId=${funnelId}` : '/crm/services/tickets';
+    return apiRequest<ServiceTicket[]>(url, {
+      method: 'GET',
+    });
+  },
+  get: async (id: string): Promise<ApiResponse<ServiceTicket>> => {
+    return apiRequest<ServiceTicket>(`/crm/services/tickets/${id}`, {
+      method: 'GET',
+    });
+  },
+  create: async (payload: CreateServiceTicketRequest): Promise<ApiResponse<ServiceTicket>> => {
+    return apiRequest<ServiceTicket>('/crm/services/tickets', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  update: async (id: string, payload: UpdateServiceTicketRequest): Promise<ApiResponse<ServiceTicket>> => {
+    return apiRequest<ServiceTicket>(`/crm/services/tickets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+  updateStage: async (id: string, newStageId: string): Promise<ApiResponse<ServiceTicket>> => {
+    return apiRequest<ServiceTicket>(`/crm/services/tickets/${id}/stage`, {
+      method: 'PATCH',
+      body: JSON.stringify({ stageId: newStageId }),
+    });
+  },
+  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/crm/services/tickets/${id}`, {
+      method: 'DELETE',
+    });
+  },
+  // Tasks
+  createTask: async (payload: CreateServiceTaskRequest): Promise<ApiResponse<ServiceTask>> => {
+    return apiRequest<ServiceTask>(`/crm/services/tickets/${payload.ticketId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  updateTask: async (ticketId: string, taskId: string, payload: Partial<ServiceTask>): Promise<ApiResponse<ServiceTask>> => {
+    return apiRequest<ServiceTask>(`/crm/services/tickets/${ticketId}/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteTask: async (ticketId: string, taskId: string): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/crm/services/tickets/${ticketId}/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ============================================================================
+// FUNNELS API
+// ============================================================================
+
+export const funnelsApi = {
+  list: async (): Promise<ApiResponse<Funnel[]>> => {
+    return apiRequest<Funnel[]>('/crm/funnels', {
+      method: 'GET',
+    });
+  },
+  get: async (id: string): Promise<ApiResponse<Funnel>> => {
+    return apiRequest<Funnel>(`/crm/funnels/${id}`, {
+      method: 'GET',
+    });
+  },
+  create: async (funnel: Funnel): Promise<ApiResponse<Funnel>> => {
+    return apiRequest<Funnel>('/crm/funnels', {
+      method: 'POST',
+      body: JSON.stringify(funnel),
+    });
+  },
+  update: async (id: string, funnel: Partial<Funnel>): Promise<ApiResponse<Funnel>> => {
+    return apiRequest<Funnel>(`/crm/funnels/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(funnel),
+    });
+  },
+  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/crm/funnels/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ============================================================================
+// SERVICE TICKET TEMPLATES API
+// ============================================================================
+
+export const ticketTemplatesApi = {
+  list: async (): Promise<ApiResponse<ServiceTicketTemplate[]>> => {
+    return apiRequest<ServiceTicketTemplate[]>('/crm/services/templates', {
+      method: 'GET',
+    });
+  },
+  get: async (id: string): Promise<ApiResponse<ServiceTicketTemplate>> => {
+    return apiRequest<ServiceTicketTemplate>(`/crm/services/templates/${id}`, {
+      method: 'GET',
+    });
+  },
+  create: async (template: ServiceTicketTemplate): Promise<ApiResponse<ServiceTicketTemplate>> => {
+    return apiRequest<ServiceTicketTemplate>('/crm/services/templates', {
+      method: 'POST',
+      body: JSON.stringify(template),
+    });
+  },
+  update: async (id: string, template: Partial<ServiceTicketTemplate>): Promise<ApiResponse<ServiceTicketTemplate>> => {
+    return apiRequest<ServiceTicketTemplate>(`/crm/services/templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(template),
+    });
+  },
+  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(`/crm/services/templates/${id}`, {
+      method: 'DELETE',
+    });
+  },
+  // Criar ticket a partir de template
+  createFromTemplate: async (templateId: string, ticketData: Partial<ServiceTicket>): Promise<ApiResponse<ServiceTicket>> => {
+    return apiRequest<ServiceTicket>(`/crm/services/templates/${templateId}/create-ticket`, {
+      method: 'POST',
+      body: JSON.stringify(ticketData),
+    });
+  },
+};
+
 export default {
   properties: propertiesApi,
   reservations: reservationsApi,
@@ -1991,4 +2255,7 @@ export default {
   financeiro: financeiroApi,
   integrations: integrationsApi,
   automations: automationsApi,
+  deals: dealsApi,
+  servicesTickets: servicesTicketsApi,
+  funnels: funnelsApi,
 };

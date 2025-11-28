@@ -8,10 +8,10 @@ import { AutomationsChatLab } from './AutomationsChatLab';
 export function AutomationsModule() {
   return (
     <Routes>
-      <Route path="/" element={<AutomationsList />} />
-      <Route path="/:id" element={<AutomationDetails />} />
-      <Route path="/lab" element={<AutomationsNaturalLanguageLab />} />
-      <Route path="/chat" element={<AutomationsChatLab />} />
+      <Route index element={<AutomationsList />} />
+      <Route path="lab" element={<AutomationsNaturalLanguageLab />} />
+      <Route path="chat" element={<AutomationsChatLab />} />
+      <Route path=":id" element={<AutomationDetails />} />
       <Route path="*" element={<Navigate to="/automacoes" replace />} />
     </Routes>
   );

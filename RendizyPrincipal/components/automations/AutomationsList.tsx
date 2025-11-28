@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -13,17 +13,26 @@ import { toast } from 'sonner';
 import { automationsApi, type Automation } from '../../utils/api';
 import { useNavigate } from 'react-router-dom';
 
-export function AutomationsList() {
+interface AutomationsListProps {
+  /**
+   * Quando este valor mudar, a lista recarrega os dados.
+   * Usado para sincronizar criações feitas em outras abas (ex.: Formulário Rápido).
+   */
+  refreshToken?: number;
+  /**
+   * Indica se a aba está ativa. Quando muda para true, força um recarregamento.
+   */
+  isActive?: boolean;
+}
+
+export function AutomationsList({ refreshToken, isActive }: AutomationsListProps = {}) {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const navigate = useNavigate();
+  const prevIsActiveRef = useRef<boolean | undefined>(false);
 
-  useEffect(() => {
-    loadAutomations();
-  }, []);
-
-  const loadAutomations = async () => {
+  const loadAutomations = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await automationsApi.list();
@@ -38,7 +47,29 @@ export function AutomationsList() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadAutomations();
+  }, [loadAutomations]);
+
+  useEffect(() => {
+    // refreshToken pode ser 0 inicialmente, então verificamos se é um número válido
+    if (refreshToken === undefined || refreshToken === null) {
+      return;
+    }
+    // Forçar recarregamento quando refreshToken mudar
+    loadAutomations();
+  }, [refreshToken, loadAutomations]);
+
+  // Recarregar quando a aba ficar ativa
+  useEffect(() => {
+    if (isActive && !prevIsActiveRef.current) {
+      // Aba acabou de ficar ativa, recarregar dados
+      loadAutomations();
+    }
+    prevIsActiveRef.current = isActive;
+  }, [isActive, loadAutomations]);
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
     setUpdatingStatus(id);

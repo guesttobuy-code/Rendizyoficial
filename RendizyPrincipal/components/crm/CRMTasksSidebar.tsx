@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
@@ -20,11 +20,11 @@ import {
   Target,
   CheckSquare,
   ListTodo,
-  Clock,
   Flag,
   Archive,
   Sparkles,
-  UsersIcon as TeamIcon
+  UsersIcon as TeamIcon,
+  GitBranch
 } from 'lucide-react';
 
 const menuSections = [
@@ -42,6 +42,27 @@ const menuSections = [
   {
     title: 'Clientes',
     items: [
+      {
+        id: 'deals',
+        label: 'Deals',
+        icon: <Target className="w-5 h-5" />,
+        path: '/crm/deals',
+        badge: '4',
+      },
+      {
+        id: 'services',
+        label: 'Serviços',
+        icon: <CheckSquare className="w-5 h-5" />,
+        path: '/crm/services',
+        badge: '2',
+      },
+      {
+        id: 'predetermined',
+        label: 'Pré-determinados',
+        icon: <GitBranch className="w-5 h-5" />,
+        path: '/crm/predetermined',
+        badge: 'NEW',
+      },
       {
         id: 'contatos',
         label: 'Contatos',
@@ -181,6 +202,13 @@ const menuSections = [
     title: 'Configurações',
     items: [
       {
+        id: 'editar-funis',
+        label: 'Editar Funis',
+        icon: <GitBranch className="w-5 h-5" />,
+        path: '#',
+        action: 'edit-funnels',
+      },
+      {
         id: 'config',
         label: 'Configurações',
         icon: <Settings className="w-5 h-5" />,
@@ -190,7 +218,11 @@ const menuSections = [
   },
 ];
 
-export default function CRMTasksSidebar() {
+interface CRMTasksSidebarProps {
+  onEditFunnels?: () => void;
+}
+
+export default function CRMTasksSidebar({ onEditFunnels }: CRMTasksSidebarProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -207,6 +239,7 @@ export default function CRMTasksSidebar() {
       ${isCollapsed ? 'w-20' : 'w-64'}
       bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
       flex flex-col transition-all duration-300
+      h-screen overflow-hidden
     `}>
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -243,7 +276,7 @@ export default function CRMTasksSidebar() {
       <Separator />
 
       {/* Menu Items */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 h-0">
         <div className="p-2 space-y-6">
           {menuSections.map((section, idx) => (
             <div key={idx}>
@@ -264,14 +297,20 @@ export default function CRMTasksSidebar() {
                         ${active ? 'bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400' : ''}
                         ${isCollapsed ? 'justify-center px-2' : ''}
                       `}
-                      onClick={() => navigate(item.path)}
+                      onClick={() => {
+                        if ((item as any).action === 'edit-funnels' && onEditFunnels) {
+                          onEditFunnels();
+                        } else {
+                          navigate(item.path);
+                        }
+                      }}
                       title={isCollapsed ? item.label : undefined}
                     >
                       {item.icon}
                       {!isCollapsed && (
                         <>
                           <span className="flex-1 text-left">{item.label}</span>
-                          {item.badge && (
+                          {'badge' in item && item.badge && (
                             <Badge variant="default" className="ml-auto">
                               {item.badge}
                             </Badge>

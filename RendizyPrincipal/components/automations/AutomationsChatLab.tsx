@@ -35,7 +35,11 @@ const DEFAULT_CONTEXT: AutomationContext = {
   language: 'pt-BR',
 };
 
-export function AutomationsChatLab() {
+interface AutomationsChatLabProps {
+  onAutomationSaved?: () => void; // Callback quando automação é salva
+}
+
+export function AutomationsChatLab({ onAutomationSaved }: AutomationsChatLabProps = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -289,6 +293,12 @@ export function AutomationsChatLab() {
         content: 'Automação salva! Posso ajudar você a criar outra automação?',
         timestamp: new Date(),
       }]);
+      
+      // Notificar componente pai para mudar de aba e atualizar lista
+      // O callback já gerencia o timing da atualização
+      if (onAutomationSaved) {
+        onAutomationSaved();
+      }
     } catch (error: any) {
       console.error('[AutomationsChatLab] Erro ao salvar', error);
       toast.error(error?.message || 'Erro ao salvar automação');
@@ -313,7 +323,7 @@ export function AutomationsChatLab() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="p-6 space-y-6 w-full">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-purple-500" />
@@ -324,9 +334,9 @@ export function AutomationsChatLab() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
+      <div className="grid gap-6 items-start grid-cols-1 lg:grid-cols-[320px_1fr] w-full">
         {/* Configurações */}
-        <Card>
+        <Card className="lg:sticky lg:top-24 w-full">
           <CardHeader>
             <CardTitle className="text-sm">Configurações</CardTitle>
           </CardHeader>
@@ -392,15 +402,15 @@ export function AutomationsChatLab() {
         </Card>
 
         {/* Chat */}
-        <Card className="md:col-span-3">
+        <Card className="flex flex-col min-h-[640px] lg:col-start-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-blue-500" />
               Conversa com IA
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="h-[500px] p-4 overflow-y-auto">
+          <CardContent className="flex-1 flex flex-col p-0">
+            <div className="flex-1 min-h-[400px] p-4 overflow-y-auto">
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div
@@ -449,7 +459,7 @@ export function AutomationsChatLab() {
 
             {/* Imagens pendentes */}
             {pendingImages.length > 0 && (
-              <div className="px-4 py-2 border-t flex gap-2 flex-wrap">
+              <div className="px-4 py-2 border-t flex gap-2 flex-wrap shrink-0">
                 {pendingImages.map((file, idx) => (
                   <div key={idx} className="relative">
                     <img

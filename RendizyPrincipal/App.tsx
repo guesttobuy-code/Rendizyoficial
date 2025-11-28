@@ -77,6 +77,12 @@ import { InadimplenciaPage } from './components/financeiro/pages/InadimplenciaPa
 import { RelatoriosGerenciaisPage } from './components/financeiro/pages/RelatoriosGerenciaisPage';
 import { ConfiguracoesFinanceirasPage } from './components/financeiro/pages/ConfiguracoesFinanceirasPage';
 import CRMTasksDashboard from './components/crm/CRMTasksDashboard';
+import { DealsModule } from './components/crm/DealsModule';
+import { ServicesFunnelModule } from './components/crm/ServicesFunnelModule';
+import { PredeterminedFunnelModule } from './components/crm/PredeterminedFunnelModule';
+import { ClientProcessView } from './components/crm/ClientProcessView';
+import { MyTasksView } from './components/crm/MyTasksView';
+import { TasksDashboard } from './components/crm/TasksDashboard';
 import AutomationsNaturalLanguageLab from './components/automations/AutomationsNaturalLanguageLab';
 import { AutomationsChatLab } from './components/automations/AutomationsChatLab';
 // AutomationsModule deprecado - redirecionando para /crm/automacoes-lab
@@ -1197,12 +1203,18 @@ function App() {
           <Route index element={<CRMTasksDashboard />} />
           
           {/* Seção Clientes (CRM) */}
+          <Route path="deals" element={<DealsModule />} />
+          <Route path="services" element={<ServicesFunnelModule />} />
+          <Route path="predetermined" element={<PredeterminedFunnelModule />} />
+          
+          {/* Portal do Cliente - Acessível via site da imobiliária */}
+          <Route path="client/processos" element={<ClientProcessView />} />
           <Route path="contatos" element={<ModulePlaceholder module="Contatos" />} />
           <Route path="leads" element={<ModulePlaceholder module="Leads" />} />
           <Route path="proprietarios" element={<ModulePlaceholder module="Proprietários" />} />
           
           {/* Seção Tarefas (Tasks) */}
-          <Route path="minhas-tarefas" element={<ModulePlaceholder module="Minhas Tarefas" />} />
+          <Route path="minhas-tarefas" element={<MyTasksView />} />
           <Route path="todas-tarefas" element={<ModulePlaceholder module="Todas as Tarefas" />} />
           <Route path="calendario-tarefas" element={<ModulePlaceholder module="Calendário de Tarefas" />} />
           <Route path="equipes" element={<ModulePlaceholder module="Equipes" />} />

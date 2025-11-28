@@ -255,11 +255,12 @@ export async function getOrganizationIdOrThrow(c: Context): Promise<string> {
     const client = getSupabaseClient();
     
     // ✅ IMPORTANTE: SERVICE_ROLE_KEY não valida JWT - query direta na tabela
+    // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Buscar por access_token OU token (compatibilidade)
     const { data: session, error: sessionError } = await client
       .from('sessions')
       .select('*')
-      .eq('token', token)
-      .single();
+      .or(`token.eq.${token},access_token.eq.${token}`) // ✅ Buscar por token antigo OU access_token
+      .maybeSingle();
     
     console.log(`🔍 [getOrganizationIdOrThrow] Query result:`, {
       hasSession: !!session,

@@ -297,7 +297,7 @@ export function AutomationsChatLab() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-purple-500" />
@@ -308,24 +308,28 @@ export function AutomationsChatLab() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
+      <div className="grid gap-6 items-start lg:grid-cols-[320px_minmax(0,1fr)]">
         {/* Configurações */}
-        <Card>
+        <Card className="lg:sticky lg:top-24 h-full">
           <CardHeader>
             <CardTitle className="text-sm">Configurações</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Seleção de Módulos */}
-            <ModuleSelector
-              selectedModules={context.modules}
-              onChange={(modules) => setContext(prev => ({ ...prev, modules }))}
-            />
+            <div className="space-y-2">
+              <ModuleSelector
+                selectedModules={context.modules}
+                onChange={(modules) => setContext(prev => ({ ...prev, modules }))}
+              />
+            </div>
 
             {/* Seleção de Imóveis */}
-            <PropertySelector
-              selectedProperties={context.properties}
-              onChange={(properties) => setContext(prev => ({ ...prev, properties }))}
-            />
+            <div className="space-y-2">
+              <PropertySelector
+                selectedProperties={context.properties}
+                onChange={(properties) => setContext(prev => ({ ...prev, properties }))}
+              />
+            </div>
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground">Canal</label>
               <Select value={context.channel} onValueChange={(v) => setContext(prev => ({ ...prev, channel: v as any }))}>
@@ -358,15 +362,15 @@ export function AutomationsChatLab() {
         </Card>
 
         {/* Chat */}
-        <Card className="md:col-span-3">
+        <Card className="flex flex-col min-h-[640px] lg:col-start-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-blue-500" />
               Conversa com IA
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="h-[500px] p-4 overflow-y-auto">
+          <CardContent className="flex-1 flex flex-col p-0">
+            <div className="flex-1 min-h-[400px] p-4 overflow-y-auto">
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div

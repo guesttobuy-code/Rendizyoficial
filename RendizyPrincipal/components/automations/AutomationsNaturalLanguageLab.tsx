@@ -38,6 +38,8 @@ export function AutomationsNaturalLanguageLab() {
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [automationName, setAutomationName] = useState('');
+  const [activeTab, setActiveTab] = useState<'formulario' | 'chat' | 'lista'>('formulario');
+  const [listRefreshToken, setListRefreshToken] = useState(0);
 
   const handleSubmit = async () => {
     console.log('🔵 [AutomationsLab] handleSubmit chamado');
@@ -113,7 +115,11 @@ export function AutomationsNaturalLanguageLab() {
         </p>
       </div>
 
-      <Tabs defaultValue="formulario" className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as typeof activeTab)}
+        className="w-full"
+      >
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="formulario" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
@@ -428,9 +434,20 @@ export function AutomationsNaturalLanguageLab() {
                         throw new Error(response.error || 'Erro ao salvar automação');
                       }
 
-                      toast.success('Automação salva com sucesso!');
+                      toast.success('Automação salva com sucesso! Revisando lista...');
                       setShowSaveModal(false);
                       setAutomationName('');
+                      setResult(null);
+                      
+                      // Mudar para a aba de lista imediatamente
+                      setActiveTab('lista');
+                      
+                      // Atualizar refreshToken imediatamente e depois novamente após delay
+                      // para garantir que a lista seja atualizada mesmo se o backend estiver lento
+                      setListRefreshToken((prev) => prev + 1);
+                      setTimeout(() => {
+                        setListRefreshToken((prev) => prev + 1);
+                      }, 1000);
                     } catch (error: any) {
                       console.error('[AutomationsLab] Erro ao salvar automação', error);
                       toast.error(error?.message || 'Erro ao salvar automação');
@@ -457,11 +474,23 @@ export function AutomationsNaturalLanguageLab() {
         </TabsContent>
 
         <TabsContent value="chat" className="mt-6">
-          <AutomationsChatLab />
+          <AutomationsChatLab 
+            onAutomationSaved={() => {
+              // Mudar para a aba de lista imediatamente
+              setActiveTab('lista');
+              
+              // Atualizar refreshToken imediatamente e depois novamente após delay
+              // para garantir que a lista seja atualizada mesmo se o backend estiver lento
+              setListRefreshToken((prev) => prev + 1);
+              setTimeout(() => {
+                setListRefreshToken((prev) => prev + 1);
+              }, 1000);
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="lista" className="mt-6">
-          <AutomationsList />
+          <AutomationsList refreshToken={listRefreshToken} isActive={activeTab === 'lista'} />
         </TabsContent>
       </Tabs>
     </div>

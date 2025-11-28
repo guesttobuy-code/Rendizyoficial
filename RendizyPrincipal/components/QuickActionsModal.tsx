@@ -1,6 +1,6 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { Calendar, DollarSign, Lock, ChevronRight, TrendingUp, Sparkles } from 'lucide-react';
+import { Calendar, DollarSign, Lock, ChevronRight, TrendingUp, Sparkles, Ticket } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface QuickActionsModalProps {
@@ -10,7 +10,9 @@ interface QuickActionsModalProps {
   endDate?: Date;
   propertyId?: string;
   propertyName?: string;
-  onSelectAction: (action: 'reservation' | 'quote' | 'block' | 'tiers' | 'seasonality') => void;
+  contactId?: string;
+  contactName?: string;
+  onSelectAction: (action: 'reservation' | 'quote' | 'block' | 'tiers' | 'seasonality' | 'ticket') => void;
 }
 
 export function QuickActionsModal({
@@ -20,6 +22,8 @@ export function QuickActionsModal({
   endDate,
   propertyId,
   propertyName,
+  contactId,
+  contactName,
   onSelectAction
 }: QuickActionsModalProps) {
   const nights = startDate && endDate 
@@ -160,6 +164,31 @@ export function QuickActionsModal({
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-pink-600 transition-colors flex-shrink-0" />
+            </div>
+          </button>
+
+          {/* Criar Ticket de Serviço */}
+          <button
+            onClick={() => onSelectAction('ticket')}
+            className="w-full p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all text-left group"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                  <Ticket className="h-5 w-5 text-purple-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-gray-900 mb-1">Criar Ticket de Serviço</div>
+                  <div className="text-sm text-gray-600">
+                    {contactName 
+                      ? `Crie um ticket relacionado a ${contactName}${propertyName ? ` e ao imóvel ${propertyName}` : ''}.`
+                      : 'Crie um ticket de serviço para acompanhar demandas, problemas ou tarefas.'
+                    }
+                  </div>
+                  <div className="text-xs text-purple-600 mt-2 hover:underline">Saiba mais</div>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-purple-600 transition-colors flex-shrink-0" />
             </div>
           </button>
         </div>

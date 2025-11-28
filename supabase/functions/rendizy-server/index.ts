@@ -35,6 +35,9 @@ import * as amenitiesRoutes from './routes-amenities.ts';
 import * as aiRoutes from './routes-ai.ts';
 import * as automationsAIRoutes from './routes-automations-ai.ts';
 import * as automationsRoutes from './routes-automations.ts';
+import * as dealsRoutes from './routes-deals.ts';
+import * as servicesTicketsRoutes from './routes-services-tickets.ts';
+import * as serviceTemplatesRoutes from './routes-service-templates.ts';
 // ✅ MÓDULO FINANCEIRO v1.0.103.400
 import * as financeiroRoutes from './routes-financeiro.ts';
 import * as conciliacaoRoutes from './routes-conciliacao.ts';
@@ -499,6 +502,8 @@ app.route("/rendizy-server/make-server-67caf26a", bulkPricingApp);
 // ============================================================================
 
 app.route("/rendizy-server/make-server-67caf26a/chat", chatApp);
+// ✅ Nova rota sem hash (usada pelo frontend atual - channelsApi)
+app.route("/rendizy-server/chat", chatApp);
 
 // ============================================================================
 // WHATSAPP EVOLUTION API ROUTES (v1.0.103.84)
@@ -586,6 +591,12 @@ app.post("/rendizy-server/integrations/ai/test", aiRoutes.testAIProviderConfig);
 app.use('/rendizy-server/make-server-67caf26a/automations/ai/*', tenancyMiddleware);
 app.use('/rendizy-server/automations/ai/*', tenancyMiddleware); // Rotas espelho
 
+// Automações - garantir multi-tenancy em todas as rotas (base e subrotas)
+app.use('/rendizy-server/make-server-67caf26a/automations', tenancyMiddleware);
+app.use('/rendizy-server/make-server-67caf26a/automations/*', tenancyMiddleware);
+app.use('/rendizy-server/automations', tenancyMiddleware);
+app.use('/rendizy-server/automations/*', tenancyMiddleware);
+
 app.post("/rendizy-server/make-server-67caf26a/automations/ai/interpret", automationsAIRoutes.interpretAutomationNaturalLanguage);
 app.post("/rendizy-server/automations/ai/interpret", automationsAIRoutes.interpretAutomationNaturalLanguage);
 
@@ -605,6 +616,84 @@ app.patch("/rendizy-server/make-server-67caf26a/automations/:id/status", automat
 app.patch("/rendizy-server/automations/:id/status", automationsRoutes.updateAutomationStatus);
 app.get("/rendizy-server/make-server-67caf26a/automations/:id/executions", automationsRoutes.getAutomationExecutions);
 app.get("/rendizy-server/automations/:id/executions", automationsRoutes.getAutomationExecutions);
+
+// ============================================================================
+// CRM DEALS ROUTES (v1.0.103.600)
+// ============================================================================
+
+// ✅ Middleware de autenticação para todas as rotas de deals
+app.use('/rendizy-server/make-server-67caf26a/crm/deals/*', tenancyMiddleware);
+app.use('/rendizy-server/crm/deals/*', tenancyMiddleware);
+
+// Deals CRUD
+app.get("/rendizy-server/make-server-67caf26a/crm/deals", dealsRoutes.listDeals);
+app.get("/rendizy-server/crm/deals", dealsRoutes.listDeals);
+app.get("/rendizy-server/make-server-67caf26a/crm/deals/:id", dealsRoutes.getDeal);
+app.get("/rendizy-server/crm/deals/:id", dealsRoutes.getDeal);
+app.post("/rendizy-server/make-server-67caf26a/crm/deals", dealsRoutes.createDeal);
+app.post("/rendizy-server/crm/deals", dealsRoutes.createDeal);
+app.put("/rendizy-server/make-server-67caf26a/crm/deals/:id", dealsRoutes.updateDeal);
+app.put("/rendizy-server/crm/deals/:id", dealsRoutes.updateDeal);
+app.patch("/rendizy-server/make-server-67caf26a/crm/deals/:id/stage", dealsRoutes.updateDealStage);
+app.patch("/rendizy-server/crm/deals/:id/stage", dealsRoutes.updateDealStage);
+app.delete("/rendizy-server/make-server-67caf26a/crm/deals/:id", dealsRoutes.deleteDeal);
+app.delete("/rendizy-server/crm/deals/:id", dealsRoutes.deleteDeal);
+
+// Deal Activities
+app.get("/rendizy-server/make-server-67caf26a/crm/deals/:id/activities", dealsRoutes.listDealActivities);
+app.get("/rendizy-server/crm/deals/:id/activities", dealsRoutes.listDealActivities);
+app.post("/rendizy-server/make-server-67caf26a/crm/deals/:id/activities", dealsRoutes.createDealActivity);
+app.post("/rendizy-server/crm/deals/:id/activities", dealsRoutes.createDealActivity);
+
+// Deal Messages
+app.get("/rendizy-server/make-server-67caf26a/crm/deals/:id/messages", dealsRoutes.listDealMessages);
+app.get("/rendizy-server/crm/deals/:id/messages", dealsRoutes.listDealMessages);
+app.post("/rendizy-server/make-server-67caf26a/crm/deals/:id/messages", dealsRoutes.sendDealMessage);
+app.post("/rendizy-server/crm/deals/:id/messages", dealsRoutes.sendDealMessage);
+
+// ============================================================================
+// SERVICES TICKETS ROUTES (v1.0.103.700)
+// ============================================================================
+
+// ✅ Middleware de autenticação para todas as rotas de services tickets
+app.use('/rendizy-server/make-server-67caf26a/crm/services/*', tenancyMiddleware);
+app.use('/rendizy-server/crm/services/*', tenancyMiddleware);
+
+// Tickets CRUD
+app.get("/rendizy-server/make-server-67caf26a/crm/services/tickets", servicesTicketsRoutes.listServiceTickets);
+app.get("/rendizy-server/crm/services/tickets", servicesTicketsRoutes.listServiceTickets);
+app.get("/rendizy-server/make-server-67caf26a/crm/services/tickets/:id", servicesTicketsRoutes.getServiceTicket);
+app.get("/rendizy-server/crm/services/tickets/:id", servicesTicketsRoutes.getServiceTicket);
+app.post("/rendizy-server/make-server-67caf26a/crm/services/tickets", servicesTicketsRoutes.createServiceTicket);
+app.post("/rendizy-server/crm/services/tickets", servicesTicketsRoutes.createServiceTicket);
+app.put("/rendizy-server/make-server-67caf26a/crm/services/tickets/:id", servicesTicketsRoutes.updateServiceTicket);
+app.put("/rendizy-server/crm/services/tickets/:id", servicesTicketsRoutes.updateServiceTicket);
+app.patch("/rendizy-server/make-server-67caf26a/crm/services/tickets/:id/stage", servicesTicketsRoutes.updateServiceTicketStage);
+app.patch("/rendizy-server/crm/services/tickets/:id/stage", servicesTicketsRoutes.updateServiceTicketStage);
+app.delete("/rendizy-server/make-server-67caf26a/crm/services/tickets/:id", servicesTicketsRoutes.deleteServiceTicket);
+app.delete("/rendizy-server/crm/services/tickets/:id", servicesTicketsRoutes.deleteServiceTicket);
+
+// Tasks
+app.post("/rendizy-server/make-server-67caf26a/crm/services/tickets/:id/tasks", servicesTicketsRoutes.createServiceTask);
+app.post("/rendizy-server/crm/services/tickets/:id/tasks", servicesTicketsRoutes.createServiceTask);
+app.put("/rendizy-server/make-server-67caf26a/crm/services/tickets/:id/tasks/:taskId", servicesTicketsRoutes.updateServiceTask);
+app.put("/rendizy-server/crm/services/tickets/:id/tasks/:taskId", servicesTicketsRoutes.updateServiceTask);
+app.delete("/rendizy-server/make-server-67caf26a/crm/services/tickets/:id/tasks/:taskId", servicesTicketsRoutes.deleteServiceTask);
+app.delete("/rendizy-server/crm/services/tickets/:id/tasks/:taskId", servicesTicketsRoutes.deleteServiceTask);
+
+// Templates CRUD
+app.get("/rendizy-server/make-server-67caf26a/crm/services/templates", serviceTemplatesRoutes.listServiceTemplates);
+app.get("/rendizy-server/crm/services/templates", serviceTemplatesRoutes.listServiceTemplates);
+app.get("/rendizy-server/make-server-67caf26a/crm/services/templates/:id", serviceTemplatesRoutes.getServiceTemplate);
+app.get("/rendizy-server/crm/services/templates/:id", serviceTemplatesRoutes.getServiceTemplate);
+app.post("/rendizy-server/make-server-67caf26a/crm/services/templates", serviceTemplatesRoutes.createServiceTemplate);
+app.post("/rendizy-server/crm/services/templates", serviceTemplatesRoutes.createServiceTemplate);
+app.put("/rendizy-server/make-server-67caf26a/crm/services/templates/:id", serviceTemplatesRoutes.updateServiceTemplate);
+app.put("/rendizy-server/crm/services/templates/:id", serviceTemplatesRoutes.updateServiceTemplate);
+app.delete("/rendizy-server/make-server-67caf26a/crm/services/templates/:id", serviceTemplatesRoutes.deleteServiceTemplate);
+app.delete("/rendizy-server/crm/services/templates/:id", serviceTemplatesRoutes.deleteServiceTemplate);
+app.post("/rendizy-server/make-server-67caf26a/crm/services/templates/:id/create-ticket", serviceTemplatesRoutes.createTicketFromTemplate);
+app.post("/rendizy-server/crm/services/templates/:id/create-ticket", serviceTemplatesRoutes.createTicketFromTemplate);
 
 // ============================================================================
 // STAYS.NET PMS INTEGRATION ROUTES (v1.0.103.17)

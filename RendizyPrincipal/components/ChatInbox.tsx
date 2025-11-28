@@ -57,6 +57,10 @@ import { CreateReservationWizard } from './CreateReservationWizard';
 import { BlockModal } from './BlockModal';
 import { TemplateManagerModal } from './TemplateManagerModal';
 import { ChatTagsModal, ChatTag } from './ChatTagsModal';
+import { CreateTicketModal } from './crm/CreateTicketModal';
+import { funnelsApi } from '../utils/api';
+import { Funnel } from '../types/funnels';
+import { ServiceTicket } from '../types/funnels';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Conversation, 
@@ -188,6 +192,8 @@ export function ChatInbox() {
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [showTagsManager, setShowTagsManager] = useState(false);
+  const [showCreateTicket, setShowCreateTicket] = useState(false);
+  const [defaultFunnel, setDefaultFunnel] = useState<Funnel | null>(null);
 
   // Drag & Drop
   const [draggedConversationId, setDraggedConversationId] = useState<string | null>(null);
@@ -196,6 +202,51 @@ export function ChatInbox() {
   // ============================================
   // LOAD DATA
   // ============================================
+
+  // Carregar funil padrão de serviços
+  useEffect(() => {
+    loadDefaultFunnel();
+  }, []);
+
+  const loadDefaultFunnel = async () => {
+    try {
+      const response = await funnelsApi.list();
+      if (response.success && response.data) {
+        const servicesFunnels = response.data.filter(f => f.type === 'SERVICES');
+        if (servicesFunnels.length > 0) {
+          setDefaultFunnel(servicesFunnels[0]);
+        } else {
+          // Criar funil padrão se não existir
+          const defaultFunnel: Funnel = {
+            id: 'services-default',
+            organizationId: organizationId || '',
+            name: 'Funil de Serviços',
+            type: 'SERVICES',
+            description: 'Gestão de tickets e resolução de problemas',
+            stages: [
+              { id: '1', funnelId: 'services-default', name: 'Triagem', order: 1, color: '#3b82f6', createdAt: new Date().toISOString() },
+              { id: '2', funnelId: 'services-default', name: 'Em Análise', order: 2, color: '#f59e0b', createdAt: new Date().toISOString() },
+              { id: '3', funnelId: 'services-default', name: 'Em Resolução', order: 3, color: '#8b5cf6', createdAt: new Date().toISOString() },
+              { id: '4', funnelId: 'services-default', name: 'Aguardando Cliente', order: 4, color: '#6366f1', createdAt: new Date().toISOString() },
+              { id: '5', funnelId: 'services-default', name: 'Resolvido', order: 5, color: '#10b981', createdAt: new Date().toISOString() },
+              { id: '6', funnelId: 'services-default', name: 'Não Resolvido', order: 6, color: '#ef4444', createdAt: new Date().toISOString() },
+            ],
+            statusConfig: {
+              resolvedStatus: 'Resolvido',
+              unresolvedStatus: 'Não Resolvido',
+              inProgressStatus: 'Em Análise',
+            },
+            isDefault: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          setDefaultFunnel(defaultFunnel);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar funil:', error);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -914,12 +965,18 @@ export function ChatInbox() {
       <QuickActionsModal
         open={showQuickActions}
         onClose={() => setShowQuickActions(false)}
+        contactId={selectedConversation?.contact?.id}
+        contactName={selectedConversation?.contact?.name || selectedConversation?.contactName}
+        propertyId={selectedConversation?.propertyId}
+        propertyName={selectedConversation?.propertyName}
         onSelectAction={(action) => {
           setShowQuickActions(false);
           if (action === 'quote') {
             setShowQuotation(true);
           } else if (action === 'reservation') {
             setShowCreateReservation(true);
+          } else if (action === 'ticket') {
+            setShowCreateTicket(true);
           }
         }}
       />
@@ -993,6 +1050,32 @@ export function ChatInbox() {
           await loadData();
         }}
       />
+
+      {/* Modal de Criar Ticket */}
+      {showCreateTicket && defaultFunnel && (
+        <CreateTicketModal
+          open={showCreateTicket}
+          onClose={() => setShowCreateTicket(false)}
+          onSuccess={(ticket: ServiceTicket) => {
+            // TODO: Vincular automaticamente pessoas e imóveis da conversa ao ticket
+            // Por enquanto, apenas fecha o modal
+            setShowCreateTicket(false);
+            // Redirecionar para o ticket criado ou mostrar notificação
+            window.location.href = `/crm/services`;
+          }}
+          funnel={defaultFunnel}
+          prefillContactId={selectedConversation?.contact?.id}
+          prefillContactName={selectedConversation?.contact?.name || selectedConversation?.name}
+          prefillContactPhone={selectedConversation?.phone || selectedConversation?.contact?.number}
+          prefillContactEmail={selectedConversation?.email || selectedConversation?.contact?.email}
+          prefillPropertyId={selectedConversation?.propertyId}
+          prefillPropertyName={selectedConversation?.propertyName}
+          prefillReservationId={selectedConversation?.reservationCode ? `res-${selectedConversation.reservationCode}` : undefined}
+          prefillReservationCode={selectedConversation?.reservationCode}
+          prefillGuestId={selectedConversation?.contact?.id} // TODO: Mapear para guestId real
+          prefillGuestName={selectedConversation?.contact?.name || selectedConversation?.name}
+        />
+      )}
     </div>
   );
 }

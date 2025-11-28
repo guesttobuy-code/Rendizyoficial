@@ -49,3 +49,5 @@ Write-Host "`nConfiguracao corrigida! Pronto para deploy." -ForegroundColor Gree
 
 
 
+
+
