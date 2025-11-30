@@ -145,7 +145,7 @@ export function SettingsManager({
       if (mode === 'global') {
         // Carregar configurações globais
         const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${organizationId}/settings/global`,
+          `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/settings/global`,
           {
             headers: { 'Authorization': `Bearer ${publicAnonKey}` }
           }
@@ -190,7 +190,7 @@ export function SettingsManager({
     setSaving(true);
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${organizationId}/settings/global`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/settings/global`,
         {
           method: 'PUT',
           headers: {
@@ -307,7 +307,7 @@ export function SettingsManager({
     setLoading(true);
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${organizationId}/settings/apply-to-all`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/settings/apply-to-all`,
         {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }

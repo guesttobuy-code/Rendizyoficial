@@ -54,7 +54,7 @@ export function CreateUserModal({ open, onClose, onSuccess, preselectedOrgId }: 
     setLoadingOrgs(true);
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`
