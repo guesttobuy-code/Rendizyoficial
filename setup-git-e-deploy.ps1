@@ -120,14 +120,29 @@ feat: Implementar cadeados em todas as capsulas + Corrigir routes-organizations
 Write-Host ""
 
 # 7. Verificar se tem remote para fazer push
+Write-Host "7. Verificando remote antes do push..." -ForegroundColor Yellow
 $remote = git remote get-url origin 2>$null
+
+# Se remote nao existe, configurar agora
+if (-not $remote) {
+    Write-Host "   Remote nao encontrado. Configurando agora..." -ForegroundColor Yellow
+    git remote add origin $githubUrl
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "   Remote configurado com sucesso!" -ForegroundColor Green
+        $remote = $githubUrlPublic
+    } else {
+        Write-Host "   Erro ao configurar remote." -ForegroundColor Red
+        exit 1
+    }
+}
+
 if ($remote) {
-    Write-Host "7. Fazendo push para GitHub..." -ForegroundColor Yellow
-    Write-Host "   Remote: $remote" -ForegroundColor Gray
+    Write-Host "   Fazendo push para GitHub..." -ForegroundColor Yellow
+    Write-Host "   Remote: $githubUrlPublic" -ForegroundColor Gray
     Write-Host "   Branch: $currentBranch" -ForegroundColor Gray
     Write-Host ""
     
-    # Tentar push normal
+    # Tentar push normal primeiro
     git push origin $currentBranch
     
     # Se falhar, tentar com -u (primeira vez)
@@ -154,11 +169,8 @@ if ($remote) {
         Write-Host "  3. Verifique a URL do remote: git remote -v" -ForegroundColor White
     }
 } else {
-    Write-Host "7. Remote nao configurado. Pulando push." -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "Para fazer push depois, execute:" -ForegroundColor Cyan
-    Write-Host "  git remote add origin <URL_DO_GITHUB>" -ForegroundColor White
-    Write-Host "  git push -u origin $currentBranch" -ForegroundColor White
+    Write-Host "   Erro: Nao foi possivel configurar remote." -ForegroundColor Red
+    exit 1
 }
 
 Write-Host ""
