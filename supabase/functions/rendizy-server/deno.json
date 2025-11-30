@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.ns", "deno.unstable"],
+    "strict": true,
+    "allowJs": true,
+    "allowUmdGlobalAccess": true,
+    "skipLibCheck": true,
+    "types": []
+  }
+}
