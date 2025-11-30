@@ -141,7 +141,7 @@ export function GlobalSettingsManager({ organizationId }: { organizationId: stri
     setLoading(true);
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/settings/global`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-67caf26a/organizations/${organizationId}/settings/global`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`
@@ -170,7 +170,7 @@ export function GlobalSettingsManager({ organizationId }: { organizationId: stri
     setSaving(true);
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/settings/global`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-67caf26a/organizations/${organizationId}/settings/global`,
         {
           method: 'PUT',
           headers: {
@@ -203,7 +203,7 @@ export function GlobalSettingsManager({ organizationId }: { organizationId: stri
     setLoading(true);
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/settings/global/reset`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-67caf26a/organizations/${organizationId}/settings/global/reset`,
         {
           method: 'POST',
           headers: {
@@ -234,7 +234,7 @@ export function GlobalSettingsManager({ organizationId }: { organizationId: stri
     setLoading(true);
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/settings/apply-to-all`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-67caf26a/organizations/${organizationId}/settings/apply-to-all`,
         {
           method: 'POST',
           headers: {

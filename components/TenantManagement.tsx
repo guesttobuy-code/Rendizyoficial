@@ -283,7 +283,7 @@ export function TenantManagement() {
         return;
       }
       
-      const baseUrl = `https://${projectId}.supabase.co/functions/v1/rendizy-server`;
+      const baseUrl = `https://${projectId}.supabase.co/functions/v1/make-server-67caf26a`;
       const url = `${baseUrl}/organizations`;
       
       console.log('🔍 Carregando organizações...');

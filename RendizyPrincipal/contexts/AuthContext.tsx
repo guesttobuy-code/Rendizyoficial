@@ -271,7 +271,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Buscar organização se tiver apenas o ID
           try {
             const orgResponse = await fetch(
-              `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${backendUser.organizationId}`,
+              `https://${projectId}.supabase.co/functions/v1/make-server-67caf26a/organizations/${backendUser.organizationId}`,
               {
                 headers: {
                   'X-Auth-Token': token,

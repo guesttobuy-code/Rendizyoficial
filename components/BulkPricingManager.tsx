@@ -133,7 +133,7 @@ export function BulkPricingManager({ organizationId }: { organizationId: string 
     setLoading(true);
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/filter-listings`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/filter-listings`,
         {
           method: 'POST',
           headers: {
@@ -159,7 +159,7 @@ export function BulkPricingManager({ organizationId }: { organizationId: string 
   const loadTemplates = async () => {
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/templates`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/templates`,
         {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }
         }
@@ -196,7 +196,7 @@ export function BulkPricingManager({ organizationId }: { organizationId: string 
       }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/preview`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/preview`,
         {
           method: 'POST',
           headers: {
@@ -243,7 +243,7 @@ export function BulkPricingManager({ organizationId }: { organizationId: string 
       }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/apply`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/apply`,
         {
           method: 'POST',
           headers: {
