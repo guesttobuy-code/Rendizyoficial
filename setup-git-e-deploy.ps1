@@ -92,6 +92,26 @@ if ($status) {
     git status --short
     Write-Host ""
     
+    # 5.1. Fazer pull antes de commitar (se necessario)
+    Write-Host "5.1. Verificando se precisa fazer pull..." -ForegroundColor Yellow
+    $needsPull = git fetch origin $currentBranch 2>&1
+    $localCommit = git rev-parse HEAD 2>$null
+    $remoteCommit = git rev-parse "origin/$currentBranch" 2>$null
+    
+    if ($remoteCommit -and $localCommit -ne $remoteCommit) {
+        Write-Host "   Repositorio remoto tem mudancas. Fazendo pull..." -ForegroundColor Yellow
+        git pull origin $currentBranch --allow-unrelated-histories --no-edit
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "   ATENCAO: Conflitos detectados. Resolva manualmente." -ForegroundColor Red
+            Write-Host "   Execute: git pull origin $currentBranch --allow-unrelated-histories" -ForegroundColor Yellow
+        } else {
+            Write-Host "   Pull realizado com sucesso!" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "   Repositorio local esta atualizado." -ForegroundColor Green
+    }
+    Write-Host ""
+    
     # 6. Fazer commit
     Write-Host "6. Fazendo commit..." -ForegroundColor Yellow
     $commitMessage = @"
@@ -176,3 +196,4 @@ if ($remote) {
 Write-Host ""
 Write-Host "=== PROCESSO CONCLUIDO ===" -ForegroundColor Cyan
 Write-Host ""
+
