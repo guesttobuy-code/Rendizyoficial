@@ -1,6 +1,6 @@
 # Deploy GitHub usando sistema de outputs centralizado
 $outputFile = "C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL\powershell-outputs.txt"
-cd "C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL"
+Set-Location "C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL"
 
 function Executar {
     param([string]$cmd, [string]$desc)

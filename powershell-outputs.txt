@@ -43,3 +43,47 @@ Exit: 0
 [21:41:43] 4. Adicionando arquivos
 Comando: git add -A
 ---
+
+Exit: 0
+
+[21:41:44] 5. Commit
+Comando: git commit -m "feat: Deploy completo - Cadeados + Correcoes"
+---
+[master b5f19b2] feat: Deploy completo - Cadeados + Correcoes
+ 6 files changed, 178 insertions(+)
+ create mode 100644 deploy-github-via-comandos.ps1
+ create mode 100644 executar-comando.ps1
+ create mode 100644 powershell-outputs.txt
+ create mode 100644 testar-captura-outputs.ps1
+ create mode 100644 teste-captura.txt
+
+Exit: 0
+
+[21:41:44] 6. Push para GitHub
+Comando: git push origin master
+---
+
+Exit: 1
+
+[21:42:08] 6b. Push com upstream
+Comando: git push -u origin master
+---
+
+Exit: 1
+=== DEPLOY CONCLUIDO ===
+[21:45:50] Push para main
+git: 'credential-manager-core' is not a git command. See 'git --help'.
+To https://github.com/guesttobuy-code/Rendizyoficial.git
+ ! [rejected]        main -> main (fetch first)
+error: failed to push some refs to 'https://github.com/guesttobuy-code/Rendizyoficial.git'
+hint: Updates were rejected because the remote contains work that you do not
+hint: have locally. This is usually caused by another repository pushing to
+hint: the same ref. If you want to integrate the remote changes, use
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+
+Exit: 1
+
+[21:47:32] 1. Adicionando arquivos
+Comando: git add -A
+---

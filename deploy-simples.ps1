@@ -1,6 +1,6 @@
 # Script simples de deploy - salva tudo em arquivo
 $log = "C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL\deploy-log.txt"
-cd "C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL"
+Set-Location "C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL"
 
 "=== DEPLOY GITHUB $(Get-Date) ===" | Out-File $log
 
