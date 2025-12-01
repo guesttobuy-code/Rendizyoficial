@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // ============================================================================
 // 🔒 CADEADO DE ISOLAMENTO - PROPERTIES MODULE
 // ============================================================================
@@ -42,6 +43,12 @@ import { LoadingProgress } from '../LoadingProgress';
 import { PropertiesManagement } from '../PropertiesManagement';
 import { PropertyWizardPage } from '../../pages/PropertyWizardPage';
 import DiagnosticoImovelPage from '../../pages/DiagnosticoImovelPage';
+=======
+import React from 'react';
+import { MainSidebar } from '../MainSidebar';
+import { LoadingProgress } from '../LoadingProgress';
+import { PropertiesManagement } from '../PropertiesManagement';
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 import { cn } from '../ui/utils';
 
 interface PropertiesModuleProps {
@@ -53,8 +60,12 @@ interface PropertiesModuleProps {
   onAdvancedSearch?: (query: string) => any[];
 }
 
+<<<<<<< HEAD
 // Componente wrapper para o layout da cápsula
 function PropertiesModuleLayout({
+=======
+export function PropertiesModule({
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
   sidebarCollapsed,
   setSidebarCollapsed,
   initialLoading,
@@ -82,13 +93,18 @@ function PropertiesModuleLayout({
         )}
       >
         <div className="flex-1 overflow-hidden">
+<<<<<<< HEAD
           <Outlet />
+=======
+          <PropertiesManagement />
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         </div>
       </div>
     </div>
   );
 }
 
+<<<<<<< HEAD
 // Componente principal que gerencia as rotas
 export function PropertiesModule(props: PropertiesModuleProps) {
   return (
@@ -109,4 +125,6 @@ export function PropertiesModule(props: PropertiesModuleProps) {
   );
 }
 
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 

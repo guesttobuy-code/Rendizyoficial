@@ -17,6 +17,7 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+<<<<<<< HEAD
     strictPort: false, // Permite usar outra porta se 5173 estiver ocupada
     hmr: {
       overlay: true, // Mostra erros no overlay ao invés de quebrar
@@ -25,6 +26,8 @@ export default defineConfig({
       // Ignora mudanças em node_modules e outras pastas desnecessárias
       ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**'],
     },
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
   },
   build: {
     sourcemap: true, // ✅ Habilitar source maps para facilitar debug

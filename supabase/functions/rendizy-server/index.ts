@@ -12,7 +12,10 @@ import * as guestsRoutes from './routes-guests.ts';
 import * as calendarRoutes from './routes-calendar.ts';
 import * as photosRoutes from './routes-photos.ts';
 import organizationsApp from './routes-organizations.ts';
+<<<<<<< HEAD
 import * as organizationsRoutes from './routes-organizations.ts';
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 import usersApp from './routes-users.ts';
 import clientsApp from './routes-clients.ts';
 import ownersApp from './routes-owners.ts';
@@ -95,6 +98,7 @@ app.use('*', logger(console.log));
 // ✅ DEBUG GLOBAL: Capturar TODAS as requisições para /make-server-67caf26a/auth/me
 app.use('*', async (c, next) => {
   const path = c.req.path;
+<<<<<<< HEAD
   const method = c.req.method;
   
   // ✅ DEBUG: Capturar TODAS as requisições (especialmente /organizations)
@@ -121,6 +125,17 @@ app.use('*', async (c, next) => {
         console.log('🚨 [DEBUG ORGANIZATIONS] Erro ao ler body:', e);
       }
     }
+=======
+  if (path.includes('/auth/me') || path.includes('make-server-67caf26a/auth/me')) {
+    console.log('🚨 [DEBUG GLOBAL] Requisição capturada para:', path);
+    console.log('🚨 [DEBUG GLOBAL] URL completa:', c.req.url);
+    console.log('🚨 [DEBUG GLOBAL] Method:', c.req.method);
+    console.log('🚨 [DEBUG GLOBAL] Headers:', {
+      'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present (' + (c.req.header('X-Auth-Token')?.substring(0, 20) || '') + '...)' : 'missing',
+      'Authorization': c.req.header('Authorization') ? 'present' : 'missing',
+      'apikey': c.req.header('apikey') ? 'present' : 'missing'
+    });
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
   }
   await next();
 });
@@ -452,6 +467,7 @@ app.get("/rendizy-server/photos/property/:propertyId", photosRoutes.listProperty
 // ORGANIZATIONS ROUTES
 // ============================================================================
 
+<<<<<<< HEAD
 // ✅ CORRIGIDO: Registrar rotas diretamente (como locationsRoutes) para garantir funcionamento
 // Rotas antigas (com hash)
 // ⚠️ IMPORTANTE: Ordem das rotas - rotas específicas ANTES de genéricas
@@ -476,6 +492,9 @@ app.post("/rendizy-server/organizations", organizationsRoutes.createOrganization
 app.patch("/rendizy-server/organizations/:id", organizationsRoutes.updateOrganization);
 app.delete("/rendizy-server/organizations/:id", organizationsRoutes.deleteOrganization);
 app.put("/rendizy-server/organizations/:id/settings/global", organizationsRoutes.updateOrganizationSettings);
+=======
+app.route("/rendizy-server/make-server-67caf26a/organizations", organizationsApp);
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 // ============================================================================
 // USERS ROUTES
@@ -538,11 +557,16 @@ app.route("/rendizy-server/make-server-67caf26a", settingsApp);
 app.route("/rendizy-server/make-server-67caf26a", bulkPricingApp);
 
 // ============================================================================
+<<<<<<< HEAD
 // ⚠️ CHAT ROUTES (v1.0.93) - FUNCIONALIDADE CRÍTICA
 // ✅ REABILITADO v1.0.103.87 - Necessário para canais de comunicação
 // 
 // ⚠️ ATENÇÃO: Estas rotas incluem WhatsApp Integration em produção
 // ⚠️ NÃO REMOVER sem verificar FUNCIONALIDADES_CRITICAS.md
+=======
+// CHAT ROUTES (v1.0.93)
+// ✅ REABILITADO v1.0.103.87 - Necessário para canais de comunicação
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 // ============================================================================
 
 app.route("/rendizy-server/make-server-67caf26a/chat", chatApp);
@@ -778,11 +802,15 @@ app.route("/rendizy-server/make-server-67caf26a/admin/cleanup", adminCleanupApp)
 // Sistema SaaS Multi-tenant - Gerenciamento completo
 // ============================================================================
 
+<<<<<<< HEAD
 // Rotas antigas (com hash) - DUPLICADAS (já registradas acima, mas mantendo para compatibilidade)
 // app.route("/rendizy-server/make-server-67caf26a/organizations", organizationsApp); // ✅ JÁ REGISTRADO ACIMA
 // ✅ Rotas sem hash (usadas pelo frontend atual) - JÁ REGISTRADAS ACIMA
 // app.route("/rendizy-server/organizations", organizationsApp); // ✅ JÁ REGISTRADO ACIMA
 
+=======
+app.route("/rendizy-server/make-server-67caf26a/organizations", organizationsApp);
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 app.route("/rendizy-server/make-server-67caf26a/users", usersApp);
 app.route("/rendizy-server/make-server-67caf26a/clients", clientsApp);
 app.route("/rendizy-server/make-server-67caf26a/owners", ownersApp);
@@ -1126,6 +1154,7 @@ app.notFound((c) => {
 console.log('🚀 Rendizy Backend API starting...');
 console.log('📅 All routes registered successfully');
 
+<<<<<<< HEAD
 // ✅ DEBUG: Log todas as rotas registradas para organizations
 console.log('🔍 [DEBUG] Verificando rotas de organizations...');
 // Não podemos listar rotas diretamente no Hono, mas podemos confirmar que foram registradas
@@ -1153,3 +1182,6 @@ Deno.serve((req) => {
   
   return app.fetch(req);
 });
+=======
+Deno.serve(app.fetch);
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941

@@ -5,18 +5,26 @@
   "build": "20251126-001",
   "description": "Sistema de Gestão de Imóveis de Temporada - Modal Overflow Fix",
   "scripts": {
+<<<<<<< HEAD
     "dev": "vite --host",
     "dev:local": "vite",
+=======
+    "dev": "vite",
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     "build": "vite build",
     "preview": "vite preview",
     "deploy:vercel": "vercel --prod",
     "deploy:netlify": "netlify deploy --prod --dir=dist",
+<<<<<<< HEAD
     "test:build": "npm run build && npm run preview",
     "check:critical-routes": "node scripts/check-critical-routes.js",
     "test:whatsapp": "cd ../supabase/functions/rendizy-server && deno test __tests__/whatsapp-routes.test.ts --allow-net --allow-env --allow-read",
     "test:auth": "cd ../supabase/functions/rendizy-server && deno test __tests__/auth-routes.test.ts --allow-net --allow-env --allow-read",
     "test:reservations": "cd ../supabase/functions/rendizy-server && deno test __tests__/reservations-routes.test.ts --allow-net --allow-env --allow-read",
     "test:properties": "cd ../supabase/functions/rendizy-server && deno test __tests__/properties-routes.test.ts --allow-net --allow-env --allow-read"
+=======
+    "test:build": "npm run build && npm run preview"
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -1,5 +1,6 @@
 /// <reference path="./deno.d.ts" />
 
+<<<<<<< HEAD
 // ============================================================================
 // 🔒 CADEADO DE CONTRATO - WHATSAPP EVOLUTION API
 // ============================================================================
@@ -52,11 +53,16 @@
 // ⚠️ NUNCA REMOVER ROTAS SEM CRIAR VERSÃO ALTERNATIVA
 // ============================================================================
 
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 /**
  * RENDIZY - WhatsApp Evolution API Routes (Proxy Seguro + Multi-Tenant)
  * 
  * ✅ REFATORADO v1.0.103.600 - CORREÇÃO COMPLETA
+<<<<<<< HEAD
  * ✅ CADEADO DE CONTRATO v1.0.103.700 - PROTEÇÃO IMPLEMENTADA
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
  * 
  * CORREÇÕES APLICADAS:
  * 1. ✅ Adicionado getOrganizationIdOrThrow(c) em TODAS as rotas
@@ -67,8 +73,13 @@
  * 6. ✅ Integração com Supabase para salvar conversas/mensagens
  * 7. ✅ Validação segura de envs sem crashar Edge Function
  * 
+<<<<<<< HEAD
  * @version 1.0.103.700
  * @date 2025-11-30
+=======
+ * @version 1.0.103.600
+ * @date 2025-11-18
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
  */
 
 // @ts-ignore - Deno runtime suporta npm: protocol

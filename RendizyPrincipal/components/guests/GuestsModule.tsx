@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // ============================================================================
 // 🔒 CADEADO DE ISOLAMENTO - GUESTS MODULE (Mínimo)
 // ============================================================================
@@ -15,6 +16,8 @@
 // ANTES DE MODIFICAR: Ler FUNCIONALIDADES_CRITICAS.md
 // ============================================================================
 
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 import React from 'react';
 import { MainSidebar } from '../MainSidebar';
 import { LoadingProgress } from '../LoadingProgress';

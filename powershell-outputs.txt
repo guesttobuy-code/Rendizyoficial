@@ -87,3 +87,183 @@ Exit: 1
 [21:47:32] 1. Adicionando arquivos
 Comando: git add -A
 ---
+
+Exit: 0
+
+[21:47:32] 2. Commit
+Comando: git commit -m "feat: Deploy completo - Cadeados + Scripts PowerShell"
+---
+[main 37cdba8] feat: Deploy completo - Cadeados + Scripts PowerShell
+ 5 files changed, 129 insertions(+), 2 deletions(-)
+ create mode 100644 deploy-completo-com-pull.ps1
+ create mode 100644 push-para-main.ps1
+
+Exit: 0
+
+[21:47:33] 3. Pull (integrar mudanças remotas)
+Comando: git pull origin main --allow-unrelated-histories --no-edit
+---
+warning: Cannot merge binary files: .gitignore (HEAD vs. c4731a74413e3c6ac95533edb8b5c5ea1726e941)
+Auto-merging .gitignore
+CONFLICT (add/add): Merge conflict in .gitignore
+Auto-merging FIX_VERCEL_BUILD_INDEX_HTML.md
+CONFLICT (add/add): Merge conflict in FIX_VERCEL_BUILD_INDEX_HTML.md
+Auto-merging GUIA_VERIFICACAO_PYTHON.md
+CONFLICT (add/add): Merge conflict in GUIA_VERIFICACAO_PYTHON.md
+Auto-merging Ligando os motores.md
+CONFLICT (add/add): Merge conflict in Ligando os motores.md
+Auto-merging README.md
+CONFLICT (add/add): Merge conflict in README.md
+Auto-merging RendizyPrincipal/App.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/App.tsx
+Auto-merging RendizyPrincipal/components/AdminMasterFunctional.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/AdminMasterFunctional.tsx
+Auto-merging RendizyPrincipal/components/BulkPricingManager.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/BulkPricingManager.tsx
+Auto-merging RendizyPrincipal/components/ClientSitesManager.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/ClientSitesManager.tsx
+Auto-merging RendizyPrincipal/components/CreateOrganizationModal.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/CreateOrganizationModal.tsx
+Auto-merging RendizyPrincipal/components/CreateUserModal.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/CreateUserModal.tsx
+Auto-merging RendizyPrincipal/components/ErrorBoundary.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/ErrorBoundary.tsx
+Auto-merging RendizyPrincipal/components/GlobalSettingsManager.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/GlobalSettingsManager.tsx
+Auto-merging RendizyPrincipal/components/SettingsManager.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/SettingsManager.tsx
+Auto-merging RendizyPrincipal/components/TenantManagement.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/TenantManagement.tsx
+Auto-merging RendizyPrincipal/components/WhatsAppIntegration.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/WhatsAppIntegration.tsx
+Auto-merging RendizyPrincipal/components/calendar/CalendarModule.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/calendar/CalendarModule.tsx
+Auto-merging RendizyPrincipal/components/chat/ChatModule.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/chat/ChatModule.tsx
+Auto-merging RendizyPrincipal/components/dashboard/DashboardModule.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/dashboard/DashboardModule.tsx
+Auto-merging RendizyPrincipal/components/guests/GuestsModule.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/guests/GuestsModule.tsx
+Auto-merging RendizyPrincipal/components/locations/LocationsModule.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/locations/LocationsModule.tsx
+Auto-merging RendizyPrincipal/components/properties/PropertiesModule.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/properties/PropertiesModule.tsx
+Auto-merging RendizyPrincipal/components/reservations/ReservationsModule.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/reservations/ReservationsModule.tsx
+Auto-merging RendizyPrincipal/components/settings/SettingsModule.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/components/settings/SettingsModule.tsx
+Auto-merging RendizyPrincipal/contexts/AuthContext.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/contexts/AuthContext.tsx
+Auto-merging RendizyPrincipal/main.tsx
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/main.tsx
+Auto-merging RendizyPrincipal/package.json
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/package.json
+Auto-merging RendizyPrincipal/utils/chatApi.ts
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/utils/chatApi.ts
+Auto-merging RendizyPrincipal/vite.config.ts
+CONFLICT (add/add): Merge conflict in RendizyPrincipal/vite.config.ts
+Auto-merging SOLUCOES_DEPLOY_PRODUCAO.md
+CONFLICT (add/add): Merge conflict in SOLUCOES_DEPLOY_PRODUCAO.md
+Auto-merging comparar_local_vs_github.py
+CONFLICT (add/add): Merge conflict in comparar_local_vs_github.py
+Auto-merging components/AirbnbIntegration.tsx
+CONFLICT (add/add): Merge conflict in components/AirbnbIntegration.tsx
+Auto-merging components/admin/AdminMasterModule.tsx
+CONFLICT (add/add): Merge conflict in components/admin/AdminMasterModule.tsx
+Auto-merging components/automations/AutomationDetails.tsx
+CONFLICT (add/add): Merge conflict in components/automations/AutomationDetails.tsx
+Auto-merging components/automations/AutomationsChatLab.tsx
+CONFLICT (add/add): Merge conflict in components/automations/AutomationsChatLab.tsx
+Auto-merging components/automations/AutomationsList.tsx
+CONFLICT (add/add): Merge conflict in components/automations/AutomationsList.tsx
+Auto-merging components/automations/AutomationsModule.tsx
+CONFLICT (add/add): Merge conflict in components/automations/AutomationsModule.tsx
+Auto-merging components/automations/ModuleSelector.tsx
+CONFLICT (add/add): Merge conflict in components/automations/ModuleSelector.tsx
+Auto-merging components/automations/PropertySelector.tsx
+CONFLICT (add/add): Merge conflict in components/automations/PropertySelector.tsx
+Auto-merging components/calendar/CalendarModule.tsx
+CONFLICT (add/add): Merge conflict in components/calendar/CalendarModule.tsx
+Auto-merging components/chat/ChatModule.tsx
+CONFLICT (add/add): Merge conflict in components/chat/ChatModule.tsx
+Auto-merging components/dashboard/DashboardModule.tsx
+CONFLICT (add/add): Merge conflict in components/dashboard/DashboardModule.tsx
+Auto-merging components/financeiro/components/CampoPlanoContasMapping.tsx
+CONFLICT (add/add): Merge conflict in components/financeiro/components/CampoPlanoContasMapping.tsx
+Auto-merging components/financeiro/components/CampoPlanoContasMappingVisual.tsx
+CONFLICT (add/add): Merge conflict in components/financeiro/components/CampoPlanoContasMappingVisual.tsx
+Auto-merging components/financeiro/components/PlataformasPagamento.tsx
+CONFLICT (add/add): Merge conflict in components/financeiro/components/PlataformasPagamento.tsx
+Auto-merging components/financeiro/components/SearchInput.tsx
+CONFLICT (add/add): Merge conflict in components/financeiro/components/SearchInput.tsx
+Auto-merging components/financeiro/components/SettingsTabsLayout.tsx
+CONFLICT (add/add): Merge conflict in components/financeiro/components/SettingsTabsLayout.tsx
+Auto-merging components/guests/GuestsModule.tsx
+CONFLICT (add/add): Merge conflict in components/guests/GuestsModule.tsx
+Auto-merging components/locations/LocationsModule.tsx
+CONFLICT (add/add): Merge conflict in components/locations/LocationsModule.tsx
+Auto-merging components/properties/PropertiesModule.tsx
+CONFLICT (add/add): Merge conflict in components/properties/PropertiesModule.tsx
+Auto-merging components/reservations/ReservationsModule.tsx
+CONFLICT (add/add): Merge conflict in components/reservations/ReservationsModule.tsx
+Auto-merging components/settings/SettingsModule.tsx
+CONFLICT (add/add): Merge conflict in components/settings/SettingsModule.tsx
+Auto-merging corrigir-vercel-config.ps1
+CONFLICT (add/add): Merge conflict in corrigir-vercel-config.ps1
+Auto-merging criar-zip-simples.ps1
+CONFLICT (add/add): Merge conflict in criar-zip-simples.ps1
+Auto-merging criar_zip.py
+CONFLICT (add/add): Merge conflict in criar_zip.py
+Auto-merging criar_zip_rapido.py
+CONFLICT (add/add): Merge conflict in criar_zip_rapido.py
+Auto-merging deploy_seguro.py
+CONFLICT (add/add): Merge conflict in deploy_seguro.py
+Auto-merging diagnosticar-e-corrigir-deploy.ps1
+CONFLICT (add/add): Merge conflict in diagnosticar-e-corrigir-deploy.ps1
+Auto-merging docs/ARQUITETURA_LOGIN_CONSISTENTE.md
+CONFLICT (add/add): Merge conflict in docs/ARQUITETURA_LOGIN_CONSISTENTE.md
+Auto-merging docs/ESTRUTURA_MODULOS_RENDIZY.md
+CONFLICT (add/add): Merge conflict in docs/ESTRUTURA_MODULOS_RENDIZY.md
+Auto-merging instalar-supabase-cli.ps1
+CONFLICT (add/add): Merge conflict in instalar-supabase-cli.ps1
+Auto-merging services/authService.ts
+CONFLICT (add/add): Merge conflict in services/authService.ts
+Auto-merging stores/authStore.ts
+CONFLICT (add/add): Merge conflict in stores/authStore.ts
+Auto-merging supabase/functions/rendizy-server/index.ts
+CONFLICT (add/add): Merge conflict in supabase/functions/rendizy-server/index.ts
+Auto-merging supabase/functions/rendizy-server/repositories/channel-config-repository.ts
+CONFLICT (add/add): Merge conflict in supabase/functions/rendizy-server/repositories/channel-config-repository.ts
+Auto-merging supabase/functions/rendizy-server/routes-auth.ts
+CONFLICT (add/add): Merge conflict in supabase/functions/rendizy-server/routes-auth.ts
+Auto-merging supabase/functions/rendizy-server/routes-chat.ts
+CONFLICT (add/add): Merge conflict in supabase/functions/rendizy-server/routes-chat.ts
+Auto-merging supabase/functions/rendizy-server/routes-organizations.ts
+CONFLICT (add/add): Merge conflict in supabase/functions/rendizy-server/routes-organizations.ts
+Auto-merging supabase/functions/rendizy-server/routes-properties.ts
+CONFLICT (add/add): Merge conflict in supabase/functions/rendizy-server/routes-properties.ts
+Auto-merging supabase/functions/rendizy-server/routes-reservations.ts
+CONFLICT (add/add): Merge conflict in supabase/functions/rendizy-server/routes-reservations.ts
+Auto-merging supabase/functions/rendizy-server/routes-whatsapp-evolution.ts
+CONFLICT (add/add): Merge conflict in supabase/functions/rendizy-server/routes-whatsapp-evolution.ts
+Auto-merging utils/apiClient.ts
+CONFLICT (add/add): Merge conflict in utils/apiClient.ts
+Auto-merging utils/authBroadcast.ts
+CONFLICT (add/add): Merge conflict in utils/authBroadcast.ts
+Auto-merging utils/registerFinancialField.ts
+CONFLICT (add/add): Merge conflict in utils/registerFinancialField.ts
+Auto-merging utils/supabase/client.ts
+CONFLICT (add/add): Merge conflict in utils/supabase/client.ts
+Auto-merging verificar_antes_de_apagar.py
+CONFLICT (add/add): Merge conflict in verificar_antes_de_apagar.py
+Auto-merging verificar_estado_git.py
+CONFLICT (add/add): Merge conflict in verificar_estado_git.py
+Automatic merge failed; fix conflicts and then commit the result.
+
+Exit: 1
+
+[21:47:42] 4. Push para GitHub
+Comando: git push -u origin main
+---
+
+Exit: 1

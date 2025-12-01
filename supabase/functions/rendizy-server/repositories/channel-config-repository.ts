@@ -298,18 +298,26 @@ export class ChannelConfigRepository {
       });
 
       // UPSERT usando organization_id como chave única
+<<<<<<< HEAD
       // ✅ CORREÇÃO: Usar select específico sem updated_at para evitar erro de trigger
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
       const { data, error } = await this.client
         .from(this.tableName)
         .upsert(sanitized, {
           onConflict: 'organization_id',
           ignoreDuplicates: false
         })
+<<<<<<< HEAD
         .select('id, organization_id, whatsapp_enabled, whatsapp_api_url, whatsapp_instance_name, whatsapp_api_key, whatsapp_instance_token, whatsapp_connected, whatsapp_phone_number, whatsapp_qr_code, whatsapp_connection_status, whatsapp_last_connected_at, whatsapp_error_message, sms_enabled, sms_account_sid, sms_auth_token, sms_phone_number, sms_credits_used, sms_last_recharged_at, automation_reservation_confirmation, automation_checkin_reminder, automation_checkout_review, automation_payment_reminder, created_at, deleted_at')
+=======
+        .select('*')
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         .single();
 
       if (error) {
         console.error('❌ [ChannelConfigRepository] Erro no UPSERT:', error);
+<<<<<<< HEAD
         
         // ✅ CORREÇÃO: Se erro for sobre updated_at, tentar novamente sem select ou com select diferente
         if (error.message?.includes('updated_at') || error.message?.includes('record "new"')) {
@@ -329,6 +337,8 @@ export class ChannelConfigRepository {
           }
         }
         
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         return { success: false, error: error.message };
       }
 

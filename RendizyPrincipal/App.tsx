@@ -94,7 +94,11 @@ import { AppRouter } from './components/AppRouter';
 import { LoadingProgress } from './components/LoadingProgress';
 import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
+<<<<<<< HEAD
 import { ErrorBoundary } from './components/ErrorBoundary';
+=======
+import ErrorBoundary from './components/ErrorBoundary';
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Cápsulas de módulos principais
@@ -107,9 +111,12 @@ import { LocationsModule } from './components/locations/LocationsModule';
 import { PropertiesModule } from './components/properties/PropertiesModule';
 import { GuestsModule } from './components/guests/GuestsModule';
 import { SettingsModule } from './components/settings/SettingsModule';
+<<<<<<< HEAD
 import { PricingModule } from './components/pricing/PricingModule';
 import { IntegrationsModule } from './components/integrations/IntegrationsModule';
 import { ClientSitesModule } from './components/client-sites/ClientSitesModule';
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 import { initAutoRecovery } from './utils/autoRecovery';
 import { ChevronLeft, ChevronRight, Plus, Filter, Download, Tag, Sparkles, TrendingUp, Database, AlertTriangle } from 'lucide-react';
@@ -1053,6 +1060,7 @@ function App() {
           </ProtectedRoute>
         } />
         
+<<<<<<< HEAD
         {/* ✅ ROTA PRICING - v1.0.103.400 - PROTEGIDA (ENCAPSULADA) */}
         <Route path="/pricing" element={
           <ProtectedRoute>
@@ -1092,6 +1100,98 @@ function App() {
               onSearchReservation={handleSearchReservation}
               onAdvancedSearch={handleAdvancedSearch}
             />
+=======
+        {/* ✅ ROTA PRICING - v1.0.103.253 - PROTEGIDA */}
+        <Route path="/pricing" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+            <LoadingProgress 
+              isLoading={initialLoading}
+            />
+            
+            <MainSidebar
+              activeModule='precos-em-lote'
+              onModuleChange={setActiveModule}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onSearchReservation={handleSearchReservation}
+              onAdvancedSearch={handleAdvancedSearch}
+            />
+
+            <div 
+              className={cn(
+                "flex flex-col min-h-screen transition-all duration-300",
+                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+              )}
+            >
+              <div className="flex-1 overflow-hidden">
+                <BulkPricingManager />
+              </div>
+            </div>
+          </div>
+          </ProtectedRoute>
+        } />
+        
+        {/* ✅ ROTA INTEGRATIONS - v1.0.103.253 - PROTEGIDA */}
+        <Route path="/integrations" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+            <LoadingProgress 
+              isLoading={initialLoading}
+            />
+            
+            <MainSidebar
+              activeModule='integracoes-bookingcom'
+              onModuleChange={setActiveModule}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onSearchReservation={handleSearchReservation}
+              onAdvancedSearch={handleAdvancedSearch}
+            />
+
+            <div 
+              className={cn(
+                "flex flex-col min-h-screen transition-all duration-300",
+                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+              )}
+            >
+              <div className="flex-1 overflow-hidden">
+                <BookingComIntegration />
+              </div>
+            </div>
+          </div>
+          </ProtectedRoute>
+        } />
+        
+        {/* ✅ ROTA SITES CLIENTES - v1.0.103.253 - PROTEGIDA */}
+        <Route path="/sites-clientes" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+            <LoadingProgress 
+              isLoading={initialLoading}
+            />
+            
+            <MainSidebar
+              activeModule='motor-reservas'
+              onModuleChange={setActiveModule}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onSearchReservation={handleSearchReservation}
+              onAdvancedSearch={handleAdvancedSearch}
+            />
+
+            <div 
+              className={cn(
+                "flex flex-col min-h-screen transition-all duration-300",
+                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+              )}
+            >
+              <div className="flex-1 overflow-hidden">
+                <ClientSitesManager />
+              </div>
+            </div>
+          </div>
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
           </ProtectedRoute>
         } />
         
@@ -1222,6 +1322,7 @@ function App() {
           <Route path="configuracoes" element={<ModulePlaceholder module="Configurações BI" />} />
         </Route>
         
+<<<<<<< HEAD
         {/* ✅ ROTA PROPERTIES - v1.0.103.400 - PROTEGIDA (ENCAPSULADA) */}
         <Route path="/properties/*" element={
           <ProtectedRoute>
@@ -1233,6 +1334,111 @@ function App() {
               onSearchReservation={handleSearchReservation}
               onAdvancedSearch={handleAdvancedSearch}
             />
+=======
+        {/* ✅ REABILITADO v1.0.103.174 - Rotas properties com MainSidebar sempre visível - PROTEGIDAS */}
+        <Route path="/properties/new" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+            <MainSidebar
+              activeModule='imoveis'
+              onModuleChange={setActiveModule}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onSearchReservation={handleSearchReservation}
+              onAdvancedSearch={handleAdvancedSearch}
+            />
+
+            <div 
+              className={cn(
+                "flex flex-col min-h-screen transition-all duration-300",
+                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+              )}
+            >
+              <PropertyWizardPage />
+            </div>
+          </div>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/properties/:id/edit" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+            <MainSidebar
+              activeModule='imoveis'
+              onModuleChange={setActiveModule}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onSearchReservation={handleSearchReservation}
+              onAdvancedSearch={handleAdvancedSearch}
+            />
+
+            <div 
+              className={cn(
+                "flex flex-col min-h-screen transition-all duration-300",
+                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+              )}
+            >
+              <PropertyWizardPage />
+            </div>
+          </div>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/properties" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+            <LoadingProgress 
+              isLoading={initialLoading}
+            />
+            
+            <MainSidebar
+              activeModule='imoveis'
+              onModuleChange={setActiveModule}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onSearchReservation={handleSearchReservation}
+              onAdvancedSearch={handleAdvancedSearch}
+            />
+
+            <div 
+              className={cn(
+                "flex flex-col min-h-screen transition-all duration-300",
+                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+              )}
+            >
+              <div className="flex-1 overflow-hidden">
+                <PropertiesManagement />
+              </div>
+            </div>
+          </div>
+          </ProtectedRoute>
+        } />
+        
+        {/* 🔍 ROTA DIAGNÓSTICO DE IMÓVEL - v1.0.103.314 - PROTEGIDA */}
+        <Route path="/properties/:id/diagnostico" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+            <MainSidebar
+              activeModule='imoveis'
+              onModuleChange={setActiveModule}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onSearchReservation={handleSearchReservation}
+              onAdvancedSearch={handleAdvancedSearch}
+            />
+
+            <div 
+              className={cn(
+                "flex flex-col min-h-screen transition-all duration-300 p-8",
+                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+              )}
+            >
+              <div className="max-w-6xl mx-auto w-full">
+                <DiagnosticoImovelPage />
+              </div>
+            </div>
+          </div>
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
           </ProtectedRoute>
         } />
         

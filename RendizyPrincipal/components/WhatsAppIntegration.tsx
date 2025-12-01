@@ -129,6 +129,7 @@ export default function WhatsAppIntegration() {
     setCheckingStatus(true);
     try {
       console.log('🔍 [WhatsApp] Verificando status da conexão...');
+<<<<<<< HEAD
       
       // ✅ CORREÇÃO: Usar a rota correta (POST /chat/channels/whatsapp/status)
       const result = await channelsApi.evolution.status(organizationId);
@@ -148,13 +149,32 @@ export default function WhatsAppIntegration() {
           const wasConnected = config.whatsapp?.connected || false;
           
           // Sempre atualizar config com dados mais recentes do backend
+=======
+      // ✅ Passar organization_id para o serviço
+      const status = await evolutionService.getStatus(organizationId);
+      console.log('📊 [WhatsApp] Status recebido:', status);
+      setRealTimeStatus(status);
+
+      // Atualizar config se status mudou
+      if (config) {
+        const wasConnected = config.whatsapp?.connected || false;
+        const isConnected = status === 'CONNECTED';
+        
+        if (wasConnected !== isConnected) {
+          console.log(`🔄 [WhatsApp] Status mudou: ${wasConnected ? 'Online' : 'Offline'} → ${isConnected ? 'Online' : 'Offline'}`);
+          
+          // ✅ REQUISITO 1: Salvar status no banco quando mudar
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
           const updatedConfig = {
             ...config,
             whatsapp: {
               ...config.whatsapp,
               connected: isConnected,
               connection_status: isConnected ? 'connected' : 'disconnected',
+<<<<<<< HEAD
               phone_number: result.data.phone_number || config.whatsapp?.phone_number,
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
               last_connected_at: isConnected ? new Date().toISOString() : config.whatsapp?.last_connected_at
             }
           };
@@ -162,8 +182,12 @@ export default function WhatsAppIntegration() {
           // Atualizar config local
           setConfig(updatedConfig);
 
+<<<<<<< HEAD
           // ✅ CORREÇÃO: Sempre salvar status no banco para garantir persistência
           // Isso garante que o status fique "firmado" mesmo após salvar configurações
+=======
+          // Salvar no banco para persistência
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
           try {
             await channelsApi.updateConfig(organizationId, {
               whatsapp: {
@@ -171,11 +195,16 @@ export default function WhatsAppIntegration() {
                 enabled: true
               }
             });
+<<<<<<< HEAD
             console.log('✅ [WhatsApp] Status salvo no banco de dados (persistência garantida)');
+=======
+            console.log('✅ [WhatsApp] Status salvo no banco de dados');
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
           } catch (error) {
             console.error('❌ [WhatsApp] Erro ao salvar status no banco:', error);
           }
 
+<<<<<<< HEAD
           // Se status mudou, mostrar notificação
           if (wasConnected !== isConnected) {
             console.log(`🔄 [WhatsApp] Status mudou: ${wasConnected ? 'Online' : 'Offline'} → ${isConnected ? 'Online' : 'Offline'}`);
@@ -222,10 +251,27 @@ export default function WhatsAppIntegration() {
         // Não setar ERROR se for apenas um aviso - manter status anterior
         if (result.error?.includes('não configurado') || result.error?.includes('não encontrado') || result.error === 'Not found') {
           setRealTimeStatus('DISCONNECTED');
+=======
+          // Mostrar notificação se conectou
+          if (isConnected && !wasConnected) {
+            toast.success('✅ WhatsApp conectado com sucesso!', { duration: 3000 });
+          }
+        } else if (isConnected && !wasConnected) {
+          // Se já estava conectado mas o status local estava desatualizado, atualizar
+          setConfig({
+            ...config,
+            whatsapp: {
+              ...config.whatsapp,
+              connected: true,
+              connection_status: 'connected'
+            }
+          });
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         }
       }
     } catch (error) {
       console.error('❌ [WhatsApp] Erro ao verificar status:', error);
+<<<<<<< HEAD
       // ✅ CORREÇÃO: Não setar ERROR imediatamente - verificar se é erro de rede ou erro real
       if (error instanceof Error && (error.message.includes('Failed to fetch') || error.message.includes('Network'))) {
         console.warn('⚠️ [WhatsApp] Erro de rede ao verificar status - mantendo status anterior');
@@ -233,6 +279,9 @@ export default function WhatsAppIntegration() {
       } else {
         setRealTimeStatus('ERROR');
       }
+=======
+      setRealTimeStatus('ERROR');
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     } finally {
       setCheckingStatus(false);
     }
@@ -275,8 +324,11 @@ export default function WhatsAppIntegration() {
         console.log('📋 [WhatsApp] Dados recebidos:', {
           organization_id: result.data.organization_id,
           whatsapp_enabled: result.data.whatsapp?.enabled,
+<<<<<<< HEAD
           whatsapp_connected: result.data.whatsapp?.connected,
           whatsapp_connection_status: result.data.whatsapp?.connection_status,
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
           whatsapp_api_url: result.data.whatsapp?.api_url ? `${result.data.whatsapp.api_url.substring(0, 30)}...` : 'VAZIO',
           whatsapp_instance_name: result.data.whatsapp?.instance_name || 'VAZIO',
           whatsapp_api_key: result.data.whatsapp?.api_key ? '***PRESENTE***' : 'VAZIO',
@@ -284,6 +336,7 @@ export default function WhatsAppIntegration() {
         });
         setConfig(result.data);
         
+<<<<<<< HEAD
         // ✅ CORREÇÃO: Atualizar realTimeStatus baseado no status salvo no banco
         if (result.data.whatsapp?.connected) {
           setRealTimeStatus('CONNECTED');
@@ -296,6 +349,8 @@ export default function WhatsAppIntegration() {
           console.log('📴 [WhatsApp] Status inicial carregado: DISCONNECTED');
         }
         
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         // ✅ MELHORIA: Garantir que formulário seja preenchido SEMPRE que houver dados salvos
         if (result.data.whatsapp) {
           const formData = {
@@ -550,27 +605,43 @@ export default function WhatsAppIntegration() {
       
       const result = await channelsApi.evolution.connect(organizationId, cleanConfig);
       
+<<<<<<< HEAD
       console.log('📥 [WhatsApp] Resposta completa do backend:', JSON.stringify(result, null, 2));
       console.log('📥 [WhatsApp] result.success:', result.success);
       console.log('📥 [WhatsApp] result.data:', result.data);
       console.log('📥 [WhatsApp] result.error:', result.error);
+=======
+      console.log('📥 Resposta do backend:', result);
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
       
       if (result.success && result.data) {
         let qrCodeData = result.data.qr_code;
         
+<<<<<<< HEAD
         console.log('🔍 [WhatsApp] QR Code recebido (raw):', qrCodeData ? `${qrCodeData.substring(0, 50)}...` : 'null');
         console.log('🔍 [WhatsApp] Tipo do QR Code:', typeof qrCodeData);
         console.log('🔍 [WhatsApp] Tamanho do QR Code:', qrCodeData ? qrCodeData.length : 0);
+=======
+        console.log('🔍 QR Code recebido:', qrCodeData ? `${qrCodeData.substring(0, 50)}...` : 'null');
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         
         // Se o QR Code for base64 puro, adicionar o prefixo correto
         if (qrCodeData && !qrCodeData.startsWith('data:image')) {
           qrCodeData = `data:image/png;base64,${qrCodeData}`;
+<<<<<<< HEAD
           console.log('✨ [WhatsApp] Prefixo data:image adicionado ao QR Code');
         }
         
         setQrCode(qrCodeData);
         console.log('✅ [WhatsApp] QR Code definido no state:', qrCodeData ? `${qrCodeData.substring(0, 50)}...` : 'null');
         console.log('✅ [WhatsApp] State qrCode atualizado, componente deve re-renderizar');
+=======
+          console.log('✨ Prefixo data:image adicionado ao QR Code');
+        }
+        
+        setQrCode(qrCodeData);
+        console.log('✅ QR Code definido no state');
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         
         toast.success('✅ QR Code gerado! Escaneie com o WhatsApp', {
           duration: 8000,
@@ -580,10 +651,14 @@ export default function WhatsAppIntegration() {
         // O QR Code será mantido até que a conexão seja estabelecida
         
       } else {
+<<<<<<< HEAD
         console.error('❌ [WhatsApp] Falha na resposta:', result);
         console.error('❌ [WhatsApp] result.success:', result.success);
         console.error('❌ [WhatsApp] result.data:', result.data);
         console.error('❌ [WhatsApp] result.error:', result.error);
+=======
+        console.error('❌ Falha na resposta:', result);
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         toast.error('❌ ' + (result.error || 'Erro ao conectar WhatsApp'));
       }
     } catch (error: any) {
@@ -735,6 +810,7 @@ export default function WhatsAppIntegration() {
             console.log('✅ [WhatsApp] Formulário atualizado com dados confirmados do backend');
             setWhatsappForm(savedFormData);
           }
+<<<<<<< HEAD
           
           // ✅ CORREÇÃO: Verificar status automaticamente após salvar para atualizar na tela
           console.log('🔍 [WhatsApp] Verificando status após salvar configurações...');
@@ -748,6 +824,8 @@ export default function WhatsAppIntegration() {
           // ✅ CORREÇÃO ADICIONAL: Se status ainda não aparecer, recarregar config do banco
           console.log('🔄 [WhatsApp] Recarregando configurações do banco para garantir sincronização...');
           await loadConfig();
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         } else {
           throw new Error(result.error || 'Backend returned error');
         }
@@ -1228,6 +1306,7 @@ export default function WhatsAppIntegration() {
                     </div>
                     <p className="text-2xl mt-1">
                       {(() => {
+<<<<<<< HEAD
                         // ✅ CORREÇÃO: Priorizar config salva se realTimeStatus for ERROR (pode ser erro temporário)
                         // Se realTimeStatus é ERROR mas config diz que está conectado, usar CONNECTED
                         let statusToShow: SessionStatus;
@@ -1243,6 +1322,12 @@ export default function WhatsAppIntegration() {
                           // Senão usar config salva
                           statusToShow = config?.whatsapp?.connected ? 'CONNECTED' : 'DISCONNECTED';
                         }
+=======
+                        // Usar status em tempo real se disponível, senão usar config salva
+                        const statusToShow = realTimeStatus !== null 
+                          ? realTimeStatus 
+                          : (config?.whatsapp?.connected ? 'CONNECTED' : 'DISCONNECTED');
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
                         
                         if (statusToShow === 'CONNECTED') return 'Online';
                         if (statusToShow === 'CONNECTING') return 'Conectando...';
@@ -1255,6 +1340,7 @@ export default function WhatsAppIntegration() {
                     )}
                   </div>
                   <div className={`w-12 h-12 rounded-full ${
+<<<<<<< HEAD
                     (() => {
                       // ✅ CORREÇÃO: Mesma lógica do texto - priorizar config se realTimeStatus for ERROR
                       if (realTimeStatus === 'ERROR' && config?.whatsapp?.connected) {
@@ -1280,6 +1366,21 @@ export default function WhatsAppIntegration() {
                         return <XCircle className="h-6 w-6 text-gray-500" />;
                       }
                     })()}
+=======
+                    (realTimeStatus === 'CONNECTED' || (!realTimeStatus && config?.whatsapp?.connected))
+                      ? 'bg-green-500/10' 
+                      : realTimeStatus === 'CONNECTING'
+                      ? 'bg-yellow-500/10'
+                      : 'bg-gray-500/10'
+                  } flex items-center justify-center`}>
+                    {realTimeStatus === 'CONNECTED' || (!realTimeStatus && config?.whatsapp?.connected) ? (
+                      <CheckCircle2 className="h-6 w-6 text-green-500" />
+                    ) : realTimeStatus === 'CONNECTING' ? (
+                      <Loader2 className="h-6 w-6 text-yellow-500 animate-spin" />
+                    ) : (
+                      <XCircle className="h-6 w-6 text-gray-500" />
+                    )}
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
                   </div>
                 </div>
               </CardContent>

@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 import { Hono, Context } from 'npm:hono';
+=======
+import { Hono } from 'npm:hono';
+import * as kv from './kv_store.tsx';
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 import { ensureOrganizationId } from './utils-organization.ts';
 import { successResponse, errorResponse } from './utils-response.ts';
 import { safeUpsert } from './utils-db-safe.ts';
@@ -8,8 +13,11 @@ import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
 
 const app = new Hono();
 
+<<<<<<< HEAD
 // ✅ EXPORTAR FUNÇÕES INDIVIDUAIS para registro direto (como locationsRoutes)
 
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 // Tipos
 interface Organization {
   id: string;
@@ -118,6 +126,7 @@ function getPlanLimits(plan: string) {
 }
 
 // GET /organizations - Listar todas as organizações
+<<<<<<< HEAD
 // ✅ CORRIGIDO: Usa SQL direto ao invés de KV Store
 export async function listOrganizations(c: Context) {
   try {
@@ -162,6 +171,21 @@ export async function listOrganizations(c: Context) {
       success: true, 
       data: formatted,
       total: formatted.length 
+=======
+app.get('/', async (c) => {
+  try {
+    const organizations = await kv.getByPrefix('org:');
+    
+    // Ordenar por data de criação (mais recentes primeiro)
+    const sorted = organizations.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    return c.json({ 
+      success: true, 
+      data: sorted,
+      total: sorted.length 
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     });
   } catch (error) {
     console.error('Error fetching organizations:', error);
@@ -170,6 +194,7 @@ export async function listOrganizations(c: Context) {
       error: 'Failed to fetch organizations' 
     }, 500);
   }
+<<<<<<< HEAD
 }
 
 // GET /organizations/:id - Obter organização por ID
@@ -189,6 +214,15 @@ export async function getOrganization(c: Context) {
       console.error('❌ Erro ao buscar organização:', error);
       throw error;
     }
+=======
+});
+
+// GET /organizations/:id - Obter organização por ID
+app.get('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const organization = await kv.get(`org:${id}`);
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
     if (!organization) {
       return c.json({ 
@@ -197,6 +231,7 @@ export async function getOrganization(c: Context) {
       }, 404);
     }
 
+<<<<<<< HEAD
     // Converter formato SQL para formato esperado pelo frontend
     const formatted = {
       id: organization.id,
@@ -225,6 +260,11 @@ export async function getOrganization(c: Context) {
     return c.json({ 
       success: true, 
       data: formatted 
+=======
+    return c.json({ 
+      success: true, 
+      data: organization 
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     });
   } catch (error) {
     console.error('Error fetching organization:', error);
@@ -233,6 +273,7 @@ export async function getOrganization(c: Context) {
       error: 'Failed to fetch organization' 
     }, 500);
   }
+<<<<<<< HEAD
 }
 
 // GET /organizations/slug/:slug - Obter organização por slug
@@ -252,6 +293,16 @@ export async function getOrganizationBySlug(c: Context) {
       console.error('❌ Erro ao buscar organização por slug:', error);
       throw error;
     }
+=======
+});
+
+// GET /organizations/slug/:slug - Obter organização por slug
+app.get('/slug/:slug', async (c) => {
+  try {
+    const slug = c.req.param('slug');
+    const organizations = await kv.getByPrefix('org:');
+    const organization = organizations.find((org: Organization) => org.slug === slug);
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
     if (!organization) {
       return c.json({ 
@@ -260,6 +311,7 @@ export async function getOrganizationBySlug(c: Context) {
       }, 404);
     }
 
+<<<<<<< HEAD
     // Converter formato SQL para formato esperado pelo frontend
     const formatted = {
       id: organization.id,
@@ -288,11 +340,17 @@ export async function getOrganizationBySlug(c: Context) {
     return c.json({ 
       success: true, 
       data: formatted 
+=======
+    return c.json({ 
+      success: true, 
+      data: organization 
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     });
   } catch (error) {
     console.error('Error fetching organization by slug:', error);
     return c.json({ 
       success: false, 
+<<<<<<< HEAD
       error: 'Failed to fetch organization by slug' 
     }, 500);
   }
@@ -306,6 +364,16 @@ export async function createOrganization(c: Context) {
     console.log('🚨 [createOrganization] Path:', c.req.path);
     console.log('🚨 [createOrganization] Method:', c.req.method);
     console.log('🚨 [createOrganization] URL:', c.req.url);
+=======
+      error: 'Failed to fetch organization' 
+    }, 500);
+  }
+});
+
+// POST /organizations - Criar nova organização
+app.post('/', async (c) => {
+  try {
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     console.log('📥 Recebendo requisição POST /organizations');
     
     const body = await c.req.json();
@@ -329,6 +397,7 @@ export async function createOrganization(c: Context) {
     let slug = baseSlug;
     let counter = 1;
 
+<<<<<<< HEAD
     // ✅ CORRIGIDO: Verificar se slug já existe no SQL
     const client = getSupabaseClient();
     let existingOrg = await client
@@ -346,6 +415,13 @@ export async function createOrganization(c: Context) {
         .select('slug')
         .eq('slug', slug)
         .maybeSingle();
+=======
+    // Verificar se slug já existe
+    const existingOrgs = await kv.getByPrefix('org:');
+    while (existingOrgs.some((org: Organization) => org.slug === slug)) {
+      slug = `${baseSlug}_${counter}`;
+      counter++;
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     }
 
     // Validar slug
@@ -357,6 +433,7 @@ export async function createOrganization(c: Context) {
       }, 400);
     }
 
+<<<<<<< HEAD
     // Obter limites do plano
     const limits = getPlanLimits(plan);
     const now = new Date().toISOString();
@@ -424,6 +501,44 @@ export async function createOrganization(c: Context) {
     return c.json({ 
       success: true, 
       data: responseData 
+=======
+    // Criar organização
+    const id = generateId('org');
+    const now = new Date().toISOString();
+    const limits = getPlanLimits(plan);
+
+    const organization: Organization = {
+      id,
+      slug,
+      name,
+      email,
+      phone: phone || '',
+      plan,
+      status: plan === 'free' ? 'trial' : 'active',
+      trialEndsAt: plan === 'free' ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+      createdAt: now,
+      createdBy,
+      settings: {
+        maxUsers: limits.maxUsers,
+        maxProperties: limits.maxProperties,
+        maxReservations: limits.maxReservations,
+        features: limits.features
+      },
+      billing: {
+        mrr: 0,
+        billingDate: 1
+      }
+    };
+
+    // Salvar no KV store
+    await kv.set(`org:${id}`, organization);
+
+    console.log(`✅ Organization created: ${slug} (${id})`);
+
+    return c.json({ 
+      success: true, 
+      data: organization 
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     }, 201);
   } catch (error) {
     console.error('❌ Error creating organization:', error);
@@ -434,6 +549,7 @@ export async function createOrganization(c: Context) {
       details: error instanceof Error ? error.stack : String(error)
     }, 500);
   }
+<<<<<<< HEAD
 }
 
 // PATCH /organizations/:id - Atualizar organização
@@ -457,12 +573,25 @@ export async function updateOrganization(c: Context) {
     }
 
     if (!existing) {
+=======
+});
+
+// PATCH /organizations/:id - Atualizar organização
+app.patch('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const body = await c.req.json();
+
+    const organization = await kv.get(`org:${id}`);
+    if (!organization) {
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
       return c.json({ 
         success: false, 
         error: 'Organization not found' 
       }, 404);
     }
 
+<<<<<<< HEAD
     // Preparar dados para atualização (remover campos que não podem ser alterados)
     const updateData: any = {
       ...body,
@@ -517,6 +646,25 @@ export async function updateOrganization(c: Context) {
     return c.json({ 
       success: true, 
       data: formatted 
+=======
+    // Atualizar campos permitidos
+    const updated = {
+      ...organization,
+      ...body,
+      id: organization.id, // Não permitir mudar ID
+      slug: organization.slug, // Não permitir mudar slug
+      createdAt: organization.createdAt, // Não permitir mudar data de criação
+      updatedAt: new Date().toISOString()
+    };
+
+    await kv.set(`org:${id}`, updated);
+
+    console.log(`✅ Organization updated: ${updated.slug} (${id})`);
+
+    return c.json({ 
+      success: true, 
+      data: updated 
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     });
   } catch (error) {
     console.error('Error updating organization:', error);
@@ -525,6 +673,7 @@ export async function updateOrganization(c: Context) {
       error: 'Failed to update organization' 
     }, 500);
   }
+<<<<<<< HEAD
 }
 
 // DELETE /organizations/:id - Deletar organização
@@ -546,6 +695,16 @@ export async function deleteOrganization(c: Context) {
       throw fetchError;
     }
 
+=======
+});
+
+// DELETE /organizations/:id - Deletar organização
+app.delete('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+
+    const organization = await kv.get(`org:${id}`);
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     if (!organization) {
       return c.json({ 
         success: false, 
@@ -561,6 +720,7 @@ export async function deleteOrganization(c: Context) {
       }, 403);
     }
 
+<<<<<<< HEAD
     // Contar usuários da organização (serão deletados em cascade pela foreign key)
     const { data: users, error: usersError } = await client
       .from('users')
@@ -586,11 +746,30 @@ export async function deleteOrganization(c: Context) {
 
     console.log(`✅ Organization deleted: ${organization.slug} (${id})`);
     console.log(`✅ Deleted ${usersCount} users from organization (cascade)`);
+=======
+    // Deletar usuários da organização
+    const users = await kv.getByPrefix(`user:`);
+    const orgUsers = users.filter((u: User) => u.organizationId === id);
+    
+    for (const user of orgUsers) {
+      await kv.del(`user:${user.id}`);
+    }
+
+    // Deletar organização
+    await kv.del(`org:${id}`);
+
+    console.log(`✅ Organization deleted: ${organization.slug} (${id})`);
+    console.log(`✅ Deleted ${orgUsers.length} users from organization`);
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
     return c.json({ 
       success: true, 
       message: 'Organization deleted successfully',
+<<<<<<< HEAD
       deletedUsers: usersCount
+=======
+      deletedUsers: orgUsers.length
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     });
   } catch (error) {
     console.error('Error deleting organization:', error);
@@ -599,6 +778,7 @@ export async function deleteOrganization(c: Context) {
       error: 'Failed to delete organization' 
     }, 500);
   }
+<<<<<<< HEAD
 }
 
 // GET /organizations/:id/stats - Estatísticas da organização
@@ -620,6 +800,16 @@ export async function getOrganizationStats(c: Context) {
       throw orgError;
     }
 
+=======
+});
+
+// GET /organizations/:id/stats - Estatísticas da organização
+app.get('/:id/stats', async (c) => {
+  try {
+    const id = c.req.param('id');
+
+    const organization = await kv.get(`org:${id}`);
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     if (!organization) {
       return c.json({ 
         success: false, 
@@ -627,6 +817,7 @@ export async function getOrganizationStats(c: Context) {
       }, 404);
     }
 
+<<<<<<< HEAD
     // Contar usuários da organização
     const { data: users, error: usersError } = await client
       .from('users')
@@ -657,6 +848,28 @@ export async function getOrganizationStats(c: Context) {
         maxProperties: organization.limits_properties ?? -1,
         maxReservations: organization.limits_reservations ?? -1
       }
+=======
+    // Contar usuários
+    const allUsers = await kv.getByPrefix('user:');
+    const users = allUsers.filter((u: User) => u.organizationId === id);
+
+    // Stats mockadas (em produção viriam do banco real)
+    const stats = {
+      users: {
+        total: users.length,
+        active: users.filter((u: User) => u.status === 'active').length,
+        invited: users.filter((u: User) => u.status === 'invited').length
+      },
+      properties: {
+        total: Math.floor(Math.random() * 50),
+        active: Math.floor(Math.random() * 40)
+      },
+      reservations: {
+        total: Math.floor(Math.random() * 200),
+        thisMonth: Math.floor(Math.random() * 50)
+      },
+      limits: organization.settings
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     };
 
     return c.json({ 
@@ -670,7 +883,11 @@ export async function getOrganizationStats(c: Context) {
       error: 'Failed to fetch stats' 
     }, 500);
   }
+<<<<<<< HEAD
 }
+=======
+});
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 // ============================================================================
 // 🔧 SETTINGS ROUTES - /organizations/:id/settings/global
@@ -678,7 +895,11 @@ export async function getOrganizationStats(c: Context) {
 // ============================================================================
 
 // GET /organizations/:id/settings/global - Obter configurações globais
+<<<<<<< HEAD
 export async function getOrganizationSettings(c: Context) {
+=======
+app.get("/:id/settings/global", async (c) => {
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
   // ✅ REFATORADO v1.0.103.500 - Usar helper híbrido ao invés de ensureOrganizationId
   const orgId = await getOrganizationIdOrThrow(c);
   const client = getSupabaseClient();
@@ -697,10 +918,17 @@ export async function getOrganizationSettings(c: Context) {
       }
     )
   );
+<<<<<<< HEAD
 }
 
 // PUT /organizations/:id/settings/global - Salvar configurações globais
 export async function updateOrganizationSettings(c: Context) {
+=======
+});
+
+// PUT /organizations/:id/settings/global - Salvar configurações globais
+app.put("/:id/settings/global", async (c) => {
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
   const client = getSupabaseClient();
   // ✅ REFATORADO v1.0.103.500 - Usar helper híbrido ao invés de ensureOrganizationId
   const orgId = await getOrganizationIdOrThrow(c);
@@ -724,7 +952,12 @@ export async function updateOrganizationSettings(c: Context) {
   if (error) return c.json(errorResponse(error.message), 500);
 
   return c.json(successResponse(data));
+<<<<<<< HEAD
 }
 
 // ✅ MANTER COMPATIBILIDADE: Exportar app também para uso com app.route()
+=======
+});
+
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 export default app;

@@ -1,4 +1,5 @@
 // ============================================================================
+<<<<<<< HEAD
 // 🔒 CADEADO DE CONTRATO - PROPERTIES ROUTES
 // ============================================================================
 // ⚠️ CONTRATO ESTABELECIDO - NÃO MODIFICAR SEM ATUALIZAR CONTRATO
@@ -42,6 +43,9 @@
 // ============================================================================
 // ROTAS DE PROPRIEDADES (IMÓVEIS)
 // ✅ CADEADO DE CONTRATO v1.0.103.700 - PROTEÇÃO IMPLEMENTADA
+=======
+// ROTAS DE PROPRIEDADES (IMÓVEIS)
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 // ============================================================================
 
 import type { Context } from 'npm:hono';

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // ============================================================================
 // 🔒 CADEADO DE ISOLAMENTO - AUTH CONTEXT (Sistema de Autenticação)
 // ============================================================================
@@ -29,6 +30,8 @@
 // ⚠️ NUNCA REMOVER ROTAS SEM CRIAR VERSÃO ALTERNATIVA
 // ============================================================================
 
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Organization, Permission, PermissionCheck, DEFAULT_PERMISSIONS } from '../types/tenancy';
 // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Integração com authService e BroadcastChannel
@@ -302,7 +305,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Buscar organização se tiver apenas o ID
           try {
             const orgResponse = await fetch(
+<<<<<<< HEAD
               `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${backendUser.organizationId}`,
+=======
+              `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${backendUser.organizationId}`,
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
               {
                 headers: {
                   'X-Auth-Token': token,

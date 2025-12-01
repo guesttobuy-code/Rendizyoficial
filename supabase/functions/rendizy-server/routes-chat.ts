@@ -1,13 +1,17 @@
 import { Hono } from 'npm:hono';
 import { ChannelConfigRepository } from './repositories/channel-config-repository.ts';
 import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
+<<<<<<< HEAD
 import { getSupabaseClient } from './kv_store.tsx';
 // ✅ RESTAURADO DO BACKUP - Monitoramento automático de conexão WhatsApp
 import { setupWebhooks, monitorWhatsAppConnection } from './services/whatsapp-monitor.ts';
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 const app = new Hono();
 
 // ============================================================================
+<<<<<<< HEAD
 // HELPERS - Evolution API
 // ============================================================================
 
@@ -157,6 +161,8 @@ async function evolutionRequest(
 }
 
 // ============================================================================
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 // CHANNEL CONFIGURATION ROUTES
 // ============================================================================
 
@@ -331,6 +337,7 @@ app.patch('/channels/config', async (c) => {
   }
 });
 
+<<<<<<< HEAD
 // ============================================================================
 // ⚠️ FUNCIONALIDADE CRÍTICA - WHATSAPP ROUTES
 // ============================================================================
@@ -947,4 +954,6 @@ app.post('/channels/whatsapp/webhook', async (c) => {
   }
 });
 
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 export default app;

@@ -4,6 +4,7 @@ Documento rápido para iniciar qualquer nova sessão no projeto **Rendizy**.
 
 ---
 
+<<<<<<< HEAD
 ## 📁 LOCALIZAÇÃO OFICIAL DO PROJETO
 
 **Pasta Principal do Código Fonte:**
@@ -33,6 +34,8 @@ C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL
 
 ---
 
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 ## 🎯 ORIENTAÇÃO MESTRA - LEIA PRIMEIRO! ⚠️
 
 ### 🚨 **REGRA FUNDAMENTAL: NÃO COMPLIQUE O QUE JÁ FUNCIONA**
@@ -119,7 +122,11 @@ Este script verifica automaticamente se você não violou regras estabelecidas.
 
 1. Abra o PowerShell na raiz do projeto:
    ```powershell
+<<<<<<< HEAD
    cd "C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL"
+=======
+   cd "C:\Users\rafae\Downloads\Rendizy2producao-main github 15 11 2025\Rendizy2producao-main"
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
    ```
 2. Execute o script (evita digitar manualmente):
    ```powershell
@@ -128,7 +135,11 @@ Este script verifica automaticamente se você não violou regras estabelecidas.
 3. Se preferir rodar manualmente:
    ```powershell
    # Token está em TOKENS_E_ACESSOS_COMPLETO.md (não versionado)
+<<<<<<< HEAD
    git remote set-url origin https://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@github.com/guesttobuy-code/Rendizyoficial.git
+=======
+   git remote set-url origin https://[TOKEN]@github.com/guesttobuy-code/Rendizyoficial.git
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
    git fetch origin
    git status
    ```
@@ -199,6 +210,7 @@ Este script verifica automaticamente se você não violou regras estabelecidas.
    - ✅ Migração pode ser feita depois, se realmente necessário
    - **Status:** ✅ Funcionando com token no header - NÃO MUDAR AGORA
 
+<<<<<<< HEAD
 3. **`ARQUITETURA_CAPSULAS_MODULOS.md`** ⚠️ **OBRIGATÓRIO - REGRA DE OURO**
    - ✅ **TODOS** os itens do menu lateral DEVEM ter sua própria cápsula de módulo
    - ✅ Cada cápsula tem rota própria e isolamento completo
@@ -216,6 +228,8 @@ Este script verifica automaticamente se você não violou regras estabelecidas.
    - ✅ **Seguindo boas práticas internacionais:** Feature Flags, API Versioning, Contract Testing
    - 📚 Referência completa: Seção 4.6.1 do `Ligando os motores.md` + `RESUMO_CADEADOS_CAPSULAS.md`
 
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 ### 📋 **Documentação Geral:**
 - ⚠️ **`WHATSAPP_VENCIDO_CONSOLIDADO.md`** - Tudo que já vencemos no WhatsApp (OBRIGATÓRIO LER)
 - `src/docs/RESUMO_FINAL_28OUT2025.md`
@@ -390,6 +404,7 @@ Login não persistia ao navegar diretamente via URL, trocar de aba ou janela, ou
 
 ---
 
+<<<<<<< HEAD
 ## 4.5. Arquitetura de Cápsulas de Módulos (⚠️ REGRA DE OURO - OBRIGATÓRIO)
 
 ### 🚨 **REGRA DE OURO ABSOLUTA:**
@@ -488,6 +503,9 @@ export function PricingModule() {
 ---
 
 ## 4.6. Arquitetura do Sistema (⚠️ NÃO VIOLAR)
+=======
+## 4.5. Arquitetura do Sistema (⚠️ NÃO VIOLAR)
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 ### 🏗️ **PRINCÍPIOS ARQUITETURAIS FUNDAMENTAIS:**
 
@@ -692,8 +710,11 @@ export function PricingModule() {
 
 #### 📚 **DOCUMENTAÇÃO OBRIGATÓRIA:**
 - ⚠️ **`WHATSAPP_VENCIDO_CONSOLIDADO.md`** - **TUDO QUE JÁ VENCEMOS** (LER ANTES DE MUDAR)
+<<<<<<< HEAD
 - ⚠️ **`FUNCIONALIDADES_CRITICAS.md`** - **LISTA DE FUNCIONALIDADES CRÍTICAS** (OBRIGATÓRIO CONSULTAR)
 - ⚠️ **`POR_QUE_ROTAS_SUMEM_E_COMO_PREVENIR.md`** - **ENTENDA POR QUE ROTAS SOMEM** (OBRIGATÓRIO LER)
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 #### 🎯 **REGRA DE OURO:**
 > **"WhatsApp está funcionando - NÃO REGREDIR!"**  
@@ -706,24 +727,34 @@ export function PricingModule() {
 - ❌ Remover verificação automática de status (é essencial)
 - ❌ Remover polling automático (é essencial para atualização)
 - ❌ Usar KV Store para sessões (já migramos para SQL)
+<<<<<<< HEAD
 - ❌ **Remover rotas "duplicadas" sem verificar dependências** (veja seção 4.6.1)
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 #### ⚠️ **AVISO CRÍTICO:**
 **Se você está pensando em:**
 - "Melhorar" a autenticação do WhatsApp
 - "Otimizar" a atualização de conversas
 - "Simplificar" o código
+<<<<<<< HEAD
 - "Remover rotas duplicadas"
 
 **PARE E LEIA:**
 1. `WHATSAPP_VENCIDO_CONSOLIDADO.md` - Tudo que já vencemos
 2. `FUNCIONALIDADES_CRITICAS.md` - Lista de funcionalidades críticas
 3. `POR_QUE_ROTAS_SUMEM_E_COMO_PREVENIR.md` - Entenda por que rotas somem
+=======
+
+**PARE E LEIA:**
+1. `WHATSAPP_VENCIDO_CONSOLIDADO.md` - Tudo que já vencemos
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 **Se ainda quiser mudar, pergunte-se:**
 - Isso vai quebrar o que já funciona?
 - É realmente necessário agora?
 - Existe uma solução mais simples?
+<<<<<<< HEAD
 - **Verifiquei todas as dependências?** (frontend, outros módulos, etc)
 
 ---
@@ -1416,6 +1447,8 @@ app.get('/whatsapp/status', handler); // REMOVIDO ❌
 > 
 > **WhatsApp é exemplo: estava funcionando, rotas sumiram, sistema quebrou.**  
 > **NÃO REPETIR O ERRO!**
+=======
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 ---
 

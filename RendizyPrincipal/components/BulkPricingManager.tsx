@@ -133,7 +133,11 @@ export function BulkPricingManager({ organizationId }: { organizationId: string 
     setLoading(true);
     try {
       const response = await fetch(
+<<<<<<< HEAD
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/filter-listings`,
+=======
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${organizationId}/bulk-pricing/filter-listings`,
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         {
           method: 'POST',
           headers: {
@@ -159,7 +163,11 @@ export function BulkPricingManager({ organizationId }: { organizationId: string 
   const loadTemplates = async () => {
     try {
       const response = await fetch(
+<<<<<<< HEAD
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/templates`,
+=======
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${organizationId}/bulk-pricing/templates`,
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }
         }
@@ -196,7 +204,11 @@ export function BulkPricingManager({ organizationId }: { organizationId: string 
       }
 
       const response = await fetch(
+<<<<<<< HEAD
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/preview`,
+=======
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${organizationId}/bulk-pricing/preview`,
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         {
           method: 'POST',
           headers: {
@@ -243,7 +255,11 @@ export function BulkPricingManager({ organizationId }: { organizationId: string 
       }
 
       const response = await fetch(
+<<<<<<< HEAD
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/bulk-pricing/apply`,
+=======
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${organizationId}/bulk-pricing/apply`,
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         {
           method: 'POST',
           headers: {

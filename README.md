@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # MIGGRO - Plataforma de Apoio ao Imigrante
 
 Plataforma social e marketplace para conectar imigrantes com serviços e ajuda na comunidade.
@@ -60,3 +61,22 @@ As migrations SQL estão em `supabase/migrations/`. Aplique-as na ordem numéric
 ## 📝 Licença
 
 Proprietário - MIGGRO
+=======
+
+  # RENDIZY PRODUÇÃO
+
+  This is a code bundle for RENDIZY PRODUÇÃO. The original project is available at https://www.figma.com/design/MIUsvRcBYzJU8Rfv4MA6Qg/RENDIZY-PRODU%C3%87%C3%83O.
+
+  ## Running the code
+
+  Run `npm i` to install the dependencies.
+
+  Run `npm run dev` to start the development server.
+
+## Structure
+
+- `RendizyPrincipal/`: main frontend application (previously `src`)
+- `supabase/`: backend edge functions and SQL migrations
+- `build/`: generated static bundle (`npm run build`)
+  
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941

@@ -176,10 +176,17 @@ export function CreateOrganizationModal({ open, onClose, onSuccess }: CreateOrga
     };
 
     console.log('🚀 Enviando requisição para criar organização:', payload);
+<<<<<<< HEAD
     console.log('📍 URL:', `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations`);
 
     try {
       const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations`;
+=======
+    console.log('📍 URL:', `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations`);
+
+    try {
+      const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations`;
+>>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
       
       const response = await fetchWithRetry(url, {
         method: 'POST',
