@@ -20,7 +20,7 @@ interface ClientSiteConfig {
   template: "custom" | "moderno" | "classico" | "luxo";
   domain?: string; // domínio customizado (ex: www.imobiliaria.com)
   subdomain: string; // subdomínio RENDIZY (ex: imobiliaria.rendizy.app)
-
+  
   // Customizações visuais
   theme: {
     primaryColor: string;
@@ -28,11 +28,11 @@ interface ClientSiteConfig {
     accentColor: string;
     fontFamily: string;
   };
-
+  
   // Assets
   logo?: string;
   favicon?: string;
-
+  
   // Configurações do site
   siteConfig: {
     title: string;
@@ -46,14 +46,14 @@ interface ClientSiteConfig {
       whatsapp?: string;
     };
   };
-
+  
   // Modalidades ativas
   features: {
     shortTerm: boolean; // Temporada
     longTerm: boolean; // Locação
     sale: boolean; // Venda
   };
-
+  
   // Código do site (HTML/React serializado)
   siteCode?: string; // Código importado de v0.dev, Bolt, etc
 
@@ -63,7 +63,7 @@ interface ClientSiteConfig {
   // Arquivo de origem (ex: ZIP enviado ou caminho de storage)
   archivePath?: string;
   archiveUrl?: string;
-
+  
   // Metadados
   createdAt: string;
   updatedAt: string;
@@ -146,15 +146,15 @@ app.get("/serve/*", async (c) => {
     const path = c.req.path;
     const url = c.req.url;
     const method = c.req.method;
-
+    
     console.log(`[CLIENT-SITES] Method: ${method}`);
     console.log(`[CLIENT-SITES] Request path: ${path}`);
     console.log(`[CLIENT-SITES] Request URL: ${url}`);
     console.log(`[CLIENT-SITES] Host header: ${host}`);
-
+    
     // Tentar extrair domínio do Host header primeiro
     let domain = host.split(":")[0]; // Remove porta se houver
-
+    
     // Se não tiver Host ou for localhost/supabase, tentar extrair do path
     if (
       !domain ||
@@ -176,12 +176,12 @@ app.get("/serve/*", async (c) => {
         }
       }
     }
-
+    
     // Limpar o domínio (remover espaços, etc)
     domain = domain?.trim() || "";
-
+    
     console.log(`[CLIENT-SITES] Domínio extraído: ${domain}`);
-
+    
     if (!domain) {
       return c.html(
         `
@@ -283,13 +283,13 @@ app.get("/serve/*", async (c) => {
         403
       );
     }
-
+    
     console.log(
       `[CLIENT-SITES] Site encontrado: ${site.siteName} (${site.organizationId})`
     );
     console.log(`[CLIENT-SITES] Site tem siteCode: ${!!site.siteCode}`);
     console.log(`[CLIENT-SITES] Site tem archivePath: ${!!site.archivePath}`);
-
+    
     // Se tiver siteCode, servir diretamente
     if (site.siteCode) {
       console.log(
@@ -299,20 +299,20 @@ app.get("/serve/*", async (c) => {
       c.header("Content-Type", "text/html; charset=utf-8");
       return c.html(site.siteCode, 200);
     }
-
+    
     // Se tiver archivePath, servir arquivo do storage
     if (site.archivePath) {
       console.log(
         `[CLIENT-SITES] Tentando servir arquivo do storage: ${site.archivePath}`
       );
-
+      
       const bucketName = "client-sites";
-
+      
       // Tentar baixar o arquivo
       const { data: fileData, error: downloadError } = await supabase.storage
         .from(bucketName)
         .download(site.archivePath);
-
+      
       if (downloadError || !fileData) {
         console.error(`[CLIENT-SITES] Erro ao baixar arquivo:`, downloadError);
         return c.html(
@@ -762,7 +762,7 @@ app.get("/serve/*", async (c) => {
         );
       }
     }
-
+    
     // Se não tiver siteCode nem archivePath, servir página padrão
     return c.html(
       `
@@ -880,21 +880,24 @@ app.get("/", async (c) => {
   try {
     const supabase = getSupabaseClient();
 
-    // ✅ REFATORADO v1.0.103.500 - Usar helper híbrido ao invés de query param
-    const orgId = await getOrganizationIdOrThrow(c);
+    // ✅ CORRIGIDO: Verificar query param primeiro antes de usar getOrganizationIdOrThrow
+    // Se houver organization_id no query, usar ele. Se não, listar todos os sites.
+    const orgIdFromQuery = c.req.query("organization_id");
 
-    if (orgId) {
+    if (orgIdFromQuery) {
+      console.log(`[CLIENT-SITES] Buscando site para organization_id do query: ${orgIdFromQuery}`);
+      
       // Buscar site específico do SQL
       const { data: sqlSite, error: sqlError } = await supabase
         .from("client_sites")
         .select("*")
-        .eq("organization_id", orgId)
+        .eq("organization_id", orgIdFromQuery)
         .maybeSingle();
 
       if (sqlError || !sqlSite) {
         return c.json(
           {
-            success: false,
+          success: false, 
             error: "Site não encontrado para esta organização",
           },
           404
@@ -904,8 +907,10 @@ app.get("/", async (c) => {
       const site = sqlToClientSiteConfig(sqlSite);
       return c.json({ success: true, data: site });
     }
-
-    // Listar todos os sites do SQL
+    
+    // ✅ Se não há organization_id no query, listar TODOS os sites
+    console.log(`[CLIENT-SITES] Listando todos os sites (sem filtro de organization_id)`);
+    
     const { data: sqlSites, error: sqlError } = await supabase
       .from("client_sites")
       .select("*")
@@ -916,9 +921,11 @@ app.get("/", async (c) => {
     }
 
     const sites = (sqlSites || []).map(sqlToClientSiteConfig);
-
-    return c.json({
-      success: true,
+    
+    console.log(`[CLIENT-SITES] ✅ ${sites.length} sites encontrados`);
+    
+    return c.json({ 
+      success: true, 
       data: sites,
       count: sites.length,
     });
@@ -926,7 +933,7 @@ app.get("/", async (c) => {
     console.error("[CLIENT-SITES] Erro ao buscar sites:", error);
     return c.json(
       {
-        success: false,
+      success: false, 
         error: error instanceof Error ? error.message : "Erro desconhecido",
       },
       500
@@ -948,22 +955,22 @@ app.post("/", async (c) => {
       siteConfig,
       features,
     } = body;
-
+    
     // Validações
     if (!organizationId) {
       return c.json(
         {
-          success: false,
+        success: false, 
           error: "organizationId é obrigatório",
         },
         400
       );
     }
-
+    
     if (!siteName) {
       return c.json(
         {
-          success: false,
+        success: false, 
           error: "siteName é obrigatório",
         },
         400
@@ -982,17 +989,17 @@ app.post("/", async (c) => {
     if (existing) {
       return c.json(
         {
-          success: false,
+        success: false, 
           error:
             "Organização já possui um site configurado. Use PUT para atualizar.",
         },
         409
       );
     }
-
+    
     // Gerar subdomínio automático
     const subdomain = generateSubdomain(siteName);
-
+    
     // Criar configuração do site
     const siteData: ClientSiteConfig = {
       organizationId,
@@ -1055,7 +1062,7 @@ app.post("/", async (c) => {
     console.error("[CLIENT-SITES] Erro ao criar site:", error);
     return c.json(
       {
-        success: false,
+      success: false, 
         error: error.message,
       },
       500
@@ -1069,7 +1076,7 @@ app.put("/:organizationId", async (c) => {
   try {
     const { organizationId } = c.req.param();
     const updates = await c.req.json();
-
+    
     const supabase = getSupabaseClient();
 
     // Buscar site existente do SQL
@@ -1082,13 +1089,13 @@ app.put("/:organizationId", async (c) => {
     if (fetchError || !existing) {
       return c.json(
         {
-          success: false,
+        success: false, 
           error: "Site não encontrado",
         },
         404
       );
     }
-
+    
     // Atualizar dados
     const existingConfig = sqlToClientSiteConfig(existing);
     const updated: ClientSiteConfig = {
@@ -1108,11 +1115,11 @@ app.put("/:organizationId", async (c) => {
     if (updateError) {
       throw updateError;
     }
-
+    
     console.log(`[CLIENT-SITES] Site atualizado:`, organizationId);
-
-    return c.json({
-      success: true,
+    
+    return c.json({ 
+      success: true, 
       data: updated,
       message: "Site atualizado com sucesso!",
     });
@@ -1120,7 +1127,7 @@ app.put("/:organizationId", async (c) => {
     console.error("[CLIENT-SITES] Erro ao atualizar site:", error);
     return c.json(
       {
-        success: false,
+      success: false, 
         error: error.message,
       },
       500
@@ -1134,11 +1141,11 @@ app.post("/:organizationId/upload-code", async (c) => {
   try {
     const { organizationId } = c.req.param();
     const { siteCode } = await c.req.json();
-
+    
     if (!siteCode) {
       return c.json(
         {
-          success: false,
+        success: false, 
           error: "siteCode é obrigatório",
         },
         400
@@ -1157,13 +1164,13 @@ app.post("/:organizationId/upload-code", async (c) => {
     if (fetchError || !existing) {
       return c.json(
         {
-          success: false,
+        success: false, 
           error: "Site não encontrado. Crie o site primeiro.",
         },
         404
       );
     }
-
+    
     // Atualizar com o código
     const existingConfig = sqlToClientSiteConfig(existing);
     const updated: ClientSiteConfig = {
@@ -1183,11 +1190,11 @@ app.post("/:organizationId/upload-code", async (c) => {
     if (updateError) {
       throw updateError;
     }
-
+    
     console.log(`[CLIENT-SITES] Código do site atualizado:`, organizationId);
-
-    return c.json({
-      success: true,
+    
+    return c.json({ 
+      success: true, 
       data: updated,
       message: "Código do site enviado com sucesso!",
     });
@@ -1195,7 +1202,7 @@ app.post("/:organizationId/upload-code", async (c) => {
     console.error("[CLIENT-SITES] Erro ao fazer upload do código:", error);
     return c.json(
       {
-        success: false,
+      success: false, 
         error: error.message,
       },
       500
@@ -1221,7 +1228,7 @@ app.post("/:organizationId/upload-archive", async (c) => {
     if (fetchError || !existing) {
       return c.json(
         {
-          success: false,
+        success: false,
           error: "Site não encontrado. Crie o site primeiro.",
         },
         404
@@ -1241,7 +1248,7 @@ app.post("/:organizationId/upload-archive", async (c) => {
     if (!file || !(file instanceof File)) {
       return c.json(
         {
-          success: false,
+        success: false,
           error:
             'Arquivo não enviado. Use o campo "file" com um .zip ou .tar.gz',
         },
@@ -1257,7 +1264,7 @@ app.post("/:organizationId/upload-archive", async (c) => {
     if (!isZip) {
       return c.json(
         {
-          success: false,
+        success: false,
           error:
             "Formato de arquivo não suportado. Envie APENAS um arquivo .zip com a pasta dist/ compilada.",
         },
@@ -1396,7 +1403,7 @@ app.post("/:organizationId/upload-archive", async (c) => {
       );
       return c.json(
         {
-          success: false,
+        success: false,
           error: "Erro ao armazenar arquivo do site",
         },
         500
@@ -1408,8 +1415,8 @@ app.post("/:organizationId/upload-archive", async (c) => {
     // Gerar URL assinada para uso futuro (deploy, inspeção, etc.)
     const { data: signedUrlData, error: signedUrlError } =
       await supabase.storage
-        .from(bucketName)
-        .createSignedUrl(objectPath, 60 * 60 * 24 * 7); // 7 dias
+      .from(bucketName)
+      .createSignedUrl(objectPath, 60 * 60 * 24 * 7); // 7 dias
 
     let archiveUrl: string | undefined = undefined;
     if (!signedUrlError && signedUrlData?.signedUrl) {
@@ -1471,7 +1478,7 @@ app.post("/:organizationId/upload-archive", async (c) => {
     );
     return c.json(
       {
-        success: false,
+      success: false,
         error:
           error instanceof Error
             ? error.message
@@ -1495,7 +1502,7 @@ app.post("/:organizationId/upload-archive-from-url", async (c) => {
     if (!url) {
       return c.json(
         {
-          success: false,
+        success: false,
           error: "URL é obrigatória",
         },
         400
@@ -1514,7 +1521,7 @@ app.post("/:organizationId/upload-archive-from-url", async (c) => {
     if (fetchError || !existing) {
       return c.json(
         {
-          success: false,
+        success: false,
           error: "Site não encontrado. Crie o site primeiro.",
         },
         404
@@ -1534,7 +1541,7 @@ app.post("/:organizationId/upload-archive-from-url", async (c) => {
       );
       return c.json(
         {
-          success: false,
+        success: false,
           error: "A URL deve apontar para um arquivo .zip ou .tar.gz",
         },
         400
@@ -1557,7 +1564,7 @@ app.post("/:organizationId/upload-archive-from-url", async (c) => {
       );
       return c.json(
         {
-          success: false,
+        success: false,
           error: `Erro ao baixar arquivo remoto (${fetchResponse.status} - ${fetchResponse.statusText})`,
         },
         502
@@ -1597,7 +1604,7 @@ app.post("/:organizationId/upload-archive-from-url", async (c) => {
       );
       return c.json(
         {
-          success: false,
+        success: false,
           error: "Erro ao armazenar arquivo remoto do site",
         },
         500
@@ -1606,8 +1613,8 @@ app.post("/:organizationId/upload-archive-from-url", async (c) => {
 
     const { data: signedUrlData, error: signedUrlError } =
       await supabase.storage
-        .from(bucketName)
-        .createSignedUrl(objectPath, 60 * 60 * 24 * 7); // 7 dias
+      .from(bucketName)
+      .createSignedUrl(objectPath, 60 * 60 * 24 * 7); // 7 dias
 
     let archiveUrl: string | undefined = existing.archiveUrl;
     if (!signedUrlError && signedUrlData?.signedUrl) {
@@ -1788,7 +1795,7 @@ app.get("/by-subdomain/:subdomain", async (c) => {
     console.error("[CLIENT-SITES] Erro ao buscar site por subdomain:", error);
     return c.json(
       {
-        success: false,
+      success: false,
         error: error.message,
       },
       500
@@ -1801,7 +1808,7 @@ app.get("/by-subdomain/:subdomain", async (c) => {
 app.get("/by-domain/:domain", async (c) => {
   try {
     const { domain } = c.req.param();
-
+    
     const supabase = getSupabaseClient();
 
     // Buscar site por domínio do SQL
@@ -1820,7 +1827,7 @@ app.get("/by-domain/:domain", async (c) => {
     if (sqlError || !sqlSite) {
       return c.json(
         {
-          success: false,
+        success: false, 
           error: "Site não encontrado para este domínio",
         },
         404
@@ -1833,7 +1840,7 @@ app.get("/by-domain/:domain", async (c) => {
     console.error("[CLIENT-SITES] Erro ao buscar site por domínio:", error);
     return c.json(
       {
-        success: false,
+      success: false, 
         error: error.message,
       },
       500
@@ -1846,7 +1853,7 @@ app.get("/by-domain/:domain", async (c) => {
 app.delete("/:organizationId", async (c) => {
   try {
     const { organizationId } = c.req.param();
-
+    
     const supabase = getSupabaseClient();
 
     // Buscar site existente do SQL
@@ -1859,7 +1866,7 @@ app.delete("/:organizationId", async (c) => {
     if (fetchError || !existing) {
       return c.json(
         {
-          success: false,
+        success: false, 
           error: "Site não encontrado",
         },
         404
@@ -1878,11 +1885,11 @@ app.delete("/:organizationId", async (c) => {
     if (updateError) {
       throw updateError;
     }
-
+    
     console.log(`[CLIENT-SITES] Site desativado:`, organizationId);
-
-    return c.json({
-      success: true,
+    
+    return c.json({ 
+      success: true, 
       message: "Site desativado com sucesso!",
     });
   } catch (error) {
@@ -2174,7 +2181,7 @@ app.get("/api/:subdomain/properties", async (c) => {
     c.header("Access-Control-Allow-Methods", "GET, OPTIONS");
     c.header("Access-Control-Allow-Headers", "Content-Type");
 
-    return c.json({
+    return c.json({ 
       success: true,
       data: formattedProperties,
       total: formattedProperties.length,
@@ -2183,7 +2190,7 @@ app.get("/api/:subdomain/properties", async (c) => {
     console.error(`[CLIENT-SITES] Erro na API pública de imóveis:`, error);
     return c.json(
       {
-        success: false,
+      success: false, 
         error: error instanceof Error ? error.message : "Erro desconhecido",
       },
       500

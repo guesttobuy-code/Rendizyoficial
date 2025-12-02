@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, Globe, Code, Settings, Eye, Trash2, Upload, ExternalLink, Copy, Check, FileText, Sparkles, Download } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Globe, Code, Settings, Eye, Trash2, Upload, ExternalLink, Copy, Check, FileText, Sparkles, Download, Folder, File, AlertCircle, Edit } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -13,7 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { useAutoSave } from '../hooks/useAutoSave';
 
 // ============================================================
 // TIPOS
@@ -51,6 +50,9 @@ interface ClientSite {
     sale: boolean;
   };
   siteCode?: string;
+  archivePath?: string; // Caminho do arquivo no Storage
+  archiveUrl?: string; // URL assinada do arquivo
+  source?: 'bolt' | 'v0' | 'figma' | 'custom'; // Fonte do site
   createdAt: string;
   updatedAt: string;
   isActive: boolean;
@@ -61,6 +63,8 @@ interface ClientSite {
 // ============================================================
 
 export function ClientSitesManager() {
+  console.log('🔍 [ClientSitesManager] Componente renderizado/montado');
+  
   const [sites, setSites] = useState<ClientSite[]>([]);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('all');
@@ -69,93 +73,172 @@ export function ClientSitesManager() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCodeModal, setShowCodeModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showDocsModal, setShowDocsModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedSite, setSelectedSite] = useState<ClientSite | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
+  // Funções memoizadas para evitar loops infinitos
+  const loadOrganizations = useCallback(async () => {
+    try {
+      setLoadingOrgs(true);
+      const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations`;
+      
+      console.log('🔍 [ClientSitesManager] Carregando organizações...');
+      console.log('📍 [ClientSitesManager] URL:', url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📥 [ClientSitesManager] Status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [ClientSitesManager] Erro HTTP:', response.status, errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('📦 [ClientSitesManager] Dados recebidos (COMPLETO):', JSON.stringify(data, null, 2));
+      console.log('📦 [ClientSitesManager] data.success:', data.success);
+      console.log('📦 [ClientSitesManager] data.data:', data.data);
+      console.log('📦 [ClientSitesManager] data.data type:', typeof data.data);
+      console.log('📦 [ClientSitesManager] data.data is array?', Array.isArray(data.data));
+      console.log('📦 [ClientSitesManager] Total de organizações:', data.data?.length || 0);
+      console.log('📦 [ClientSitesManager] data.total:', data.total);
+      
+      if (data.success && data.data) {
+        console.log('✅ [ClientSitesManager] Organizações encontradas:', data.data.length);
+        // Log de cada organização
+        data.data.forEach((org: any, index: number) => {
+          console.log(`  ${index + 1}. ${org.name} (ID: ${org.id}, Slug: ${org.slug})`);
+        });
+        setOrganizations(data.data);
+        toast.success(`${data.data.length} imobiliárias carregadas`);
+      } else {
+        console.error('❌ [ClientSitesManager] Resposta sem sucesso:', data);
+        console.error('❌ [ClientSitesManager] Erro:', data.error);
+        toast.error(data.error || 'Erro ao carregar imobiliárias');
+        setOrganizations([]);
+      }
+    } catch (error: any) {
+      console.error('❌ [ClientSitesManager] Erro completo:', error);
+      toast.error(`Erro ao carregar imobiliárias: ${error.message}`);
+      setOrganizations([]);
+    } finally {
+      setLoadingOrgs(false);
+    }
+  }, []);
+
+  const loadSites = useCallback(async () => {
+    try {
+      setLoading(true);
+      console.log('🔍 [ClientSitesManager] Carregando sites...');
+      console.log('🔍 [ClientSitesManager] selectedOrgId:', selectedOrgId);
+      
+      // ✅ CORRIGIDO: Passar organizationId como query param quando houver uma organização selecionada
+      // Isso garante que o backend busque o site correto mesmo se o organizationId do token for diferente
+      const url = selectedOrgId && selectedOrgId !== 'all'
+        ? `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites?organization_id=${selectedOrgId}`
+        : `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites`;
+      
+      console.log('📍 [ClientSitesManager] URL:', url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📥 [ClientSitesManager] Status:', response.status, response.statusText);
+
+      const data = await response.json();
+      console.log('📦 [ClientSitesManager] Dados recebidos:', data);
+      console.log('📦 [ClientSitesManager] data.success:', data.success);
+      console.log('📦 [ClientSitesManager] data.data:', data.data);
+      console.log('📦 [ClientSitesManager] data.data is array?', Array.isArray(data.data));
+      
+      if (data.success) {
+        // ✅ CORRIGIDO: Garantir que sempre seja um array
+        // Se passou organizationId no query, o backend retorna um único site ou array com um site
+        // Se não passou, retorna array com todos os sites
+        let allSites: ClientSite[] = [];
+        
+        if (Array.isArray(data.data)) {
+          allSites = data.data;
+        } else if (data.data) {
+          // Se retornou um único objeto, converter para array
+          allSites = [data.data];
+        } else {
+          // Se data.data é null/undefined, array vazio
+          allSites = [];
+        }
+        
+        console.log('📦 [ClientSitesManager] Total de sites encontrados:', allSites.length);
+        
+        // Filtrar por organização se não for "all" (fallback caso o backend não tenha filtrado)
+        const filteredSites = selectedOrgId === 'all' 
+          ? allSites 
+          : allSites.filter((site: ClientSite) => site.organizationId === selectedOrgId);
+        
+        console.log('📦 [ClientSitesManager] Sites após filtro:', filteredSites.length);
+        setSites(filteredSites);
+        
+        if (filteredSites.length === 0 && selectedOrgId === 'all') {
+          console.log('⚠️ [ClientSitesManager] Nenhum site encontrado (pode ser normal se ainda não criou nenhum)');
+        }
+      } else {
+        // Se não encontrou site (404), apenas definir array vazio ao invés de mostrar erro
+        if (response.status === 404) {
+          console.log('⚠️ [ClientSitesManager] 404 - Nenhum site encontrado (normal se ainda não criou)');
+          setSites([]);
+        } else {
+          console.error('❌ [ClientSitesManager] Erro ao carregar sites:', data.error);
+          toast.error(data.error || 'Erro ao carregar sites');
+          setSites([]);
+        }
+      }
+    } catch (error) {
+      console.error('❌ [ClientSitesManager] Erro ao carregar sites:', error);
+      // Não mostrar toast de erro para 404 - é normal não ter site ainda
+      if (!(error instanceof Error && error.message.includes('404'))) {
+        toast.error('Erro ao carregar sites');
+      }
+      setSites([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedOrgId]);
+
   // Carregar organizações
   useEffect(() => {
+    console.log('🔍 [ClientSitesManager] useEffect executado - carregando organizações');
+    console.log('🔍 [ClientSitesManager] loadOrganizations type:', typeof loadOrganizations);
+    console.log('🔍 [ClientSitesManager] projectId:', projectId);
+    console.log('🔍 [ClientSitesManager] publicAnonKey:', publicAnonKey ? 'present' : 'missing');
+    
     loadOrganizations();
     
     // Verificar se há uma organização pré-selecionada do TenantManagement
     const preselectedOrg = localStorage.getItem('selectedOrgForSite');
     if (preselectedOrg) {
+      console.log('🔍 [ClientSitesManager] Organização pré-selecionada encontrada:', preselectedOrg);
       setSelectedOrgId(preselectedOrg);
       localStorage.removeItem('selectedOrgForSite'); // Limpar após usar
       toast.success('Organização selecionada!');
     }
-  }, []);
+  }, [loadOrganizations]);
 
   // Carregar sites quando a organização mudar
   useEffect(() => {
     loadSites();
-  }, [selectedOrgId]);
-
-  const loadOrganizations = async () => {
-    try {
-      setLoadingOrgs(true);
-      const response = await fetch(
-<<<<<<< HEAD
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations`,
-=======
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations`,
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setOrganizations(data.data || []);
-      } else {
-        console.error('Erro ao carregar organizações:', data.error);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar organizações:', error);
-      toast.error('Erro ao carregar imobiliárias');
-    } finally {
-      setLoadingOrgs(false);
-    }
-  };
-
-  const loadSites = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/client-sites`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const data = await response.json();
-      
-      if (data.success) {
-        const allSites = data.data || [];
-        // Filtrar por organização se não for "all"
-        const filteredSites = selectedOrgId === 'all' 
-          ? allSites 
-          : allSites.filter((site: ClientSite) => site.organizationId === selectedOrgId);
-        setSites(filteredSites);
-      } else {
-        console.error('Erro ao carregar sites:', data.error);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar sites:', error);
-      toast.error('Erro ao carregar sites');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [loadSites]);
 
   const handleCreateSite = () => {
     setSelectedSite(null);
@@ -172,6 +255,11 @@ export function ClientSitesManager() {
     setShowCodeModal(true);
   };
 
+  const handleUploadArchive = (site: ClientSite) => {
+    setSelectedSite(site);
+    setShowArchiveModal(true);
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedUrl(label);
@@ -181,6 +269,23 @@ export function ClientSitesManager() {
 
   const getSiteUrl = (site: ClientSite) => {
     return site.domain || `https://${site.subdomain}.rendizy.app`;
+  };
+
+  // ✅ NOVA FUNÇÃO: URL de preview usando rota do RENDIZY (/sites/:subdomain)
+  // Funciona em localhost e produção com URLs limpas
+  const getPreviewUrl = (site: ClientSite) => {
+    // Detectar se está em localhost ou produção
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1' ||
+                        window.location.hostname.includes('localhost');
+    
+    if (isLocalhost) {
+      // Localhost: usar rota local
+      return `http://localhost:5173/sites/${site.subdomain}`;
+    } else {
+      // Produção: usar rota do Netlify
+      return `https://adorable-biscochitos-59023a.netlify.app/sites/${site.subdomain}`;
+    }
   };
 
   if (loading) {
@@ -342,13 +447,57 @@ export function ClientSitesManager() {
                   </div>
                 </div>
 
-                {/* Status do Código */}
-                {site.siteCode && (
-                  <div className="flex items-center gap-2 text-sm text-green-600">
-                    <Check className="h-4 w-4" />
-                    <span>Código customizado enviado</span>
-                  </div>
-                )}
+                {/* Status do Código e Arquivos */}
+                <div className="space-y-2 pt-2 border-t">
+                  {/* Status do Código */}
+                  {site.siteCode ? (
+                    <div className="flex items-center gap-2 text-sm text-green-600">
+                      <Check className="h-4 w-4" />
+                      <span>Código customizado enviado ({site.siteCode.length} chars)</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Nenhum código importado</span>
+                    </div>
+                  )}
+
+                  {/* Status do Arquivo ZIP */}
+                  {site.archivePath ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-blue-600">
+                        <Folder className="h-4 w-4" />
+                        <span>Arquivo ZIP enviado</span>
+                      </div>
+                      <div className="bg-gray-50 rounded p-2 text-xs">
+                        <div className="flex items-center gap-2 mb-1">
+                          <File className="h-3 w-3 text-gray-500" />
+                          <span className="font-mono text-gray-700 truncate">{site.archivePath}</span>
+                        </div>
+                        {site.source && (
+                          <div className="text-gray-500 mt-1">
+                            Fonte: <Badge variant="outline" className="text-xs">{site.source}</Badge>
+                          </div>
+                        )}
+                        {site.archiveUrl && (
+                          <a 
+                            href={site.archiveUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline text-xs mt-1 block"
+                          >
+                            🔗 Baixar arquivo
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Nenhum arquivo ZIP enviado</span>
+                    </div>
+                  )}
+                </div>
 
                 {/* Ações */}
                 <div className="flex gap-2 pt-4 border-t">
@@ -356,7 +505,8 @@ export function ClientSitesManager() {
                     size="sm"
                     variant="outline"
                     className="flex-1 gap-2"
-                    onClick={() => window.open(getSiteUrl(site), '_blank')}
+                    onClick={() => window.open(getPreviewUrl(site), '_blank')}
+                    title={`Preview do site: ${getSiteUrl(site)}`}
                   >
                     <Eye className="h-4 w-4" />
                     Ver Site
@@ -366,17 +516,29 @@ export function ClientSitesManager() {
                     variant="outline"
                     className="gap-2"
                     onClick={() => handleUploadCode(site)}
+                    title="Upload de código HTML/React"
                   >
-                    <Upload className="h-4 w-4" />
+                    <Code className="h-4 w-4" />
                     Código
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     className="gap-2"
-                    onClick={() => handleEditSite(site)}
+                    onClick={() => handleUploadArchive(site)}
+                    title="Upload de arquivo ZIP/TAR"
                   >
-                    <Settings className="h-4 w-4" />
+                    <Upload className="h-4 w-4" />
+                    ZIP
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => handleEditSite(site)}
+                    title="Editar configurações do site"
+                  >
+                    <Edit className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
@@ -425,6 +587,23 @@ export function ClientSitesManager() {
           onSuccess={() => {
             loadSites();
             setShowCodeModal(false);
+            setSelectedSite(null);
+          }}
+        />
+      )}
+
+      {/* Modal Upload Arquivo ZIP */}
+      {selectedSite && (
+        <UploadArchiveModal
+          site={selectedSite}
+          open={showArchiveModal}
+          onClose={() => {
+            setShowArchiveModal(false);
+            setSelectedSite(null);
+          }}
+          onSuccess={() => {
+            loadSites();
+            setShowArchiveModal(false);
             setSelectedSite(null);
           }}
         />
@@ -491,7 +670,7 @@ function CreateSiteModal({ open, onClose, onSuccess, prefilledOrgId }: {
       setLoading(true);
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/client-sites`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites`,
         {
           method: 'POST',
           headers: {
@@ -710,11 +889,11 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
     isActive: site.isActive
   });
 
-  // Auto-save: salva automaticamente após 2 segundos de inatividade
-  const saveData = async (data: typeof formData) => {
+  // Função para salvar dados (sem auto-save para evitar loops)
+  const saveData = useCallback(async (data: typeof formData) => {
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/client-sites/${site.organizationId}`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites/${site.organizationId}`,
         {
           method: 'PUT',
           headers: {
@@ -763,31 +942,36 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
       console.error('Erro ao salvar:', error);
       throw error;
     }
-  };
+  }, [site.organizationId]);
 
-  const { saveStatus } = useAutoSave(formData, saveData, {
-    delay: 2000,
-    enabled: open // Só salva quando modal está aberto
-  });
+  // Estado para controlar status de salvamento (sem auto-save)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const handleSaveChanges = async () => {
     try {
       setLoading(true);
+      setSaveStatus('saving');
       
       const result = await saveData(formData);
       
       if (result.success) {
+        setSaveStatus('saved');
         toast.success('Alterações salvas com sucesso!');
-        onSuccess();
-        onClose();
+        setTimeout(() => {
+          onSuccess();
+          onClose();
+        }, 1000);
       } else {
+        setSaveStatus('error');
         toast.error(result.error || 'Erro ao salvar alterações');
       }
     } catch (error) {
       console.error('Erro ao salvar:', error);
+      setSaveStatus('error');
       toast.error('Erro ao salvar alterações');
     } finally {
       setLoading(false);
+      setTimeout(() => setSaveStatus('idle'), 3000);
     }
   };
 
@@ -820,11 +1004,12 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
         </DialogHeader>
 
         <Tabs defaultValue="geral" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="contato">Contato</TabsTrigger>
             <TabsTrigger value="design">Design</TabsTrigger>
             <TabsTrigger value="recursos">Recursos</TabsTrigger>
+            <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
           </TabsList>
 
           {/* ABA: GERAL */}
@@ -1078,6 +1263,142 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
               </div>
             </div>
           </TabsContent>
+
+          {/* ABA: ARQUIVOS */}
+          <TabsContent value="arquivos" className="space-y-4">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">📦 Upload de Arquivo ZIP/TAR</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Envie um arquivo ZIP ou TAR.GZ com o código completo do site. O arquivo será armazenado no Supabase Storage.
+                  <br />
+                  <strong>💡 Dica:</strong> Se você usou o Bolt, peça para ele compilar o site ("Compile este site para produção") e o ZIP já virá com a pasta <code>dist/</code> incluída, tornando o site pronto para uso imediato.
+                </p>
+                
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="archiveFileEdit">Arquivo (.zip ou .tar.gz)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="archiveFileEdit"
+                        type="file"
+                        accept=".zip,.tar.gz,.tgz"
+                        onChange={async (e) => {
+                          const selectedFile = e.target.files?.[0] || null;
+                          if (selectedFile) {
+                            try {
+                              setLoading(true);
+                              const formData = new FormData();
+                              formData.append('file', selectedFile);
+                              formData.append('source', site.source || 'custom');
+
+                              const response = await fetch(
+                                `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites/${site.organizationId}/upload-archive`,
+                                {
+                                  method: 'POST',
+                                  headers: {
+                                    'Authorization': `Bearer ${publicAnonKey}`
+                                  },
+                                  body: formData
+                                }
+                              );
+
+                              const data = await response.json();
+
+                              if (data.success) {
+                                toast.success('Arquivo enviado com sucesso!');
+                                onSuccess();
+                              } else {
+                                toast.error(data.error || 'Erro ao enviar arquivo');
+                              }
+                            } catch (error) {
+                              console.error('Erro ao enviar arquivo:', error);
+                              toast.error('Erro ao enviar arquivo');
+                            } finally {
+                              setLoading(false);
+                            }
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status do Arquivo Atual */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-semibold mb-2">📁 Arquivos do Site</h3>
+                
+                {site.archivePath ? (
+                  <div className="space-y-3">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Folder className="h-5 w-5 text-green-600" />
+                          <span className="font-medium text-green-900">Arquivo ZIP Encontrado</span>
+                        </div>
+                        <Badge variant="outline" className="bg-green-100 text-green-800">
+                          {site.source || 'custom'}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <File className="h-4 w-4 text-gray-500" />
+                          <code className="text-xs bg-white px-2 py-1 rounded border border-green-200 text-gray-700">
+                            {site.archivePath}
+                          </code>
+                        </div>
+                        {site.archiveUrl && (
+                          <a 
+                            href={site.archiveUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline text-sm inline-flex items-center gap-1"
+                          >
+                            <Download className="h-4 w-4" />
+                            Baixar arquivo
+                          </a>
+                        )}
+                        <p className="text-xs text-gray-600 mt-2">
+                          ⚠️ <strong>Nota:</strong> Arquivos são salvos no Supabase Storage (correto), mas a referência está em KV Store (precisa migrar para SQL).
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-yellow-800">
+                      <AlertCircle className="h-5 w-5" />
+                      <span className="font-medium">Nenhum arquivo enviado</span>
+                    </div>
+                    <p className="text-sm text-yellow-700 mt-2">
+                      Faça upload de um arquivo ZIP ou TAR.GZ acima para começar.
+                    </p>
+                  </div>
+                )}
+
+                {site.siteCode ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-3">
+                    <div className="flex items-center gap-2 text-blue-800 mb-2">
+                      <Code className="h-5 w-5" />
+                      <span className="font-medium">Código HTML/React Enviado</span>
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      Tamanho: {site.siteCode.length.toLocaleString()} caracteres
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-3">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <AlertCircle className="h-5 w-5" />
+                      <span className="text-sm">Nenhum código HTML/React enviado</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
 
         <DialogFooter>
@@ -1119,7 +1440,7 @@ function UploadCodeModal({ site, open, onClose, onSuccess }: {
       setLoading(true);
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/client-sites/${site.organizationId}/upload-code`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites/${site.organizationId}/upload-code`,
         {
           method: 'POST',
           headers: {
@@ -1187,6 +1508,230 @@ function UploadCodeModal({ site, open, onClose, onSuccess }: {
 }
 
 // ============================================================
+// MODAL: UPLOAD ARQUIVO ZIP
+// ============================================================
+
+function UploadArchiveModal({ site, open, onClose, onSuccess }: {
+  site: ClientSite;
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [source, setSource] = useState<'bolt' | 'v0' | 'figma' | 'custom'>(site.source || 'custom');
+  const [uploadStep, setUploadStep] = useState<number>(0); // 0 = idle, 1 = abrindo zip, 2 = conferindo, 3 = arquivos corretos, 4 = concluído
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!file) {
+      toast.error('Selecione um arquivo ZIP com a pasta dist/ compilada');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setUploadStep(1); // Abrindo ZIP
+      setUploadSuccess(false);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('source', source);
+
+      console.log('📤 [UploadArchiveModal] Enviando arquivo:', file.name);
+
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites/${site.organizationId}/upload-archive`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`
+          },
+          body: formData
+        }
+      );
+
+      console.log('📥 [UploadArchiveModal] Status:', response.status);
+
+      const data = await response.json();
+      console.log('📦 [UploadArchiveModal] Resposta:', data);
+
+      if (data.success) {
+        // ✅ CORRIGIDO: Usar progresso real do backend ao invés de simular
+        // O backend retorna data.steps com informações reais do progresso
+        if (data.steps && Array.isArray(data.steps)) {
+          // Contar quantos steps foram completados
+          const completedSteps = data.steps.filter((s: any) => s.status === 'completed').length;
+          setUploadStep(Math.min(completedSteps + 1, 4)); // Máximo 4 steps
+        } else {
+          // Fallback: se não tiver steps, assumir que todos foram completados
+          setUploadStep(3); // Arquivos corretos
+        }
+        
+        // Mostrar validação detalhada se disponível
+        if (data.data?.validation) {
+          const validation = data.data.validation;
+          console.log('✅ [UploadArchiveModal] Validação:', validation);
+          console.log(`✅ [UploadArchiveModal] Arquivos em dist/: ${validation.distFilesCount || 0}`);
+          console.log(`✅ [UploadArchiveModal] Arquivos JS: ${validation.jsFilesCount || 0}`);
+          console.log(`✅ [UploadArchiveModal] Arquivos CSS: ${validation.cssFilesCount || 0}`);
+        }
+        
+        // Marcar como concluído
+        setTimeout(() => {
+          setUploadStep(4); // Concluído
+          setUploadSuccess(true);
+        }, 300);
+        
+        toast.success(data.message || 'Arquivo validado e enviado com sucesso!');
+        
+        // Aguardar 2 segundos antes de fechar e recarregar
+        setTimeout(() => {
+          onSuccess(); // Isso deve recarregar a lista de sites
+          onClose();
+        }, 2000);
+      } else {
+        setUploadStep(0);
+        // Mostrar erro detalhado se disponível
+        if (data.validation) {
+          console.error('❌ [UploadArchiveModal] Erro de validação:', data.validation);
+          toast.error(data.error || 'Erro ao validar arquivo');
+        } else {
+          toast.error(data.error || 'Erro ao validar arquivo');
+        }
+      }
+    } catch (error) {
+      console.error('❌ [UploadArchiveModal] Erro ao enviar arquivo:', error);
+      setUploadStep(0);
+      toast.error('Erro ao enviar arquivo');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Upload Arquivo ZIP</DialogTitle>
+          <DialogDescription>
+            Envie um arquivo ZIP compilado com a pasta dist/ do site {site.siteName}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Fonte */}
+          <div className="space-y-2">
+            <Label>Fonte do Site</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {(['bolt', 'v0', 'figma', 'custom'] as const).map((src) => (
+                <Button
+                  key={src}
+                  type="button"
+                  variant={source === src ? 'default' : 'outline'}
+                  onClick={() => setSource(src)}
+                  className="capitalize"
+                >
+                  {src}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Arquivo */}
+          <div className="space-y-2">
+            <Label htmlFor="archiveFile">Arquivo ZIP com pasta dist/ (obrigatório)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="archiveFile"
+                type="file"
+                accept=".zip"
+                onChange={(e) => {
+                  const selectedFile = e.target.files?.[0] || null;
+                  setFile(selectedFile);
+                  setUploadStep(0);
+                  setUploadSuccess(false);
+                  if (selectedFile) {
+                    toast.success(`Arquivo selecionado: ${selectedFile.name}`);
+                  }
+                }}
+                className="flex-1"
+              />
+              {file && (
+                <Badge variant="secondary" className="text-xs">
+                  ✓ {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              <strong>⚠️ Importante:</strong> O arquivo ZIP DEVE conter a pasta <code>dist/</code> compilada.
+              <br />
+              <strong>💡 Dica:</strong> O Bolt pode compilar automaticamente! Peça "Compile este site para produção" e o ZIP já virá com a pasta <code>dist/</code> incluída.
+            </p>
+          </div>
+
+          {/* Barra de Progresso */}
+          {loading && uploadStep > 0 && (
+            <div className="space-y-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-blue-900">
+                  {uploadStep === 1 && '📦 Abrindo ZIP...'}
+                  {uploadStep === 2 && '📋 Conferindo arquivos...'}
+                  {uploadStep === 3 && '✅ Arquivos corretos!'}
+                  {uploadStep === 4 && '🎉 Processamento concluído!'}
+                </span>
+                <span className="text-blue-600">{uploadStep}/4</span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${(uploadStep / 4) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Mensagem de Sucesso */}
+          {uploadSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">✅</span>
+                <div>
+                  <p className="font-medium text-green-900">Site processado com sucesso!</p>
+                  <p className="text-sm text-green-700 mt-1">
+                    Aguarde 2 minutos e clique em "Ver Site" para visualizar o site funcionando.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Status atual */}
+          {site.archivePath && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-900 font-medium mb-1">📁 Arquivo atual:</p>
+              <p className="text-xs text-blue-700 font-mono">{site.archivePath}</p>
+              <p className="text-xs text-blue-600 mt-1">
+                ⚠️ O novo arquivo substituirá o arquivo atual.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSubmit} disabled={loading || !file}>
+            {loading ? 'Enviando...' : 'Enviar Arquivo'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================================
 // MODAL: DOCUMENTAÇÃO IA (BOLT, V0, ETC)
 // ============================================================
 
@@ -1195,7 +1740,11 @@ function DocsAIModal({ open, onClose }: {
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [promptVersion] = useState('1.1-2025-12-01'); // Força remount quando muda
 
+  // ✅ PROMPT ATUALIZADO v1.1 - 2025-12-01 - FORÇANDO RELOAD
+  // FORÇA RELOAD: ${Date.now()}
+  console.log('🔍 DocsAIModal renderizado - Versão:', promptVersion);
   const aiPrompt = `# Criar Site de Imobiliária com RENDIZY
 
 ## Objetivo
@@ -1216,44 +1765,78 @@ Criar um site moderno e responsivo para imobiliária de aluguel de temporada, lo
 interface Property {
   id: string;
   name: string;
+  code: string; // Código único da propriedade
   description: string;
-  type: 'apartment' | 'house' | 'condo';
+  type: string; // 'apartment' | 'house' | 'condo' | 'studio' | etc
+  status: string; // 'active' | 'inactive' | 'maintenance'
   bedrooms: number;
   bathrooms: number;
   maxGuests: number;
-  area: number;
+  area: number; // Área em m²
   address: {
     street: string;
     number: string;
+    complement?: string; // "Apto 101", "Bloco A"
+    neighborhood: string;
     city: string;
     state: string;
     zipCode: string;
+    country: string;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
   };
-  amenities: string[];
-  photos: string[];
+  amenities: string[]; // Lista de comodidades
+  photos: string[]; // URLs das fotos
+  coverPhoto?: string; // Foto de capa
   pricing: {
-    dailyRate: number;
-    weeklyRate: number;
-    monthlyRate: number;
-    salePrice?: number;
+    basePrice?: number; // Preço base
+    currency?: string; // "BRL", "USD", etc
+    dailyRate?: number; // Preço diário (temporada)
+    weeklyRate?: number; // Preço semanal
+    monthlyRate?: number; // Preço mensal (locação)
+    salePrice?: number; // Preço de venda
+    weeklyDiscount?: number; // Desconto semanal (%)
+    monthlyDiscount?: number; // Desconto mensal (%)
   };
-  availability: 'available' | 'rented' | 'sold';
+  restrictions?: {
+    minNights?: number; // Mínimo de noites
+    maxNights?: number; // Máximo de noites
+    advanceBooking?: number; // Dias de antecedência
+  };
   features: {
-    shortTerm: boolean;
-    longTerm: boolean;
-    sale: boolean;
+    shortTerm: boolean; // Aluguel de temporada
+    longTerm: boolean; // Locação residencial
+    sale: boolean; // Venda
   };
+  locationId?: string; // ID do prédio/condomínio (se aplicável)
+  organizationId: string; // ID da organização (multi-tenant)
+  createdAt: string;
+  updatedAt: string;
 }
 \`\`\`
 
 #### 2. Calendário (GET /calendar)
 \`\`\`typescript
-interface CalendarAvailability {
-  propertyId: string;
-  date: string;
+// ✅ Parâmetros da requisição:
+// - startDate: YYYY-MM-DD (obrigatório)
+// - endDate: YYYY-MM-DD (obrigatório)
+// - propertyId?: string (opcional - filtrar por propriedade)
+// - includeBlocks?: boolean (incluir bloqueios)
+// - includePrices?: boolean (incluir preços)
+
+interface CalendarDay {
+  date: string; // YYYY-MM-DD
   status: 'available' | 'booked' | 'blocked';
-  price?: number;
-  minNights?: number;
+  price?: number; // Preço do dia (se includePrices=true)
+  minNights?: number; // Mínimo de noites
+  propertyId: string;
+}
+
+interface CalendarResponse {
+  days: CalendarDay[];
+  properties: Property[]; // Propriedades incluídas no calendário
 }
 \`\`\`
 
@@ -1294,23 +1877,41 @@ interface ReservationRequest {
 ### Configurações do Cliente (Variáveis)
 
 \`\`\`typescript
+// ✅ Estas variáveis serão substituídas automaticamente pelo sistema RENDIZY
 const siteConfig = {
-  organizationId: "{{ORG_ID}}", // Será substituído
-  siteName: "{{SITE_NAME}}",
-  logo: "{{LOGO_URL}}",
-  primaryColor: "{{PRIMARY_COLOR}}",
-  secondaryColor: "{{SECONDARY_COLOR}}",
-  contactEmail: "{{CONTACT_EMAIL}}",
-  contactPhone: "{{CONTACT_PHONE}}",
-  whatsapp: "{{WHATSAPP}}",
-  socialMedia: {
-    facebook: "{{FACEBOOK}}",
-    instagram: "{{INSTAGRAM}}"
+  organizationId: "{{ORG_ID}}", // UUID da organização (será substituído)
+  siteName: "{{SITE_NAME}}", // Nome da imobiliária
+  subdomain: "{{SUBDOMAIN}}", // Ex: "suacasamobiliada" → suacasamobiliada.rendizy.com.br
+  domain: "{{DOMAIN}}", // Domínio customizado (opcional) Ex: "suacasamobiliada.com.br"
+  logo: "{{LOGO_URL}}", // URL do logo
+  favicon: "{{FAVICON_URL}}", // URL do favicon
+  theme: {
+    primaryColor: "{{PRIMARY_COLOR}}", // Ex: "#3B82F6"
+    secondaryColor: "{{SECONDARY_COLOR}}", // Ex: "#1F2937"
+    accentColor: "{{ACCENT_COLOR}}", // Ex: "#10B981"
+    fontFamily: "{{FONT_FAMILY}}" // Ex: "Inter, sans-serif"
+  },
+  siteConfig: {
+    title: "{{TITLE}}", // Título SEO
+    description: "{{DESCRIPTION}}", // Descrição SEO
+    slogan: "{{SLOGAN}}", // Slogan da imobiliária
+    contactEmail: "{{CONTACT_EMAIL}}",
+    contactPhone: "{{CONTACT_PHONE}}",
+    socialMedia: {
+      facebook: "{{FACEBOOK}}",
+      instagram: "{{INSTAGRAM}}",
+      whatsapp: "{{WHATSAPP}}"
+    }
   },
   features: {
-    shortTerm: {{SHORT_TERM}},
-    longTerm: {{LONG_TERM}},
-    sale: {{SALE}}
+    shortTerm: {{SHORT_TERM}}, // true/false - Aluguel de Temporada
+    longTerm: {{LONG_TERM}}, // true/false - Locação Residencial
+    sale: {{SALE}} // true/false - Venda
+  },
+  // ✅ Configurações da API
+  api: {
+    baseUrl: "{{API_BASE_URL}}", // URL base da API RENDIZY
+    publicKey: "{{PUBLIC_ANON_KEY}}" // Chave pública do Supabase
   }
 };
 \`\`\`
@@ -1318,29 +1919,67 @@ const siteConfig = {
 ### Integração com API RENDIZY
 
 \`\`\`typescript
-const API_BASE = "https://uknccixtubkdkofyieie.supabase.co/functions/v1/rendizy-server";
-const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+// ✅ IMPORTANTE: Substitua PROJECT_ID pelo ID do seu projeto Supabase
+const PROJECT_ID = "{{PROJECT_ID}}"; // Ex: "odcgnzfremrqnvtitpcc"
+const API_BASE = \`https://\${PROJECT_ID}.supabase.co/functions/v1/rendizy-server\`;
 
-// Buscar propriedades
-const properties = await fetch(\`\${API_BASE}/properties?organizationId=\${organizationId}\`, {
-  headers: { 'Authorization': \`Bearer \${API_KEY}\` }
+// ✅ AUTENTICAÇÃO: O sistema usa token JWT via header X-Auth-Token
+// O organizationId é extraído automaticamente do token no backend
+// Para sites públicos, você pode usar a publicAnonKey do Supabase
+const PUBLIC_ANON_KEY = "{{PUBLIC_ANON_KEY}}"; // Chave pública do Supabase
+
+// ✅ Buscar propriedades (organizationId é extraído automaticamente do token)
+const properties = await fetch(\`\${API_BASE}/properties\`, {
+  headers: {
+    'Authorization': \`Bearer \${PUBLIC_ANON_KEY}\`,
+    'X-Auth-Token': '{{USER_TOKEN}}', // Token JWT do usuário (opcional para sites públicos)
+    'Content-Type': 'application/json'
+  }
 });
 
-// Buscar disponibilidade
-const availability = await fetch(\`\${API_BASE}/calendar?propertyId=\${propertyId}&start=\${startDate}&end=\${endDate}\`, {
-  headers: { 'Authorization': \`Bearer \${API_KEY}\` }
-});
+// ✅ Buscar disponibilidade do calendário
+const availability = await fetch(
+  \`\${API_BASE}/calendar?propertyId=\${propertyId}&startDate=\${startDate}&endDate=\${endDate}&includeBlocks=true&includePrices=true\`,
+  {
+    headers: {
+      'Authorization': \`Bearer \${PUBLIC_ANON_KEY}\`,
+      'X-Auth-Token': '{{USER_TOKEN}}',
+      'Content-Type': 'application/json'
+    }
+  }
+);
 
-// Criar reserva
+// ✅ Criar reserva
 const reservation = await fetch(\`\${API_BASE}/reservations\`, {
   method: 'POST',
   headers: {
-    'Authorization': \`Bearer \${API_KEY}\`,
+    'Authorization': \`Bearer \${PUBLIC_ANON_KEY}\`,
+    'X-Auth-Token': '{{USER_TOKEN}}',
     'Content-Type': 'application/json'
   },
-  body: JSON.stringify(reservationData)
+  body: JSON.stringify({
+    propertyId: reservationData.propertyId,
+    guestName: reservationData.guestName,
+    guestEmail: reservationData.guestEmail,
+    guestPhone: reservationData.guestPhone,
+    checkIn: reservationData.checkIn,
+    checkOut: reservationData.checkOut,
+    guests: reservationData.guests,
+    totalPrice: reservationData.totalPrice
+  })
 });
+
+// ✅ IMPORTANTE: Para sites públicos (sem autenticação de usuário)
+// Você pode fazer requisições sem X-Auth-Token, mas precisará passar organizationId
+// via query param ou header customizado conforme configuração do backend
 \`\`\`
+
+### Notas Importantes sobre Autenticação
+
+1. **Sites Públicos**: Para sites que não requerem login, use apenas \`Authorization: Bearer PUBLIC_ANON_KEY\`
+2. **Multi-Tenant**: O backend identifica automaticamente a organização via token ou header
+3. **Subdomínios**: Sites podem ser acessados via \`subdomain.rendizy.com.br\` ou domínio customizado
+4. **CORS**: Todas as requisições devem incluir headers CORS apropriados
 
 ### Design Guidelines
 
@@ -1349,6 +1988,20 @@ const reservation = await fetch(\`\${API_BASE}/reservations\`, {
 - **Acessível**: Contraste adequado, alt texts, navegação por teclado
 - **Performance**: Lazy loading de imagens, code splitting
 - **SEO**: Meta tags, structured data, sitemap
+- **Multi-tenant**: Cada site é isolado por organização (dados não se misturam)
+
+### Sistema de Domínios
+
+O RENDIZY suporta dois tipos de domínios:
+
+1. **Subdomínio RENDIZY**: \`{{SUBDOMAIN}}.rendizy.com.br\`
+   - Gerado automaticamente a partir do nome da imobiliária
+   - Exemplo: "Sua Casa Mobiliada" → \`suacasamobiliada.rendizy.com.br\`
+
+2. **Domínio Customizado**: \`{{DOMAIN}}\`
+   - Domínio próprio do cliente (ex: \`suacasamobiliada.com.br\`)
+   - Requer configuração DNS apontando para servidor RENDIZY
+   - O sistema detecta automaticamente qual organização usar baseado no domínio
 
 ### Componentes Reutilizáveis
 
@@ -1361,7 +2014,31 @@ const reservation = await fetch(\`\${API_BASE}/reservations\`, {
 - FilterSidebar
 - PropertyMap
 
-Crie um site COMPLETO, FUNCIONAL e PROFISSIONAL seguindo essas especificações.`;
+Crie um site COMPLETO, FUNCIONAL e PROFISSIONAL seguindo essas especificações.
+
+### Compilação e Entrega
+
+**✅ IMPORTANTE: O Bolt pode compilar o site automaticamente!**
+
+Após gerar o código do site, você pode:
+
+1. **Opção 1: Compilar no Bolt (Recomendado)**
+   - Peça ao Bolt: "Compile este site para produção" ou "Faça o build deste projeto"
+   - O Bolt irá executar npm run build automaticamente
+   - O arquivo ZIP gerado já virá com a pasta dist/ incluída
+   - Isso torna o site pronto para uso imediato no RENDIZY
+
+2. **Opção 2: Compilar manualmente**
+   - Baixe o projeto
+   - Execute npm install e depois npm run build
+   - Inclua a pasta dist/ no ZIP antes de enviar
+
+**Vantagem da Opção 1:** O site fica pronto imediatamente após o upload, sem necessidade de compilação adicional.
+
+---
+**Versão 1.2** - Atualizado em 2025-12-01
+**Build:** ${promptVersion}
+`;
 
   const copyPrompt = () => {
     navigator.clipboard.writeText(aiPrompt);
@@ -1474,6 +2151,7 @@ Crie um site COMPLETO, FUNCIONAL e PROFISSIONAL seguindo essas especificações.
             </div>
             
             <Textarea
+              key={`ai-prompt-${promptVersion}`}
               value={aiPrompt}
               readOnly
               className="min-h-[400px] font-mono text-xs bg-gray-50"
@@ -1490,9 +2168,10 @@ Crie um site COMPLETO, FUNCIONAL e PROFISSIONAL seguindo essas especificações.
                 <li>Abra Bolt.new, v0.dev ou sua IA preferida</li>
                 <li>Cole o prompt completo</li>
                 <li>Aguarde a IA gerar o código do site</li>
-                <li>Copie o código gerado</li>
-                <li>Volte aqui e clique em "Importar Site"</li>
-                <li>Cole o código e configure a organização</li>
+                <li><strong>💡 No Bolt:</strong> Peça "Compile este site para produção" ou "Faça o build" - o ZIP já virá compilado!</li>
+                <li>Baixe o arquivo ZIP (com ou sem pasta <code>dist/</code>)</li>
+                <li>Volte aqui e clique em "Upload Arquivo ZIP" no card do site</li>
+                <li>Envie o ZIP e o site ficará disponível imediatamente</li>
               </ol>
             </AlertDescription>
           </Alert>
@@ -1518,6 +2197,8 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
 }) {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [importMode, setImportMode] = useState<'code' | 'zip' | 'drive'>('code');
+  const [zipFile, setZipFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     organizationId: '',
     siteName: '',
@@ -1527,7 +2208,8 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
     contactPhone: '',
     shortTerm: true,
     longTerm: false,
-    sale: false
+    sale: false,
+    driveUrl: ''
   });
 
   const handleSubmit = async () => {
@@ -1536,12 +2218,27 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
         toast.error('Preencha organização e nome do site');
         return;
       }
-      setStep(2);
+
+      // Se for importação por código, avançamos para o passo 2
+      if (importMode === 'code') {
+        setStep(2);
+        return;
+      }
+
+      // Para ZIP, já validamos se há arquivo selecionado
+      if (importMode === 'zip' && !zipFile) {
+        toast.error('Selecione um arquivo .zip ou .tar.gz do site');
+        return;
+      }
+    }
+
+    if (step === 2 && importMode === 'code' && !formData.siteCode) {
+      toast.error('Cole o código do site');
       return;
     }
 
-    if (!formData.siteCode) {
-      toast.error('Cole o código do site');
+    if (step === 1 && importMode === 'drive' && !formData.driveUrl) {
+      toast.error('Informe a URL do arquivo (.zip ou .tar.gz) no Google Drive ou outro storage');
       return;
     }
 
@@ -1550,7 +2247,7 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
 
       // 1. Criar o site
       const createResponse = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/client-sites`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites`,
         {
           method: 'POST',
           headers: {
@@ -1561,6 +2258,7 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
             organizationId: formData.organizationId,
             siteName: formData.siteName,
             template: 'custom',
+            source: formData.source,
             siteConfig: {
               title: formData.siteName,
               description: `Site oficial de ${formData.siteName}`,
@@ -1579,31 +2277,171 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
       const createData = await createResponse.json();
 
       if (!createData.success) {
-        toast.error(createData.error || 'Erro ao criar site');
+        // Se já existe site (409), perguntar se quer atualizar
+        if (createResponse.status === 409) {
+          const shouldUpdate = confirm(
+            `Já existe um site para esta organização. Deseja atualizar o site existente com os novos dados?`
+          );
+          
+          if (shouldUpdate) {
+            // Atualizar site existente ao invés de criar
+            const updateResponse = await fetch(
+              `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites/${formData.organizationId}`,
+              {
+                method: 'PUT',
+                headers: {
+                  'Authorization': `Bearer ${publicAnonKey}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  siteName: formData.siteName,
+                  siteConfig: {
+                    title: formData.siteName,
+                    description: `Site oficial de ${formData.siteName}`,
+                    contactEmail: formData.contactEmail,
+                    contactPhone: formData.contactPhone
+                  },
+                  features: {
+                    shortTerm: formData.shortTerm,
+                    longTerm: formData.longTerm,
+                    sale: formData.sale
+                  }
+                })
+              }
+            );
+
+            const updateData = await updateResponse.json();
+            
+            if (!updateData.success) {
+              toast.error(updateData.error || 'Erro ao atualizar site');
+              setLoading(false);
+              return;
+            }
+            
+            // Continuar com o upload do arquivo/código mesmo após atualizar
+            toast.success('✅ Site atualizado! Continuando com importação...');
+          } else {
+            toast.info('Operação cancelada. Use "Editar Site" para modificar o site existente.');
+            setLoading(false);
+            return;
+          }
+        } else {
+          toast.error(createData.error || 'Erro ao criar site');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 2. Dependendo do modo, subir código, arquivo ou apenas registrar fonte
+      // ✅ CORRIGIDO: Se não houver código/arquivo para fazer upload após atualizar, finalizar aqui
+      let hasUploadData = false;
+      
+      if (importMode === 'code') {
+        hasUploadData = !!formData.siteCode;
+      } else if (importMode === 'zip') {
+        hasUploadData = !!zipFile;
+      } else if (importMode === 'drive') {
+        hasUploadData = !!formData.driveUrl;
+      }
+      
+      // Se não houver dados para fazer upload, apenas finalizar
+      if (!hasUploadData) {
+        toast.success('✅ Site atualizado com sucesso!');
+        onSuccess();
         setLoading(false);
         return;
       }
+      
+      if (importMode === 'code') {
+        const uploadResponse = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites/${formData.organizationId}/upload-code`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${publicAnonKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ siteCode: formData.siteCode })
+          }
+        );
 
-      // 2. Fazer upload do código
-      const uploadResponse = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/client-sites/${formData.organizationId}/upload-code`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ siteCode: formData.siteCode })
+        const uploadData = await uploadResponse.json();
+
+        if (!uploadData.success) {
+          toast.error(uploadData.error || 'Erro ao importar código');
+          setLoading(false);
+          return;
         }
-      );
 
-      const uploadData = await uploadResponse.json();
-
-      if (uploadData.success) {
         toast.success('✅ Site importado com sucesso!');
         onSuccess();
-      } else {
-        toast.error(uploadData.error || 'Erro ao importar código');
+        return;
+      }
+
+      if (importMode === 'zip' && zipFile) {
+        const form = new FormData();
+        form.append('file', zipFile);
+        form.append('source', formData.source);
+
+        const archiveResponse = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites/${formData.organizationId}/upload-archive`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${publicAnonKey}`
+              // Content-Type é definido automaticamente (multipart/form-data)
+            },
+            body: form
+          }
+        );
+
+        const archiveData = await archiveResponse.json();
+
+        if (!archiveData.success) {
+          toast.error(archiveData.error || 'Erro ao enviar arquivo do site');
+          setLoading(false);
+          return;
+        }
+
+        toast.success('✅ Site e arquivo importados com sucesso!');
+        onSuccess();
+        return;
+      }
+
+      if (importMode === 'drive') {
+        // Importação via URL remota (ex: arquivo .zip no Google Drive)
+        if (!formData.driveUrl) {
+          toast.error('Informe a URL do arquivo (.zip ou .tar.gz) no Google Drive ou outro storage');
+          setLoading(false);
+          return;
+        }
+
+        const driveResponse = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites/${formData.organizationId}/upload-archive-from-url`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${publicAnonKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              url: formData.driveUrl,
+              source: formData.source
+            })
+          }
+        );
+
+        const driveData = await driveResponse.json();
+
+        if (!driveData.success) {
+          toast.error(driveData.error || 'Erro ao importar arquivo remoto do site');
+          setLoading(false);
+          return;
+        }
+
+        toast.success('✅ Site criado e arquivo remoto associado com sucesso!');
+        onSuccess();
+        return;
       }
     } catch (error) {
       console.error('Erro ao importar site:', error);
@@ -1622,7 +2460,11 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
             Importar Site de IA/Figma
           </DialogTitle>
           <DialogDescription>
-            {step === 1 ? 'Configure os dados básicos do site' : 'Cole o código gerado pela IA'}
+            {step === 1
+              ? 'Escolha a origem e configure os dados básicos do site'
+              : importMode === 'code'
+                ? 'Cole o código gerado pela IA'
+                : 'Revise e envie os arquivos do site'}
           </DialogDescription>
         </DialogHeader>
 
@@ -1642,6 +2484,34 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
                     {source}
                   </Button>
                 ))}
+              </div>
+            </div>
+
+            {/* Modo de importação */}
+            <div className="space-y-2">
+              <Label>Como deseja importar?</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant={importMode === 'code' ? 'default' : 'outline'}
+                  onClick={() => setImportMode('code')}
+                  className="text-sm"
+                >
+                  Colar Código
+                </Button>
+                <Button
+                  variant={importMode === 'zip' ? 'default' : 'outline'}
+                  onClick={() => setImportMode('zip')}
+                  className="text-sm"
+                >
+                  Upload .zip
+                </Button>
+                <Button
+                  variant={importMode === 'drive' ? 'default' : 'outline'}
+                  onClick={() => setImportMode('drive')}
+                  className="text-sm"
+                >
+                  Link Google Drive
+                </Button>
               </div>
             </div>
 
@@ -1699,6 +2569,54 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
               </div>
             </div>
 
+            {importMode === 'drive' && (
+              <div className="space-y-2">
+                <Label htmlFor="driveUrl">URL do arquivo (.zip ou .tar.gz) no Google Drive ou outro storage</Label>
+                <Input
+                  id="driveUrl"
+                  value={formData.driveUrl}
+                  onChange={(e) => setFormData({ ...formData, driveUrl: e.target.value })}
+                  placeholder="Cole aqui o link direto para o arquivo compactado do site (ex: ZIP do Bolt no Google Drive)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Gere um link compartilhável do arquivo compactado (não da pasta). No Google Drive, certifique-se de que
+                  o link permite leitura pública ou que o backend tenha permissão para acessar.
+                </p>
+              </div>
+            )}
+
+            {importMode === 'zip' && (
+              <div className="space-y-2">
+                <Label htmlFor="zipFile">Arquivo do site (.zip ou .tar.gz)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="zipFile"
+                    type="file"
+                    accept=".zip,.tar.gz,.tgz"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setZipFile(file);
+                      if (file) {
+                        toast.success(`Arquivo selecionado: ${file.name}`);
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                  {zipFile && (
+                    <Badge variant="secondary" className="text-xs">
+                      ✓ {zipFile.name}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Selecione o arquivo compactado gerado pelo Bolt, v0, Figma ou outra ferramenta, contendo a pasta do
+                  projeto (ex: <code>src/</code>, <code>public/</code>, etc.).
+                  <br />
+                  <strong>💡 Dica:</strong> Se você usou o Bolt, peça para ele compilar o site ("Compile este site para produção") e o ZIP já virá com a pasta <code>dist/</code> incluída, tornando o site pronto para uso imediato.
+                </p>
+              </div>
+            )}
+
             {/* Modalidades */}
             <div className="space-y-3">
               <Label>Modalidades</Label>
@@ -1730,7 +2648,7 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
               </div>
             </div>
           </div>
-        ) : (
+        ) : importMode === 'code' ? (
           <div className="space-y-4">
             <Alert>
               <Sparkles className="h-4 w-4" />
@@ -1759,11 +2677,83 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
                 <br />• Configurar calendário e reservas
               </p>
             </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                <strong>Importação via código:</strong> use quando a IA gerou um único componente
+                ou página principal. Para projetos completos (pasta com src/, public/, etc.),
+                prefira a opção de upload .zip.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {importMode === 'zip' && (
+              <>
+                <Alert>
+                  <Sparkles className="h-4 w-4" />
+                  <AlertTitle>Upload de projeto completo (.zip / .tar.gz)</AlertTitle>
+                  <AlertDescription>
+                    Envie o arquivo compactado gerado pelo Bolt, v0.dev ou outro gerador.
+                    O RENDIZY irá armazenar esse pacote vinculado à organização e ao site,
+                    permitindo automações de deploy no futuro.
+                    <br />
+                    <strong>💡 Dica:</strong> Se você usou o Bolt, peça para ele compilar o site ("Compile este site para produção") e o ZIP já virá com a pasta <code>dist/</code> incluída, tornando o site pronto para uso imediato.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-2">
+                  <Label>Arquivo do Site (.zip ou .tar.gz)</Label>
+                  <Input
+                    type="file"
+                    accept=".zip,.tar.gz,.tgz"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setZipFile(file);
+                    }}
+                  />
+                  {zipFile && (
+                    <p className="text-xs text-gray-600">
+                      Selecionado: {zipFile.name} ({Math.round(zipFile.size / 1024)} KB)
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {importMode === 'drive' && (
+              <>
+                <Alert>
+                  <Sparkles className="h-4 w-4" />
+                  <AlertTitle>Integração com Google Drive (fase 1)</AlertTitle>
+                  <AlertDescription>
+                    Nesta primeira versão, o RENDIZY registra o site normalmente.
+                    A sincronização automática com uma pasta do Google Drive poderá ser
+                    configurada por uma rotina dedicada em uma próxima etapa.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-2">
+                  <Label>Link da pasta ou arquivo no Google Drive</Label>
+                  <Input
+                    placeholder="https://drive.google.com/..."
+                    value={formData.siteCode}
+                    onChange={(e) =>
+                      setFormData({ ...formData, siteCode: e.target.value })
+                    }
+                  />
+                  <p className="text-xs text-gray-600">
+                    O link será armazenado nos metadados do site para uso futuro
+                    por processos de sincronização/implantação.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         )}
 
         <DialogFooter>
-          {step === 2 && (
+          {step === 2 && importMode === 'code' && (
             <Button variant="outline" onClick={() => setStep(1)}>
               Voltar
             </Button>
@@ -1772,7 +2762,11 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Importando...' : step === 1 ? 'Próximo' : 'Importar Site'}
+            {loading
+              ? 'Importando...'
+              : step === 1 && importMode === 'code'
+                ? 'Próximo'
+                : 'Importar Site'}
           </Button>
         </DialogFooter>
       </DialogContent>
