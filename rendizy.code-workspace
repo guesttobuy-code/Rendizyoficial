@@ -1,24 +1,35 @@
 {
   "folders": [
     {
-      "name": "Rendizy Principal",
-      "path": "."
+      "name": "RENDIZY PRODUÇÃO",
+      "path": "C:\\dev\\RENDIZY PASTA OFICIAL"
     }
   ],
   "settings": {
-    "editor.formatOnSave": true,
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "terminal.integrated.cwd": "${workspaceFolder}",
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "terminal.integrated.profiles.windows": {
+      "PowerShell": {
+        "source": "PowerShell",
+        "icon": "terminal-powershell",
+        "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "args": [
+          "-NoExit",
+          "-Command",
+          "cd 'C:\\dev\\RENDIZY PASTA OFICIAL'"
+        ]
+      }
+    },
     "files.exclude": {
       "**/node_modules": true,
-      "**/.next": true,
       "**/dist": true,
+      "**/build": true,
       "**/.git": false
     },
     "search.exclude": {
       "**/node_modules": true,
       "**/dist": true,
-      "**/.next": true,
-      "**/coverage": true
+      "**/build": true
     },
     "typescript.tsdk": "node_modules/typescript/lib",
     "files.watcherExclude": {
@@ -29,6 +40,7 @@
   },
   "extensions": {
     "recommendations": [
+      "ms-vscode.powershell",
       "dbaeumer.vscode-eslint",
       "esbenp.prettier-vscode",
       "bradlc.vscode-tailwindcss"

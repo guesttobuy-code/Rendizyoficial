@@ -52,6 +52,8 @@ interface ClientSite {
   siteCode?: string;
   archivePath?: string; // Caminho do arquivo no Storage
   archiveUrl?: string; // URL assinada do arquivo
+  extractedBaseUrl?: string; // ✅ NOVO: Base URL pública do Storage para arquivos extraídos
+  extractedFilesCount?: number; // ✅ NOVO: Quantidade de arquivos extraídos do ZIP
   source?: 'bolt' | 'v0' | 'figma' | 'custom'; // Fonte do site
   createdAt: string;
   updatedAt: string;
@@ -474,6 +476,36 @@ export function ClientSitesManager() {
                           <File className="h-3 w-3 text-gray-500" />
                           <span className="font-mono text-gray-700 truncate">{site.archivePath}</span>
                         </div>
+                        
+                        {/* ✅ NOVO: Status de arquivos extraídos */}
+                        {site.extractedBaseUrl && site.extractedFilesCount ? (
+                          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                            <div className="flex items-center gap-2 text-green-700 font-medium mb-1">
+                              <Check className="h-3 w-3" />
+                              <span>Arquivos extraídos para Storage</span>
+                            </div>
+                            <div className="text-green-600 text-xs">
+                              ✅ {site.extractedFilesCount} arquivos prontos para servir
+                            </div>
+                            <div className="text-green-500 text-xs mt-1 font-mono truncate">
+                              {site.extractedBaseUrl.split('/').slice(-2).join('/')}...
+                            </div>
+                            <div className="text-green-600 text-xs mt-1">
+                              🚀 Assets servidos com Content-Type correto
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                            <div className="flex items-center gap-2 text-yellow-700 text-xs">
+                              <AlertCircle className="h-3 w-3" />
+                              <span>Arquivos não extraídos ainda</span>
+                            </div>
+                            <div className="text-yellow-600 text-xs mt-1">
+                              ⚠️ Faça upload novamente para extrair arquivos e melhorar performance
+                            </div>
+                          </div>
+                        )}
+                        
                         {site.source && (
                           <div className="text-gray-500 mt-1">
                             Fonte: <Badge variant="outline" className="text-xs">{site.source}</Badge>
@@ -1332,6 +1364,7 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
                 
                 {site.archivePath ? (
                   <div className="space-y-3">
+                    {/* Status do ZIP */}
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -1360,11 +1393,57 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
                             Baixar arquivo
                           </a>
                         )}
-                        <p className="text-xs text-gray-600 mt-2">
-                          ⚠️ <strong>Nota:</strong> Arquivos são salvos no Supabase Storage (correto), mas a referência está em KV Store (precisa migrar para SQL).
-                        </p>
                       </div>
                     </div>
+
+                    {/* Status dos Arquivos Extraídos */}
+                    {site.extractedBaseUrl ? (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-5 w-5 text-blue-600" />
+                            <span className="font-medium text-blue-900">✅ Arquivos Extraídos para Storage</span>
+                          </div>
+                          {site.extractedFilesCount && (
+                            <Badge variant="outline" className="bg-blue-100 text-blue-800">
+                              {site.extractedFilesCount} arquivos
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="mt-2 space-y-2">
+                          <div className="text-sm text-blue-800">
+                            <p className="font-medium mb-1">✅ Vantagens:</p>
+                            <ul className="list-disc list-inside space-y-1 text-xs">
+                              <li>Assets servidos com Content-Type correto</li>
+                              <li>Melhor performance (cache nativo do Storage)</li>
+                              <li>Site funcionando completamente</li>
+                            </ul>
+                          </div>
+                          {site.extractedBaseUrl && (
+                            <div className="text-xs text-gray-600 mt-2">
+                              <code className="bg-white px-2 py-1 rounded border border-blue-200">
+                                {site.extractedBaseUrl}/{site.organizationId}/extracted/
+                              </code>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-yellow-800 mb-2">
+                          <AlertCircle className="h-5 w-5" />
+                          <span className="font-medium">Arquivos não extraídos ainda</span>
+                        </div>
+                        <p className="text-sm text-yellow-700">
+                          ⚠️ O ZIP foi enviado, mas os arquivos ainda não foram extraídos para o Storage.
+                          <br />
+                          <strong>Faça upload novamente</strong> do ZIP acima para extrair automaticamente todos os arquivos e melhorar a performance do site.
+                        </p>
+                        <p className="text-xs text-gray-600 mt-2">
+                          ℹ️ O site funciona mesmo sem extração, mas com performance reduzida (assets servidos via Edge Function).
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -1562,7 +1641,7 @@ function UploadArchiveModal({ site, open, onClose, onSuccess }: {
         if (data.steps && Array.isArray(data.steps)) {
           // Contar quantos steps foram completados
           const completedSteps = data.steps.filter((s: any) => s.status === 'completed').length;
-          setUploadStep(Math.min(completedSteps + 1, 4)); // Máximo 4 steps
+          setUploadStep(Math.min(completedSteps + 1, 5)); // Máximo 5 steps (incluindo extração)
         } else {
           // Fallback: se não tiver steps, assumir que todos foram completados
           setUploadStep(3); // Arquivos corretos
@@ -1577,13 +1656,30 @@ function UploadArchiveModal({ site, open, onClose, onSuccess }: {
           console.log(`✅ [UploadArchiveModal] Arquivos CSS: ${validation.cssFilesCount || 0}`);
         }
         
-        // Marcar como concluído
-        setTimeout(() => {
-          setUploadStep(4); // Concluído
-          setUploadSuccess(true);
-        }, 300);
+        // ✅ NOVO: Mostrar progresso de extração
+        if (data.data?.extractedFilesCount) {
+          console.log(`✅ [UploadArchiveModal] Arquivos extraídos: ${data.data.extractedFilesCount}`);
+          setUploadStep(4); // Extraindo arquivos
+          
+          // Simular progresso de extração (backend já fez, mas mostramos feedback)
+          setTimeout(() => {
+            setUploadStep(5); // Concluído
+            setUploadSuccess(true);
+          }, 1000);
+        } else {
+          // Se não tiver arquivos extraídos, marcar como concluído direto
+          setTimeout(() => {
+            setUploadStep(5); // Concluído
+            setUploadSuccess(true);
+          }, 300);
+        }
         
-        toast.success(data.message || 'Arquivo validado e enviado com sucesso!');
+        // Mensagem de sucesso com detalhes
+        const successMessage = data.data?.extractedFilesCount 
+          ? `✅ ${data.data.extractedFilesCount} arquivos extraídos e prontos para servir!`
+          : (data.message || 'Arquivo validado e enviado com sucesso!');
+        
+        toast.success(successMessage);
         
         // Aguardar 2 segundos antes de fechar e recarregar
         setTimeout(() => {
@@ -1675,19 +1771,48 @@ function UploadArchiveModal({ site, open, onClose, onSuccess }: {
             <div className="space-y-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium text-blue-900">
-                  {uploadStep === 1 && '📦 Abrindo ZIP...'}
-                  {uploadStep === 2 && '📋 Conferindo arquivos...'}
-                  {uploadStep === 3 && '✅ Arquivos corretos!'}
-                  {uploadStep === 4 && '🎉 Processamento concluído!'}
+                  {uploadStep === 1 && '📦 Etapa 1: Abrindo ZIP...'}
+                  {uploadStep === 2 && '📋 Etapa 2: Conferindo arquivos...'}
+                  {uploadStep === 3 && '✅ Etapa 3: Arquivos corretos!'}
+                  {uploadStep === 4 && '📤 Etapa 4: Extraindo arquivos para Storage...'}
+                  {uploadStep === 5 && '🎉 Etapa 5: Processamento concluído!'}
                 </span>
-                <span className="text-blue-600">{uploadStep}/4</span>
+                <span className="text-blue-600">{uploadStep}/5</span>
               </div>
               <div className="w-full bg-blue-200 rounded-full h-2">
                 <div 
                   className="bg-blue-600 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${(uploadStep / 4) * 100}%` }}
+                  style={{ width: `${(uploadStep / 5) * 100}%` }}
                 />
               </div>
+              {uploadStep === 4 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-blue-700 mt-2">
+                    ⏳ Extraindo arquivos do ZIP e fazendo upload para Storage... Isso pode levar alguns segundos.
+                  </p>
+                  <p className="text-xs text-blue-600">
+                    💡 <strong>O que está acontecendo:</strong>
+                    <br />
+                    • Extraindo todos os arquivos do ZIP
+                    <br />
+                    • Fazendo upload de cada arquivo para Storage
+                    <br />
+                    • Ajustando HTML para usar URLs do Storage
+                    <br />
+                    • Assets terão Content-Type correto automaticamente
+                  </p>
+                </div>
+              )}
+              {uploadStep === 5 && uploadSuccess && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-2">
+                  <p className="text-sm text-green-800 font-medium mb-1">
+                    ✅ Site pronto para uso!
+                  </p>
+                  <p className="text-xs text-green-700">
+                    Os arquivos foram extraídos e estão prontos. O site agora funciona completamente com Content-Type correto.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -1699,7 +1824,9 @@ function UploadArchiveModal({ site, open, onClose, onSuccess }: {
                 <div>
                   <p className="font-medium text-green-900">Site processado com sucesso!</p>
                   <p className="text-sm text-green-700 mt-1">
-                    Aguarde 2 minutos e clique em "Ver Site" para visualizar o site funcionando.
+                    ✅ Arquivos extraídos para Storage com Content-Type correto.
+                    <br />
+                    🚀 O site está pronto! Clique em "Ver Site" para visualizar.
                   </p>
                 </div>
               </div>

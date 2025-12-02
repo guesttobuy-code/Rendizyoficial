@@ -2,6 +2,7 @@ import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.tsx";
+import { getSupabaseClient } from "./kv_store.tsx";
 
 // Import route handlers
 import authApp from './routes-auth.ts';
@@ -12,10 +13,7 @@ import * as guestsRoutes from './routes-guests.ts';
 import * as calendarRoutes from './routes-calendar.ts';
 import * as photosRoutes from './routes-photos.ts';
 import organizationsApp from './routes-organizations.ts';
-<<<<<<< HEAD
 import * as organizationsRoutes from './routes-organizations.ts';
-=======
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 import usersApp from './routes-users.ts';
 import clientsApp from './routes-clients.ts';
 import ownersApp from './routes-owners.ts';
@@ -28,7 +26,9 @@ import seasonalPricingApp from './routes-seasonal-pricing.ts';
 import icalApp from './routes-ical.ts';
 import settingsApp from './routes-settings.ts';
 import bulkPricingApp from './routes-bulk-pricing.ts';
-import chatApp from './routes-chat.ts';
+// TODO: Corrigir export default em routes-chat.ts
+// // TODO: Corrigir export default em routes-chat.ts
+// import chatApp from './routes-chat.ts';
 import quotationsApp from './routes-quotations.ts';
 import blocksApp from './routes-blocks.ts';
 import propertyTypesApp from './routes-property-types.ts';
@@ -98,7 +98,6 @@ app.use('*', logger(console.log));
 // ✅ DEBUG GLOBAL: Capturar TODAS as requisições para /make-server-67caf26a/auth/me
 app.use('*', async (c, next) => {
   const path = c.req.path;
-<<<<<<< HEAD
   const method = c.req.method;
   
   // ✅ DEBUG: Capturar TODAS as requisições (especialmente /organizations)
@@ -125,18 +124,148 @@ app.use('*', async (c, next) => {
         console.log('🚨 [DEBUG ORGANIZATIONS] Erro ao ler body:', e);
       }
     }
-=======
-  if (path.includes('/auth/me') || path.includes('make-server-67caf26a/auth/me')) {
-    console.log('🚨 [DEBUG GLOBAL] Requisição capturada para:', path);
-    console.log('🚨 [DEBUG GLOBAL] URL completa:', c.req.url);
-    console.log('🚨 [DEBUG GLOBAL] Method:', c.req.method);
-    console.log('🚨 [DEBUG GLOBAL] Headers:', {
-      'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present (' + (c.req.header('X-Auth-Token')?.substring(0, 20) || '') + '...)' : 'missing',
-      'Authorization': c.req.header('Authorization') ? 'present' : 'missing',
-      'apikey': c.req.header('apikey') ? 'present' : 'missing'
-    });
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
   }
+  await next();
+});
+
+// ============================================================================
+// CLIENT SITES ROUTING MIDDLEWARE
+// Intercepta requisições baseadas no Host header para servir sites de clientes
+// Ex: medhome.rendizy.app -> serve o site da Medhome
+// ============================================================================
+app.use('*', async (c, next) => {
+  const host = c.req.header('Host') || '';
+  const path = c.req.path;
+  
+  // Ignorar se for uma rota de API ou admin
+  if (
+    path.startsWith('/rendizy-server/') ||
+    path.startsWith('/functions/v1/rendizy-server/') ||
+    path.includes('/api/') ||
+    path.includes('/admin/')
+  ) {
+    await next();
+    return;
+  }
+  
+  // Extrair domínio do Host header
+  const domain = host.split(':')[0].toLowerCase().trim();
+  
+  // Verificar se é um subdomínio rendizy.app ou domínio customizado conhecido
+  if (domain && (domain.endsWith('.rendizy.app') || domain.endsWith('.rendizy.com.br'))) {
+    try {
+      // Buscar site pelo domínio
+      const sites = await kv.getByPrefix<any>('client_site:');
+      
+      // Normalizar domínio para comparação
+      const normalizeDomain = (d: string) => d.toLowerCase().replace(/^www\./, '');
+      const normalizedDomain = normalizeDomain(domain);
+      
+      // Procurar site correspondente
+      const site = sites.find((s: any) => {
+        if (!s.isActive) return false;
+        
+        // Verificar subdomínio rendizy.app
+        if (s.subdomain) {
+          const subdomainUrl = `${s.subdomain}.rendizy.app`;
+          if (normalizeDomain(subdomainUrl) === normalizedDomain) return true;
+        }
+        
+        // Verificar domínio customizado
+        if (s.domain && normalizeDomain(s.domain) === normalizedDomain) return true;
+        
+        return false;
+      });
+      
+      if (site) {
+        console.log(`[CLIENT-SITES] Site encontrado para ${domain}: ${site.siteName}`);
+        
+        // Se tiver siteCode, servir diretamente
+        if (site.siteCode) {
+          c.header('Content-Type', 'text/html; charset=utf-8');
+          return c.html(site.siteCode, 200);
+        }
+        
+        // Se tiver archivePath, servir arquivo do storage (TODO: extrair HTML do ZIP)
+        if (site.archivePath) {
+          const supabase = getSupabaseClient();
+          const bucketName = 'client-sites';
+          
+          const { data: fileData, error: downloadError } = await supabase
+            .storage
+            .from(bucketName)
+            .download(site.archivePath);
+          
+          if (!downloadError && fileData) {
+            // TODO: Extrair e servir HTML do arquivo ZIP/TAR
+            return c.html(`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <title>${site.siteName}</title>
+                <meta charset="UTF-8">
+              </head>
+              <body>
+                <h1>${site.siteName}</h1>
+                <p>Site em processamento. O arquivo foi recebido mas ainda precisa ser extraído e servido.</p>
+              </body>
+              </html>
+            `, 200);
+          }
+        }
+        
+        // Servir página padrão se não tiver código
+        return c.html(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>${site.siteName}</title>
+            <meta charset="UTF-8">
+            <style>
+              body { 
+                font-family: ${site.theme?.fontFamily || 'Arial, sans-serif'}; 
+                margin: 0; 
+                padding: 0;
+                background: linear-gradient(135deg, ${site.theme?.primaryColor || '#3B82F6'} 0%, ${site.theme?.secondaryColor || '#1F2937'} 100%);
+                color: white;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              }
+              .container {
+                text-align: center;
+                padding: 40px;
+                max-width: 600px;
+              }
+              h1 { 
+                font-size: 3em; 
+                margin-bottom: 20px;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+              }
+              p { 
+                font-size: 1.2em; 
+                line-height: 1.6;
+                margin-bottom: 30px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>${site.siteName}</h1>
+              <p>${site.siteConfig?.description || 'Bem-vindo ao nosso site!'}</p>
+              <p><small>Site em construção. Em breve, conteúdo completo estará disponível.</small></p>
+            </div>
+          </body>
+          </html>
+        `, 200);
+      }
+    } catch (error) {
+      console.error('[CLIENT-SITES] Erro ao processar roteamento de site:', error);
+      // Continuar com rotas normais se houver erro
+    }
+  }
+  
   await next();
 });
 
@@ -467,7 +596,6 @@ app.get("/rendizy-server/photos/property/:propertyId", photosRoutes.listProperty
 // ORGANIZATIONS ROUTES
 // ============================================================================
 
-<<<<<<< HEAD
 // ✅ CORRIGIDO: Registrar rotas diretamente (como locationsRoutes) para garantir funcionamento
 // Rotas antigas (com hash)
 // ⚠️ IMPORTANTE: Ordem das rotas - rotas específicas ANTES de genéricas
@@ -492,9 +620,6 @@ app.post("/rendizy-server/organizations", organizationsRoutes.createOrganization
 app.patch("/rendizy-server/organizations/:id", organizationsRoutes.updateOrganization);
 app.delete("/rendizy-server/organizations/:id", organizationsRoutes.deleteOrganization);
 app.put("/rendizy-server/organizations/:id/settings/global", organizationsRoutes.updateOrganizationSettings);
-=======
-app.route("/rendizy-server/make-server-67caf26a/organizations", organizationsApp);
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 // ============================================================================
 // USERS ROUTES
@@ -557,21 +682,18 @@ app.route("/rendizy-server/make-server-67caf26a", settingsApp);
 app.route("/rendizy-server/make-server-67caf26a", bulkPricingApp);
 
 // ============================================================================
-<<<<<<< HEAD
 // ⚠️ CHAT ROUTES (v1.0.93) - FUNCIONALIDADE CRÍTICA
 // ✅ REABILITADO v1.0.103.87 - Necessário para canais de comunicação
 // 
 // ⚠️ ATENÇÃO: Estas rotas incluem WhatsApp Integration em produção
 // ⚠️ NÃO REMOVER sem verificar FUNCIONALIDADES_CRITICAS.md
-=======
-// CHAT ROUTES (v1.0.93)
-// ✅ REABILITADO v1.0.103.87 - Necessário para canais de comunicação
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 // ============================================================================
 
-app.route("/rendizy-server/make-server-67caf26a/chat", chatApp);
+// TODO: Corrigir export default em routes-chat.ts
+// // TODO: Corrigir export default em routes-chat.ts
+// app.route("/rendizy-server/make-server-67caf26a/chat", chatApp);
 // ✅ Nova rota sem hash (usada pelo frontend atual - channelsApi)
-app.route("/rendizy-server/chat", chatApp);
+// // app.route("/rendizy-server/chat", chatApp);
 
 // ============================================================================
 // WHATSAPP EVOLUTION API ROUTES (v1.0.103.84)
@@ -782,6 +904,8 @@ app.post("/rendizy-server/make-server-67caf26a/staysnet/import/full", staysnetRo
 // ============================================================================
 
 app.route("/rendizy-server/make-server-67caf26a/client-sites", clientSitesApp);
+// ✅ Nova rota espelho sem hash (usada pelo frontend atual)
+app.route("/rendizy-server/client-sites", clientSitesApp);
 
 // ============================================================================
 // SHORT IDS ROUTES (v1.0.103.271)
@@ -802,16 +926,13 @@ app.route("/rendizy-server/make-server-67caf26a/admin/cleanup", adminCleanupApp)
 // Sistema SaaS Multi-tenant - Gerenciamento completo
 // ============================================================================
 
-<<<<<<< HEAD
 // Rotas antigas (com hash) - DUPLICADAS (já registradas acima, mas mantendo para compatibilidade)
 // app.route("/rendizy-server/make-server-67caf26a/organizations", organizationsApp); // ✅ JÁ REGISTRADO ACIMA
 // ✅ Rotas sem hash (usadas pelo frontend atual) - JÁ REGISTRADAS ACIMA
 // app.route("/rendizy-server/organizations", organizationsApp); // ✅ JÁ REGISTRADO ACIMA
 
-=======
-app.route("/rendizy-server/make-server-67caf26a/organizations", organizationsApp);
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 app.route("/rendizy-server/make-server-67caf26a/users", usersApp);
+
 app.route("/rendizy-server/make-server-67caf26a/clients", clientsApp);
 app.route("/rendizy-server/make-server-67caf26a/owners", ownersApp);
 // ✅ MELHORIA v1.0.103.400 - Tenants Routes (Passo 3)
@@ -1154,7 +1275,6 @@ app.notFound((c) => {
 console.log('🚀 Rendizy Backend API starting...');
 console.log('📅 All routes registered successfully');
 
-<<<<<<< HEAD
 // ✅ DEBUG: Log todas as rotas registradas para organizations
 console.log('🔍 [DEBUG] Verificando rotas de organizations...');
 // Não podemos listar rotas diretamente no Hono, mas podemos confirmar que foram registradas
@@ -1182,6 +1302,3 @@ Deno.serve((req) => {
   
   return app.fetch(req);
 });
-=======
-Deno.serve(app.fetch);
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941

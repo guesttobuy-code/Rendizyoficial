@@ -1,6 +1,30 @@
-# Deploy completo com pull antes do push
-$log = "C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL\powershell-outputs.txt"
-Set-Location "C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL"
+# 🛡️ Deploy completo com pull antes do push
+# ⚠️ ATUALIZADO: Agora verifica conflitos antes de fazer pull
+$log = "C:\dev\RENDIZY PASTA OFICIAL\powershell-outputs.txt"
+Set-Location "C:\dev\RENDIZY PASTA OFICIAL"
+
+# PASSO 0: VERIFICAR CONFLITOS ANTES DE QUALQUER OPERAÇÃO (OBRIGATÓRIO)
+Write-Host "🔍 Verificando conflitos de merge ANTES de fazer pull..." -ForegroundColor Cyan
+Write-Host ""
+
+$verifyScript = Join-Path $PWD "verificar-antes-deploy.ps1"
+if (Test-Path $verifyScript) {
+    & $verifyScript
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ""
+        Write-Host "🚨 ERRO: CONFLITOS DE MERGE DETECTADOS!" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "⚠️  NÃO É POSSÍVEL FAZER PULL COM CONFLITOS!" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Execute para corrigir:" -ForegroundColor Yellow
+        Write-Host "  .\resolver-todos-conflitos-definitivo.ps1" -ForegroundColor White
+        Write-Host ""
+        exit 1
+    }
+} else {
+    Write-Host "⚠️  Script de verificação não encontrado. Continuando sem verificação..." -ForegroundColor Yellow
+    Write-Host ""
+}
 
 function Executar {
     param([string]$cmd, [string]$desc)

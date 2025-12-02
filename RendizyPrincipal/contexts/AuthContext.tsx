@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // ============================================================================
 // 🔒 CADEADO DE ISOLAMENTO - AUTH CONTEXT (Sistema de Autenticação)
 // ============================================================================
@@ -30,8 +29,6 @@
 // ⚠️ NUNCA REMOVER ROTAS SEM CRIAR VERSÃO ALTERNATIVA
 // ============================================================================
 
-=======
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Organization, Permission, PermissionCheck, DEFAULT_PERMISSIONS } from '../types/tenancy';
 // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Integração com authService e BroadcastChannel
@@ -305,11 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Buscar organização se tiver apenas o ID
           try {
             const orgResponse = await fetch(
-<<<<<<< HEAD
               `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${backendUser.organizationId}`,
-=======
-              `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${backendUser.organizationId}`,
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
               {
                 headers: {
                   'X-Auth-Token': token,
@@ -412,14 +405,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     // ✅ BOAS PRÁTICAS MUNDIAIS: Window Focus - Revalidar quando janela ganha foco
+    // ✅ CORREÇÃO: Debounce para evitar loops infinitos
+    let focusTimeout: ReturnType<typeof setTimeout> | null = null;
     const handleWindowFocus = () => {
-      if (isMounted) {
-        const token = localStorage.getItem('rendizy-token');
-        if (token) {
-          console.log('🪟 [AuthContext] Janela ganhou foco - revalidando sessão...');
-          loadUser(1, true, true); // Revalidar sessão
-        }
+      if (focusTimeout) {
+        clearTimeout(focusTimeout);
       }
+      focusTimeout = setTimeout(() => {
+        if (isMounted) {
+          const token = localStorage.getItem('rendizy-token');
+          if (token) {
+            console.log('🪟 [AuthContext] Janela ganhou foco - revalidando sessão...');
+            loadUser(1, true, true); // Revalidar sessão
+          }
+        }
+      }, 1000); // Debounce de 1 segundo
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -514,12 +514,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearInterval(periodicInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleWindowFocus);
+      if (focusTimeout) {
+        clearTimeout(focusTimeout);
+      }
       unsubscribeLogin();
       unsubscribeLogout();
       unsubscribeTokenRefreshed();
       unsubscribeSessionExpired();
     };
-  }, [user]);
+  }, []); // ✅ CORREÇÃO: Remover [user] para evitar loop infinito
 
   const login = async (username: string, password: string) => {
     setIsLoading(true);

@@ -1,5 +1,4 @@
 // ============================================================================
-<<<<<<< HEAD
 // 🔒 CADEADO DE CONTRATO - RESERVATIONS ROUTES
 // ============================================================================
 // ⚠️ CONTRATO ESTABELECIDO - NÃO MODIFICAR SEM ATUALIZAR CONTRATO
@@ -44,10 +43,6 @@
 // ROTAS DE RESERVAS
 // ✅ MELHORIA v1.0.103.400 - Tenancy Middleware (Prompt 4)
 // ✅ CADEADO DE CONTRATO v1.0.103.700 - PROTEÇÃO IMPLEMENTADA
-=======
-// ROTAS DE RESERVAS
-// ✅ MELHORIA v1.0.103.400 - Tenancy Middleware (Prompt 4)
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 // ============================================================================
 
 import type { Context } from 'npm:hono';

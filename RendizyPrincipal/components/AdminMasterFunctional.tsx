@@ -109,11 +109,7 @@ export function AdminMasterFunctional({ onNavigate }: AdminMasterProps) {
     setLoading(true);
     try {
       const response = await fetch(
-<<<<<<< HEAD
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations`,
-=======
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations`,
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`
@@ -165,11 +161,7 @@ export function AdminMasterFunctional({ onNavigate }: AdminMasterProps) {
 
     try {
       const response = await fetch(
-<<<<<<< HEAD
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${org.id}`,
-=======
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${org.id}`,
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         {
           method: 'DELETE',
           headers: {

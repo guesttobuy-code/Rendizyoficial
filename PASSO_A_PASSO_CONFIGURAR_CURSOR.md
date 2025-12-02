@@ -141,3 +141,4 @@ Se não encontrar, use o atalho:
 
 **Pronto! Depois disso, o output do PowerShell deve aparecer para mim!** 🎉
 
+

@@ -34,3 +34,4 @@ git branch --show-current | Out-File -FilePath $outputFile -Append -Encoding UTF
 
 Write-Host "Status salvo em: $outputFile"
 
+

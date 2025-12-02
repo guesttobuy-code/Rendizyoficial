@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /**
  * BroadcastChannel para Sincronização entre Abas
  * ✅ ARQUITETURA OAuth2 v1.0.103.1010: Sincronização de login/logout entre abas
@@ -124,10 +123,6 @@ export const authBroadcast = {
     getAuthBroadcast().postMessage({ type: 'SESSION_EXPIRED' });
   }
 };
-
-=======
-/**
- * BroadcastChannel para Sincronização entre Abas
  * ✅ ARQUITETURA OAuth2 v1.0.103.1010: Sincronização de login/logout entre abas
  * 
  * Garante que login/logout em uma aba seja refletido em todas as outras abas
@@ -251,5 +246,3 @@ export const authBroadcast = {
     getAuthBroadcast().postMessage({ type: 'SESSION_EXPIRED' });
   }
 };
-
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941

@@ -94,3 +94,4 @@ Write-Host "=== FIM DO DIAGNOSTICO ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Para mais detalhes, veja: CORRIGIR_OUTPUT_POWERSHELL.md" -ForegroundColor Gray
 
+

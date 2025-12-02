@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // ============================================================================
 // 🔒 CADEADO DE CONTRATO - AUTH ROUTES (Sistema de Autenticação)
 // ============================================================================
@@ -50,8 +49,6 @@
 // ⚠️ NUNCA REMOVER ROTAS SEM CRIAR VERSÃO ALTERNATIVA
 // ============================================================================
 
-=======
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 import { Hono } from 'npm:hono';
 import { createHash } from 'node:crypto';
 // ✅ ARQUITETURA SQL: Importar Supabase Client

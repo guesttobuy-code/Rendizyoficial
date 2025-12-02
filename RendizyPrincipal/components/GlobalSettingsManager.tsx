@@ -141,11 +141,7 @@ export function GlobalSettingsManager({ organizationId }: { organizationId: stri
     setLoading(true);
     try {
       const response = await fetch(
-<<<<<<< HEAD
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/settings/global`,
-=======
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${organizationId}/settings/global`,
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`
@@ -174,11 +170,7 @@ export function GlobalSettingsManager({ organizationId }: { organizationId: stri
     setSaving(true);
     try {
       const response = await fetch(
-<<<<<<< HEAD
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/settings/global`,
-=======
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${organizationId}/settings/global`,
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         {
           method: 'PUT',
           headers: {
@@ -242,11 +234,7 @@ export function GlobalSettingsManager({ organizationId }: { organizationId: stri
     setLoading(true);
     try {
       const response = await fetch(
-<<<<<<< HEAD
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations/${organizationId}/settings/apply-to-all`,
-=======
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/organizations/${organizationId}/settings/apply-to-all`,
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         {
           method: 'POST',
           headers: {

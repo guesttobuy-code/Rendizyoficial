@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /**
  * State Machine de Autenticação
  * ✅ ARQUITETURA OAuth2 v1.0.103.1010: State machine explícita
@@ -174,10 +173,6 @@ export const authHelpers = {
     return state.status === 'unauthenticated' || state.status === 'idle';
   }
 };
-
-=======
-/**
- * State Machine de Autenticação
  * ✅ ARQUITETURA OAuth2 v1.0.103.1010: State machine explícita
  * 
  * Gerencia estados de autenticação de forma explícita e previsível
@@ -351,5 +346,3 @@ export const authHelpers = {
     return state.status === 'unauthenticated' || state.status === 'idle';
   }
 };
-
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941

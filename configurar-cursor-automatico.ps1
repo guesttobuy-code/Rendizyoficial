@@ -118,3 +118,4 @@ Write-Host "  3. Verifique se aparece PowerShell 7" -ForegroundColor White
 Write-Host ""
 Write-Host "Arquivo configurado: $cursorSettingsPath" -ForegroundColor Gray
 
+

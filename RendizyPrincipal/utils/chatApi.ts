@@ -266,7 +266,6 @@ async function fetchAPI<T>(
 
     const json = await response.json();
 
-<<<<<<< HEAD
     // ✅ CORREÇÃO: Se response não é OK mas json tem success=true, usar json mesmo assim
     // Algumas rotas retornam 200 com success=false, outras podem retornar 404 mas com dados válidos
     if (!response.ok) {
@@ -276,10 +275,6 @@ async function fetchAPI<T>(
         return json;
       }
       return { success: false, error: json.error || json.message || `HTTP ${response.status}` };
-=======
-    if (!response.ok) {
-      return { success: false, error: json.error || json.message || 'Unknown error' };
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
     }
 
     return json;

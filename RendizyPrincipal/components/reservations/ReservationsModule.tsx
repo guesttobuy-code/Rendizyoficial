@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // ============================================================================
 // 🔒 CADEADO DE ISOLAMENTO - RESERVATIONS MODULE
 // ============================================================================
@@ -32,8 +31,6 @@
 // ⚠️ NUNCA REMOVER ROTAS SEM CRIAR VERSÃO ALTERNATIVA
 // ============================================================================
 
-=======
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 import React from 'react';
 import { MainSidebar } from '../MainSidebar';
 import { LoadingProgress } from '../LoadingProgress';

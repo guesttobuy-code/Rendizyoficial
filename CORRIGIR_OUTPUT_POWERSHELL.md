@@ -150,3 +150,4 @@ Arquivo: `%APPDATA%\Cursor\User\settings.json`
 
 **Última atualização:** 2025-11-30
 
+

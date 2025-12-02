@@ -3,7 +3,6 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { AuthProvider } from "./contexts/AuthContext";
-<<<<<<< HEAD
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // ✅ Tratamento de erros global para evitar crash do servidor
@@ -20,13 +19,10 @@ window.addEventListener('unhandledrejection', (event) => {
   event.preventDefault();
   return true; // Indica que a rejeição foi tratada
 });
-=======
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {
-<<<<<<< HEAD
   console.error("Root element not found");
   // Não lança erro, apenas loga
 } else {
@@ -44,14 +40,3 @@ if (!rootElement) {
     // Não quebra o servidor, apenas loga o erro
   }
 }
-=======
-  throw new Error("Root element not found");
-}
-
-createRoot(rootElement).render(
-  <AuthProvider>
-    <App />
-  </AuthProvider>
-);
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
-  

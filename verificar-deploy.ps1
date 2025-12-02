@@ -37,3 +37,4 @@ Write-Host ""
 
 Write-Host "=== FIM DA VERIFICACAO ===" -ForegroundColor Cyan
 
+

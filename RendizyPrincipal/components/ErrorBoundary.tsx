@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-=======
 /**
  * Error Boundary Component
  * 
@@ -14,88 +11,17 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
-<<<<<<< HEAD
-=======
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
-<<<<<<< HEAD
-}
-
-export class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
-    hasError: false,
-    error: null,
-  };
-
-  public static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
-  }
-
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Erro capturado pelo ErrorBoundary:', error, errorInfo);
-    // Não quebra o servidor, apenas loga
-  }
-
-  public render() {
-    if (this.state.hasError) {
-      return this.props.fallback || (
-        <div style={{ 
-          padding: '20px', 
-          textAlign: 'center',
-          fontFamily: 'system-ui, sans-serif'
-        }}>
-          <h2>Algo deu errado</h2>
-          <p>O erro foi capturado e o servidor continua funcionando.</p>
-          <button 
-            onClick={() => this.setState({ hasError: false, error: null })}
-            style={{
-              marginTop: '10px',
-              padding: '10px 20px',
-              cursor: 'pointer'
-            }}
-          >
-            Tentar novamente
-          </button>
-          {this.state.error && (
-            <details style={{ marginTop: '20px', textAlign: 'left' }}>
-              <summary>Detalhes do erro</summary>
-              <pre style={{ 
-                background: '#f5f5f5', 
-                padding: '10px', 
-                overflow: 'auto',
-                fontSize: '12px'
-              }}>
-                {this.state.error.toString()}
-              </pre>
-            </details>
-          )}
-=======
   errorInfo: ErrorInfo | null;
-}
-
-// Wrapper component para usar hooks dentro do ErrorBoundary
-function ErrorBoundaryWrapper({ children, fallback, onError }: Props) {
-  const navigate = useNavigate();
-  
-  return (
-    <ErrorBoundary 
-      navigate={navigate}
-      fallback={fallback}
-      onError={onError}
-    >
-      {children}
-    </ErrorBoundary>
-  );
 }
 
 // Internal ErrorBoundary class (sem hooks)
@@ -275,7 +201,6 @@ class ErrorBoundary extends Component<ErrorBoundaryInternalProps, State> {
               </p>
             </div>
           </div>
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
         </div>
       );
     }
@@ -284,14 +209,24 @@ class ErrorBoundary extends Component<ErrorBoundaryInternalProps, State> {
   }
 }
 
-<<<<<<< HEAD
-// Export default para compatibilidade
-export default ErrorBoundary;
-=======
+// Wrapper component para usar hooks dentro do ErrorBoundary
+function ErrorBoundaryWrapper({ children, fallback, onError }: Props) {
+  const navigate = useNavigate();
+  
+  return (
+    <ErrorBoundary 
+      navigate={navigate}
+      fallback={fallback}
+      onError={onError}
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
+
 // Exporta o wrapper como default
 export default ErrorBoundaryWrapper;
 
 // Exporta a classe para uso direto se necessário
-export { ErrorBoundary as ErrorBoundaryClass };
-
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
+// (mantém também o export nomeado ErrorBoundary para compatibilidade)
+export { ErrorBoundary, ErrorBoundary as ErrorBoundaryClass };
