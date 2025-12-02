@@ -2,10 +2,11 @@
 // Sistema de gerenciamento de sites customizados por cliente
 // Permite importar sites de v0.dev, Bolt.ai, Figma, etc e integrá-los ao RENDIZY
 
-import { Hono } from 'npm:hono';
-import * as kv from './kv_store.tsx';
+import { Hono } from "npm:hono";
 // ✅ REFATORADO v1.0.103.500 - Helper híbrido para organization_id (UUID)
-import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
+import { getOrganizationIdOrThrow } from "./utils-get-organization-id.ts";
+import { getSupabaseClient } from "./kv_store.tsx";
+import JSZip from "npm:jszip";
 
 const app = new Hono();
 
@@ -16,10 +17,10 @@ const app = new Hono();
 interface ClientSiteConfig {
   organizationId: string;
   siteName: string;
-  template: 'custom' | 'moderno' | 'classico' | 'luxo';
+  template: "custom" | "moderno" | "classico" | "luxo";
   domain?: string; // domínio customizado (ex: www.imobiliaria.com)
   subdomain: string; // subdomínio RENDIZY (ex: imobiliaria.rendizy.app)
-  
+
   // Customizações visuais
   theme: {
     primaryColor: string;
@@ -27,11 +28,11 @@ interface ClientSiteConfig {
     accentColor: string;
     fontFamily: string;
   };
-  
+
   // Assets
   logo?: string;
   favicon?: string;
-  
+
   // Configurações do site
   siteConfig: {
     title: string;
@@ -45,17 +46,24 @@ interface ClientSiteConfig {
       whatsapp?: string;
     };
   };
-  
+
   // Modalidades ativas
   features: {
     shortTerm: boolean; // Temporada
-    longTerm: boolean;  // Locação
-    sale: boolean;      // Venda
+    longTerm: boolean; // Locação
+    sale: boolean; // Venda
   };
-  
+
   // Código do site (HTML/React serializado)
   siteCode?: string; // Código importado de v0.dev, Bolt, etc
-  
+
+  // Fonte original do site (para futura automação de builds)
+  source?: "bolt" | "v0" | "figma" | "custom";
+
+  // Arquivo de origem (ex: ZIP enviado ou caminho de storage)
+  archivePath?: string;
+  archiveUrl?: string;
+
   // Metadados
   createdAt: string;
   updatedAt: string;
@@ -69,305 +77,2205 @@ interface ClientSiteConfig {
 function generateSubdomain(organizationName: string): string {
   return organizationName
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-    .replace(/[^a-z0-9]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .replace(/[^a-z0-9]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+// Converter SQL row para ClientSiteConfig
+function sqlToClientSiteConfig(row: any): ClientSiteConfig {
+  return {
+    organizationId: row.organization_id,
+    siteName: row.site_name,
+    template: row.template,
+    subdomain: row.subdomain,
+    domain: row.domain || undefined,
+    theme: row.theme || {},
+    logo: row.logo_url || undefined,
+    favicon: row.favicon_url || undefined,
+    siteConfig: row.site_config || {},
+    features: row.features || {},
+    siteCode: row.site_code || undefined,
+    archivePath: row.archive_path || undefined,
+    archiveUrl: row.archive_url || undefined,
+    source: row.source || "custom",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    isActive: row.is_active,
+  };
+}
+
+// Converter ClientSiteConfig para SQL row
+function clientSiteConfigToSql(config: ClientSiteConfig): any {
+  return {
+    organization_id: config.organizationId,
+    site_name: config.siteName,
+    template: config.template,
+    subdomain: config.subdomain,
+    domain: config.domain || null,
+    theme: config.theme,
+    logo_url: config.logo || null,
+    favicon_url: config.favicon || null,
+    site_config: config.siteConfig,
+    features: config.features,
+    site_code: config.siteCode || null,
+    archive_path: config.archivePath || null,
+    archive_url: config.archiveUrl || null,
+    source: config.source || "custom",
+    is_active: config.isActive,
+    created_at: config.createdAt || new Date().toISOString(),
+    updated_at: config.updatedAt || new Date().toISOString(),
+  };
 }
 
 // ============================================================
 // ROTAS
 // ============================================================
 
+// ✅ IMPORTANTE: Rota /serve/* DEVE vir ANTES de rotas com parâmetros dinâmicos
+// GET /make-server-67caf26a/client-sites/serve/:domain
+// Serve o HTML do site baseado no domínio
+// Esta rota será chamada quando alguém acessar o domínio do site (ex: medhome.rendizy.app)
+app.get("/serve/*", async (c) => {
+  console.log(`[CLIENT-SITES] ========== ROTA /serve/* CHAMADA ==========`);
+  try {
+    // Extrair domínio do header Host ou do path
+    const host = c.req.header("Host") || "";
+    const path = c.req.path;
+    const url = c.req.url;
+    const method = c.req.method;
+
+    console.log(`[CLIENT-SITES] Method: ${method}`);
+    console.log(`[CLIENT-SITES] Request path: ${path}`);
+    console.log(`[CLIENT-SITES] Request URL: ${url}`);
+    console.log(`[CLIENT-SITES] Host header: ${host}`);
+
+    // Tentar extrair domínio do Host header primeiro
+    let domain = host.split(":")[0]; // Remove porta se houver
+
+    // Se não tiver Host ou for localhost/supabase, tentar extrair do path
+    if (
+      !domain ||
+      domain.includes("localhost") ||
+      domain.includes("127.0.0.1") ||
+      domain.includes("supabase.co")
+    ) {
+      // Extrair do path: /serve/medhome.rendizy.app ou /serve/medhome
+      // Também funciona com: /make-server-67caf26a/client-sites/serve/medhome.rendizy.app
+      const pathParts = path.split("/serve/");
+      if (pathParts.length > 1) {
+        domain = pathParts[1].split("/")[0].split("?")[0]; // Remove query params
+      } else {
+        // Tentar extrair do final do path se não encontrar /serve/
+        const segments = path.split("/").filter((s) => s);
+        const serveIndex = segments.indexOf("serve");
+        if (serveIndex >= 0 && serveIndex < segments.length - 1) {
+          domain = segments[serveIndex + 1].split("?")[0]; // Remove query params
+        }
+      }
+    }
+
+    // Limpar o domínio (remover espaços, etc)
+    domain = domain?.trim() || "";
+
+    console.log(`[CLIENT-SITES] Domínio extraído: ${domain}`);
+
+    if (!domain) {
+      return c.html(
+        `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Erro - Domínio não especificado</title>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+            h1 { color: #e74c3c; }
+            pre { background: #f5f5f5; padding: 20px; border-radius: 5px; text-align: left; }
+          </style>
+        </head>
+        <body>
+          <h1>Erro - Domínio não especificado</h1>
+          <p>Não foi possível extrair o domínio da requisição.</p>
+          <pre>Path: ${path}\nURL: ${url}\nHost: ${host}</pre>
+        </body>
+        </html>
+      `,
+        400
+      );
+    }
+
+    // Buscar site pelo domínio do SQL
+    const supabase = getSupabaseClient();
+
+    // Tentar buscar por subdomain primeiro
+    let { data: sqlSite, error: sqlError } = await supabase
+      .from("client_sites")
+      .select("*")
+      .ilike("subdomain", domain.toLowerCase())
+      .eq("is_active", true)
+      .maybeSingle();
+
+    // Se não encontrar, tentar por domain
+    if (sqlError || !sqlSite) {
+      const { data: sqlSite2 } = await supabase
+        .from("client_sites")
+        .select("*")
+        .ilike("domain", domain.toLowerCase())
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (sqlSite2) {
+        sqlSite = sqlSite2;
+      }
+    }
+
+    if (!sqlSite) {
+      console.log(`[CLIENT-SITES] Site não encontrado para domínio: ${domain}`);
+      return c.html(
+        `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Site não encontrado</title>
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+          </style>
+        </head>
+        <body>
+          <h1>Site não encontrado</h1>
+          <p>O site para o domínio <strong>${domain}</strong> não foi encontrado.</p>
+        </body>
+        </html>
+      `,
+        404
+      );
+    }
+
+    const site = sqlToClientSiteConfig(sqlSite);
+
+    console.log(
+      `[CLIENT-SITES] Site encontrado: ${site.siteName}, subdomain: ${
+        site.subdomain
+      }, domain: ${site.domain || "N/A"}, isActive: ${site.isActive}`
+    );
+
+    if (!site.isActive) {
+      console.log(`[CLIENT-SITES] Site ${site.siteName} está inativo`);
+      return c.html(
+        `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Site inativo</title>
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+          </style>
+        </head>
+        <body>
+          <h1>Site inativo</h1>
+          <p>O site <strong>${site.siteName}</strong> está inativo no momento.</p>
+        </body>
+        </html>
+      `,
+        403
+      );
+    }
+
+    console.log(
+      `[CLIENT-SITES] Site encontrado: ${site.siteName} (${site.organizationId})`
+    );
+    console.log(`[CLIENT-SITES] Site tem siteCode: ${!!site.siteCode}`);
+    console.log(`[CLIENT-SITES] Site tem archivePath: ${!!site.archivePath}`);
+
+    // Se tiver siteCode, servir diretamente
+    if (site.siteCode) {
+      console.log(
+        `[CLIENT-SITES] Servindo siteCode para ${site.siteName} (tamanho: ${site.siteCode.length} caracteres)`
+      );
+      // Garantir que o Content-Type está correto
+      c.header("Content-Type", "text/html; charset=utf-8");
+      return c.html(site.siteCode, 200);
+    }
+
+    // Se tiver archivePath, servir arquivo do storage
+    if (site.archivePath) {
+      console.log(
+        `[CLIENT-SITES] Tentando servir arquivo do storage: ${site.archivePath}`
+      );
+
+      const bucketName = "client-sites";
+
+      // Tentar baixar o arquivo
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from(bucketName)
+        .download(site.archivePath);
+
+      if (downloadError || !fileData) {
+        console.error(`[CLIENT-SITES] Erro ao baixar arquivo:`, downloadError);
+        return c.html(
+          `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Erro ao carregar site</title>
+            <meta charset="UTF-8">
+            <style>
+              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+              h1 { color: #e74c3c; }
+            </style>
+          </head>
+          <body>
+            <h1>Erro ao carregar site</h1>
+            <p>O arquivo do site não pôde ser carregado. Por favor, entre em contato com o suporte.</p>
+          </body>
+          </html>
+        `,
+          500
+        );
+      }
+
+      // ✅ EXTRAIR E SERVIR HTML DO ZIP
+      try {
+        console.log(
+          `[CLIENT-SITES] Extraindo HTML do arquivo ZIP: ${site.archivePath}`
+        );
+
+        // Converter Blob para ArrayBuffer
+        const arrayBuffer = await fileData.arrayBuffer();
+
+        // Detectar se é ZIP ou TAR.GZ
+        const isZip = site.archivePath.toLowerCase().endsWith(".zip");
+        const isTarGz =
+          site.archivePath.toLowerCase().endsWith(".tar.gz") ||
+          site.archivePath.toLowerCase().endsWith(".tgz");
+
+        let htmlContent: string | null = null;
+
+        if (isZip) {
+          // Extrair ZIP usando JSZip
+          console.log(`[CLIENT-SITES] Carregando ZIP...`);
+          const zip = await JSZip.loadAsync(arrayBuffer);
+
+          // Listar todos os arquivos para debug
+          const allFiles = Object.keys(zip.files);
+          console.log(
+            `[CLIENT-SITES] Total de arquivos no ZIP: ${allFiles.length}`
+          );
+          console.log(
+            `[CLIENT-SITES] Primeiros 20 arquivos:`,
+            allFiles.slice(0, 20)
+          );
+
+          // Procurar arquivo HTML principal (index.html, index.htm, ou primeiro .html encontrado)
+          // Buscar em todas as pastas, não apenas na raiz
+          const htmlFiles = allFiles.filter((name) => {
+            const lowerName = name.toLowerCase();
+            const isHtml =
+              lowerName.endsWith(".html") || lowerName.endsWith(".htm");
+            const isNotDir = !zip.files[name].dir;
+            return isHtml && isNotDir;
+          });
+
+          console.log(
+            `[CLIENT-SITES] Arquivos HTML encontrados: ${htmlFiles.length}`
+          );
+          if (htmlFiles.length > 0) {
+            console.log(`[CLIENT-SITES] Lista de HTMLs:`, htmlFiles);
+          }
+
+          // Prioridade: dist/index.html > index.html > index.htm > primeiro .html encontrado
+          let htmlFile: string | null = null;
+
+          // 1. Buscar dist/index.html (build compilado - melhor opção)
+          const distIndexHtml = htmlFiles.find((f) => {
+            const lower = f.toLowerCase();
+            return lower.includes("dist/") && lower.endsWith("index.html");
+          });
+
+          if (distIndexHtml) {
+            htmlFile = distIndexHtml;
+            console.log(
+              `[CLIENT-SITES] ✅ dist/index.html encontrado (build compilado): ${htmlFile}`
+            );
+          } else {
+            // 2. Buscar index.html (em qualquer pasta)
+            const indexHtml = htmlFiles.find((f) => {
+              const parts = f.toLowerCase().split("/");
+              return parts[parts.length - 1] === "index.html";
+            });
+
+            if (indexHtml) {
+              htmlFile = indexHtml;
+              console.log(`[CLIENT-SITES] index.html encontrado: ${htmlFile}`);
+            } else {
+              // 3. Buscar index.htm
+              const indexHtm = htmlFiles.find((f) => {
+                const parts = f.toLowerCase().split("/");
+                return parts[parts.length - 1] === "index.htm";
+              });
+
+              if (indexHtm) {
+                htmlFile = indexHtm;
+                console.log(`[CLIENT-SITES] index.htm encontrado: ${htmlFile}`);
+              } else if (htmlFiles.length > 0) {
+                // 4. Pegar o maior arquivo HTML (provavelmente mais completo)
+                htmlFile = htmlFiles.reduce((largest, current) => {
+                  const largestSize = zip.files[largest]?.uncompressedSize || 0;
+                  const currentSize = zip.files[current]?.uncompressedSize || 0;
+                  return currentSize > largestSize ? current : largest;
+                });
+                console.log(
+                  `[CLIENT-SITES] Usando maior arquivo HTML encontrado: ${htmlFile}`
+                );
+              }
+            }
+          }
+
+          if (htmlFile) {
+            console.log(`[CLIENT-SITES] Extraindo arquivo HTML: ${htmlFile}`);
+            const file = zip.files[htmlFile];
+            if (!file.dir) {
+              htmlContent = await file.async("string");
+              console.log(`[CLIENT-SITES] ✅ HTML extraído com sucesso!`);
+              console.log(
+                `[CLIENT-SITES] Tamanho: ${htmlContent.length} caracteres`
+              );
+              console.log(
+                `[CLIENT-SITES] Primeiros 200 caracteres: ${htmlContent.substring(
+                  0,
+                  200
+                )}`
+              );
+
+              // Verificar se o HTML parece válido
+              if (htmlContent.length < 50) {
+                console.warn(
+                  `[CLIENT-SITES] ⚠️ HTML muito pequeno, pode estar incompleto`
+                );
+              }
+              if (
+                !htmlContent.includes("<html") &&
+                !htmlContent.includes("<!DOCTYPE")
+              ) {
+                console.warn(
+                  `[CLIENT-SITES] ⚠️ HTML não parece ter estrutura HTML válida`
+                );
+              }
+
+              // Se o HTML é do Vite (tem <script type="module">), tentar encontrar assets
+              if (
+                htmlContent.includes('type="module"') &&
+                (htmlContent.includes("/src/") ||
+                  htmlContent.includes("main.tsx") ||
+                  htmlContent.includes("main.ts"))
+              ) {
+                console.log(
+                  `[CLIENT-SITES] ⚠️ HTML do Vite detectado - precisa de build ou ajustar caminhos`
+                );
+
+                // Tentar encontrar diretório dist/ com assets compilados
+                const distFiles = allFiles.filter((f) =>
+                  f.toLowerCase().includes("dist/")
+                );
+                if (distFiles.length > 0) {
+                  console.log(
+                    `[CLIENT-SITES] 📦 Diretório dist/ encontrado com ${distFiles.length} arquivos`
+                  );
+                  console.log(
+                    `[CLIENT-SITES] Primeiros arquivos dist/:`,
+                    distFiles.slice(0, 10)
+                  );
+
+                  // Tentar encontrar index.html no dist/
+                  const distHtml = distFiles.find((f) =>
+                    f.toLowerCase().endsWith("index.html")
+                  );
+                  if (distHtml) {
+                    console.log(
+                      `[CLIENT-SITES] ✅ Encontrado dist/index.html, usando este!`
+                    );
+                    const distFile = zip.files[distHtml];
+                    if (!distFile.dir) {
+                      htmlContent = await distFile.async("string");
+                      console.log(
+                        `[CLIENT-SITES] ✅ HTML do dist/ extraído: ${htmlContent.length} caracteres`
+                      );
+                    }
+                  }
+                } else {
+                  console.warn(
+                    `[CLIENT-SITES] ⚠️ HTML do Vite sem diretório dist/ - site precisa ser compilado`
+                  );
+                  console.warn(
+                    `[CLIENT-SITES] Arquivos src/ encontrados:`,
+                    allFiles
+                      .filter((f) => f.toLowerCase().includes("src/"))
+                      .slice(0, 10)
+                  );
+
+                  // Criar HTML informativo explicando que o site precisa ser compilado
+                  htmlContent = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Site em Construção - ${site.siteName}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .container {
+      text-align: center;
+      max-width: 600px;
+      padding: 2rem;
+    }
+    h1 { font-size: 2.5rem; margin-bottom: 1rem; }
+    p { font-size: 1.2rem; line-height: 1.6; opacity: 0.9; }
+    .icon { font-size: 4rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">🚧</div>
+    <h1>Site em Construção</h1>
+    <p>O site <strong>${site.siteName}</strong> precisa ser compilado antes de ser publicado.</p>
+    <p>Por favor, faça o build do projeto (npm run build) e envie novamente o arquivo ZIP com a pasta <code>dist/</code> incluída.</p>
+  </div>
+</body>
+</html>`;
+                  console.log(
+                    `[CLIENT-SITES] Servindo HTML informativo (site precisa de build)`
+                  );
+                }
+              }
+            } else {
+              console.error(
+                `[CLIENT-SITES] ❌ Arquivo ${htmlFile} é um diretório, não um arquivo`
+              );
+            }
+          } else {
+            console.warn(
+              `[CLIENT-SITES] ❌ Nenhum arquivo HTML encontrado no ZIP`
+            );
+            console.warn(
+              `[CLIENT-SITES] Arquivos disponíveis (primeiros 30):`,
+              allFiles.slice(0, 30)
+            );
+
+            // Tentar encontrar qualquer arquivo que possa ser HTML
+            const possibleHtml = allFiles.find((f) => {
+              const lower = f.toLowerCase();
+              return (
+                (lower.includes("html") || lower.includes("htm")) &&
+                !zip.files[f].dir
+              );
+            });
+
+            if (possibleHtml) {
+              console.log(
+                `[CLIENT-SITES] Tentando usar arquivo possível HTML: ${possibleHtml}`
+              );
+              const file = zip.files[possibleHtml];
+              if (!file.dir) {
+                htmlContent = await file.async("string");
+                console.log(
+                  `[CLIENT-SITES] Conteúdo extraído: ${htmlContent.length} caracteres`
+                );
+              }
+            }
+          }
+        } else if (isTarGz) {
+          // TODO: Implementar extração de TAR.GZ (requer biblioteca adicional)
+          console.warn(
+            `[CLIENT-SITES] Extração de TAR.GZ ainda não implementada`
+          );
+        }
+
+        if (htmlContent) {
+          console.log(
+            `[CLIENT-SITES] HTML extraído com sucesso (${htmlContent.length} caracteres)`
+          );
+
+          // ✅ AJUSTAR CAMINHOS NO HTML PARA APONTAR PARA ROTAS DE ASSETS
+          // Se for HTML do Vite, ajustar caminhos de /src/ para /assets/
+          if (
+            htmlContent.includes('type="module"') ||
+            htmlContent.includes("/src/") ||
+            htmlContent.includes("main.tsx") ||
+            htmlContent.includes("main.ts")
+          ) {
+            console.log(
+              `[CLIENT-SITES] Ajustando caminhos do Vite para rotas de assets...`
+            );
+
+            // Substituir caminhos absolutos por URL completa do backend
+            const subdomain = site.subdomain;
+            // Usar sempre a URL do Supabase correta (não confiar no Host header que pode ser edge-runtime)
+            const backendUrl = `https://odcgnzfremrqnvtitpcc.supabase.co`;
+            const basePath = `${backendUrl}/functions/v1/rendizy-server/make-server-67caf26a/client-sites/assets/${subdomain}`;
+
+            console.log(`[CLIENT-SITES] Base path para assets: ${basePath}`);
+
+            // Ajustar /src/ para rota de assets (com URL completa)
+            htmlContent = htmlContent.replace(
+              /src="\/src\//g,
+              `src="${basePath}/src/`
+            );
+            htmlContent = htmlContent.replace(
+              /href="\/src\//g,
+              `href="${basePath}/src/`
+            );
+
+            // ⚠️ IMPORTANTE: Ajustar /assets/ ANTES do replace genérico
+            // Para sites compilados, /assets/ está em dist/assets/ dentro do ZIP
+            htmlContent = htmlContent.replace(
+              /src="\/assets\//g,
+              `src="${basePath}/dist/assets/`
+            );
+            htmlContent = htmlContent.replace(
+              /href="\/assets\//g,
+              `href="${basePath}/dist/assets/`
+            );
+
+            // Ajustar caminhos absolutos que começam com / (genérico - deve vir DEPOIS dos específicos)
+            htmlContent = htmlContent.replace(
+              /src="\/([^"]+\.(tsx?|jsx?|css|svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|eot))"/g,
+              (match, filePath) => {
+                // Se já começa com http, não ajustar
+                if (filePath.startsWith("http")) return match;
+                // Se já foi ajustado pelo replace de /assets/, não ajustar novamente
+                if (match.includes(`${basePath}`)) return match;
+                return `src="${basePath}/${filePath}"`;
+              }
+            );
+
+            htmlContent = htmlContent.replace(
+              /href="\/([^"]+\.(tsx?|jsx?|css|svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|eot))"/g,
+              (match, filePath) => {
+                if (filePath.startsWith("http")) return match;
+                // Se já foi ajustado pelo replace de /assets/, não ajustar novamente
+                if (match.includes(`${basePath}`)) return match;
+                return `href="${basePath}/${filePath}"`;
+              }
+            );
+            // Para public e dist (outros casos)
+            htmlContent = htmlContent.replace(
+              /src="\/(public|dist)\//g,
+              `src="${basePath}/$1/`
+            );
+            htmlContent = htmlContent.replace(
+              /href="\/(public|dist)\//g,
+              `href="${basePath}/$1/`
+            );
+
+            // Ajustar imports em scripts (import statements)
+            htmlContent = htmlContent.replace(
+              /import\s+['"]\/(src|public|assets|dist)\//g,
+              `import "${basePath}/$1/`
+            );
+
+            // Ajustar imports relativos também
+            htmlContent = htmlContent.replace(
+              /import\s+['"]\.\/([^'"]+)['"]/g,
+              (match, relPath) => {
+                // Manter imports relativos como estão (serão resolvidos pelo navegador)
+                return match;
+              }
+            );
+
+            console.log(`[CLIENT-SITES] ✅ Caminhos ajustados`);
+            console.log(
+              `[CLIENT-SITES] HTML após ajuste (primeiros 500 chars):`,
+              htmlContent.substring(0, 500)
+            );
+          }
+
+          c.header("Content-Type", "text/html; charset=utf-8");
+          return c.html(htmlContent, 200);
+        } else {
+          console.warn(
+            `[CLIENT-SITES] Não foi possível extrair HTML do arquivo`
+          );
+          return c.html(
+            `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>${site.siteName}</title>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+                h1 { color: #f59e0b; }
+          </style>
+        </head>
+        <body>
+          <h1>${site.siteName}</h1>
+              <p>Arquivo ZIP recebido, mas nenhum arquivo HTML encontrado.</p>
+          <p><small>Arquivo: ${site.archivePath}</small></p>
+              <p><small>Verifique se o ZIP contém um arquivo index.html ou similar.</small></p>
+        </body>
+        </html>
+      `,
+            200
+          );
+        }
+      } catch (extractError) {
+        console.error(
+          `[CLIENT-SITES] Erro ao extrair HTML do ZIP:`,
+          extractError
+        );
+        return c.html(
+          `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Erro ao processar site</title>
+            <meta charset="UTF-8">
+            <style>
+              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+              h1 { color: #e74c3c; }
+            </style>
+          </head>
+          <body>
+            <h1>Erro ao processar site</h1>
+            <p>Ocorreu um erro ao extrair o conteúdo do arquivo ZIP.</p>
+            <p><small>Arquivo: ${site.archivePath}</small></p>
+            <p><small>Erro: ${
+              extractError instanceof Error
+                ? extractError.message
+                : "Erro desconhecido"
+            }</small></p>
+          </body>
+          </html>
+        `,
+          500
+        );
+      }
+    }
+
+    // Se não tiver siteCode nem archivePath, servir página padrão
+    return c.html(
+      `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${site.siteName}</title>
+        <meta charset="UTF-8">
+        <meta name="description" content="${site.siteConfig.description || ""}">
+        <style>
+          body { 
+            font-family: ${site.theme.fontFamily || "Arial, sans-serif"}; 
+            margin: 0; 
+            padding: 0;
+            background: linear-gradient(135deg, ${
+              site.theme.primaryColor || "#3B82F6"
+            } 0%, ${site.theme.secondaryColor || "#1F2937"} 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .container {
+            text-align: center;
+            padding: 40px;
+            max-width: 600px;
+          }
+          h1 { 
+            font-size: 3em; 
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+          }
+          p { 
+            font-size: 1.2em; 
+            line-height: 1.6;
+            margin-bottom: 30px;
+          }
+          .contact {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255,255,255,0.3);
+          }
+          .contact a {
+            color: ${site.theme.accentColor || "#10B981"};
+            text-decoration: none;
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>${site.siteName}</h1>
+          <p>${site.siteConfig.description || "Bem-vindo ao nosso site!"}</p>
+          ${
+            site.siteConfig.slogan
+              ? `<p><em>${site.siteConfig.slogan}</em></p>`
+              : ""
+          }
+          <div class="contact">
+            ${
+              site.siteConfig.contactEmail
+                ? `<p>📧 <a href="mailto:${site.siteConfig.contactEmail}">${site.siteConfig.contactEmail}</a></p>`
+                : ""
+            }
+            ${
+              site.siteConfig.contactPhone
+                ? `<p>📞 <a href="tel:${site.siteConfig.contactPhone}">${site.siteConfig.contactPhone}</a></p>`
+                : ""
+            }
+          </div>
+          <p><small>Site em construção. Em breve, conteúdo completo estará disponível.</small></p>
+        </div>
+      </body>
+      </html>
+    `,
+      200
+    );
+  } catch (error) {
+    console.error("[CLIENT-SITES] Erro ao servir site:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : "";
+    return c.html(
+      `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Erro</title>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+          h1 { color: #e74c3c; }
+          pre { background: #f5f5f5; padding: 20px; border-radius: 5px; text-align: left; margin: 20px auto; max-width: 800px; }
+        </style>
+      </head>
+      <body>
+        <h1>Erro ao carregar site</h1>
+        <p>Ocorreu um erro inesperado. Por favor, tente novamente mais tarde.</p>
+        <details style="margin-top: 20px;">
+          <summary style="cursor: pointer; color: #3498db;">Ver detalhes do erro</summary>
+          <pre>Erro: ${errorMessage}
+${errorStack ? `Stack: ${errorStack}` : ""}</pre>
+        </details>
+      </body>
+      </html>
+    `,
+      500
+    );
+  }
+});
+
 // GET /make-server-67caf26a/client-sites
 // Lista todos os sites ou busca por organizationId
-app.get('/', async (c) => {
+app.get("/", async (c) => {
   try {
+    const supabase = getSupabaseClient();
+
     // ✅ REFATORADO v1.0.103.500 - Usar helper híbrido ao invés de query param
     const orgId = await getOrganizationIdOrThrow(c);
-    
+
     if (orgId) {
-      // Buscar site específico
-      const site = await kv.get<ClientSiteConfig>(`client_site:${orgId}`);
-      
-      if (!site) {
-        return c.json({ 
-          success: false, 
-          error: 'Site não encontrado para esta organização' 
-        }, 404);
+      // Buscar site específico do SQL
+      const { data: sqlSite, error: sqlError } = await supabase
+        .from("client_sites")
+        .select("*")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+
+      if (sqlError || !sqlSite) {
+        return c.json(
+          {
+            success: false,
+            error: "Site não encontrado para esta organização",
+          },
+          404
+        );
       }
-      
+
+      const site = sqlToClientSiteConfig(sqlSite);
       return c.json({ success: true, data: site });
     }
-    
-    // Listar todos os sites
-    const sites = await kv.getByPrefix<ClientSiteConfig>('client_site:');
-    
-    return c.json({ 
-      success: true, 
+
+    // Listar todos os sites do SQL
+    const { data: sqlSites, error: sqlError } = await supabase
+      .from("client_sites")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (sqlError) {
+      throw sqlError;
+    }
+
+    const sites = (sqlSites || []).map(sqlToClientSiteConfig);
+
+    return c.json({
+      success: true,
       data: sites,
-      count: sites.length 
+      count: sites.length,
     });
-    
   } catch (error) {
-    console.error('[CLIENT-SITES] Erro ao buscar sites:', error);
-    return c.json({ 
-      success: false, 
-      error: error.message 
-    }, 500);
+    console.error("[CLIENT-SITES] Erro ao buscar sites:", error);
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Erro desconhecido",
+      },
+      500
+    );
   }
 });
 
 // POST /make-server-67caf26a/client-sites
 // Criar novo site para cliente
-app.post('/', async (c) => {
+app.post("/", async (c) => {
   try {
     const body = await c.req.json();
-    const { organizationId, siteName, template, domain, theme, siteConfig, features } = body;
-    
+    const {
+      organizationId,
+      siteName,
+      template,
+      domain,
+      theme,
+      siteConfig,
+      features,
+    } = body;
+
     // Validações
     if (!organizationId) {
-      return c.json({ 
-        success: false, 
-        error: 'organizationId é obrigatório' 
-      }, 400);
+      return c.json(
+        {
+          success: false,
+          error: "organizationId é obrigatório",
+        },
+        400
+      );
     }
-    
+
     if (!siteName) {
-      return c.json({ 
-        success: false, 
-        error: 'siteName é obrigatório' 
-      }, 400);
+      return c.json(
+        {
+          success: false,
+          error: "siteName é obrigatório",
+        },
+        400
+      );
     }
-    
-    // Verificar se já existe site para esta organização
-    const existing = await kv.get<ClientSiteConfig>(`client_site:${organizationId}`);
+
+    const supabase = getSupabaseClient();
+
+    // Verificar se já existe site para esta organização no SQL
+    const { data: existing } = await supabase
+      .from("client_sites")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
     if (existing) {
-      return c.json({ 
-        success: false, 
-        error: 'Organização já possui um site configurado. Use PUT para atualizar.' 
-      }, 409);
+      return c.json(
+        {
+          success: false,
+          error:
+            "Organização já possui um site configurado. Use PUT para atualizar.",
+        },
+        409
+      );
     }
-    
+
     // Gerar subdomínio automático
     const subdomain = generateSubdomain(siteName);
-    
+
     // Criar configuração do site
     const siteData: ClientSiteConfig = {
       organizationId,
       siteName,
-      template: template || 'moderno',
+      template: template || "moderno",
       subdomain,
       domain: domain || undefined,
       theme: theme || {
-        primaryColor: '#3B82F6',
-        secondaryColor: '#1F2937',
-        accentColor: '#10B981',
-        fontFamily: 'Inter, sans-serif'
+        primaryColor: "#3B82F6",
+        secondaryColor: "#1F2937",
+        accentColor: "#10B981",
+        fontFamily: "Inter, sans-serif",
       },
       siteConfig: siteConfig || {
         title: siteName,
         description: `Site oficial de ${siteName}`,
-        contactEmail: '',
-        contactPhone: ''
+        contactEmail: "",
+        contactPhone: "",
       },
       features: features || {
         shortTerm: true,
         longTerm: false,
-        sale: false
+        sale: false,
       },
+      source: body.source || "custom",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      isActive: true
+      isActive: true,
     };
-    
-    // Salvar no KV
-    await kv.set(`client_site:${organizationId}`, siteData);
-    
-    console.log(`[CLIENT-SITES] Site criado para ${organizationId}:`, subdomain);
-    
-    return c.json({ 
-      success: true, 
-      data: siteData,
-      message: `Site criado com sucesso! Acesse em: ${subdomain}.rendizy.app`
-    }, 201);
-    
+
+    // Salvar no SQL
+    const sqlData = clientSiteConfigToSql(siteData);
+    const { data: insertedSite, error: insertError } = await supabase
+      .from("client_sites")
+      .insert(sqlData)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error("[CLIENT-SITES] Erro ao criar site no SQL:", insertError);
+      throw insertError;
+    }
+
+    const createdSite = sqlToClientSiteConfig(insertedSite);
+
+    console.log(
+      `[CLIENT-SITES] Site criado no SQL para ${organizationId}:`,
+      subdomain
+    );
+
+    return c.json(
+      {
+        success: true,
+        data: createdSite,
+        message: `Site criado com sucesso! Acesse em: ${subdomain}.rendizy.app`,
+      },
+      201
+    );
   } catch (error) {
-    console.error('[CLIENT-SITES] Erro ao criar site:', error);
-    return c.json({ 
-      success: false, 
-      error: error.message 
-    }, 500);
+    console.error("[CLIENT-SITES] Erro ao criar site:", error);
+    return c.json(
+      {
+        success: false,
+        error: error.message,
+      },
+      500
+    );
   }
 });
 
 // PUT /make-server-67caf26a/client-sites/:organizationId
 // Atualizar configurações do site
-app.put('/:organizationId', async (c) => {
+app.put("/:organizationId", async (c) => {
   try {
     const { organizationId } = c.req.param();
     const updates = await c.req.json();
-    
-    // Buscar site existente
-    const existing = await kv.get<ClientSiteConfig>(`client_site:${organizationId}`);
-    
-    if (!existing) {
-      return c.json({ 
-        success: false, 
-        error: 'Site não encontrado' 
-      }, 404);
+
+    const supabase = getSupabaseClient();
+
+    // Buscar site existente do SQL
+    const { data: existing, error: fetchError } = await supabase
+      .from("client_sites")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return c.json(
+        {
+          success: false,
+          error: "Site não encontrado",
+        },
+        404
+      );
     }
-    
+
     // Atualizar dados
+    const existingConfig = sqlToClientSiteConfig(existing);
     const updated: ClientSiteConfig = {
-      ...existing,
+      ...existingConfig,
       ...updates,
       organizationId, // Garantir que não seja alterado
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
-    
-    await kv.set(`client_site:${organizationId}`, updated);
-    
+
+    // Salvar no SQL
+    const sqlData = clientSiteConfigToSql(updated);
+    const { error: updateError } = await supabase
+      .from("client_sites")
+      .update(sqlData)
+      .eq("organization_id", organizationId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
     console.log(`[CLIENT-SITES] Site atualizado:`, organizationId);
-    
-    return c.json({ 
-      success: true, 
+
+    return c.json({
+      success: true,
       data: updated,
-      message: 'Site atualizado com sucesso!'
+      message: "Site atualizado com sucesso!",
     });
-    
   } catch (error) {
-    console.error('[CLIENT-SITES] Erro ao atualizar site:', error);
-    return c.json({ 
-      success: false, 
-      error: error.message 
-    }, 500);
+    console.error("[CLIENT-SITES] Erro ao atualizar site:", error);
+    return c.json(
+      {
+        success: false,
+        error: error.message,
+      },
+      500
+    );
   }
 });
 
 // POST /make-server-67caf26a/client-sites/:organizationId/upload-code
 // Upload do código do site (importado de v0.dev, Bolt, Figma, etc)
-app.post('/:organizationId/upload-code', async (c) => {
+app.post("/:organizationId/upload-code", async (c) => {
   try {
     const { organizationId } = c.req.param();
     const { siteCode } = await c.req.json();
-    
+
     if (!siteCode) {
-      return c.json({ 
-        success: false, 
-        error: 'siteCode é obrigatório' 
-      }, 400);
+      return c.json(
+        {
+          success: false,
+          error: "siteCode é obrigatório",
+        },
+        400
+      );
     }
-    
-    // Buscar site existente
-    const existing = await kv.get<ClientSiteConfig>(`client_site:${organizationId}`);
-    
-    if (!existing) {
-      return c.json({ 
-        success: false, 
-        error: 'Site não encontrado. Crie o site primeiro.' 
-      }, 404);
+
+    const supabase = getSupabaseClient();
+
+    // Buscar site existente do SQL
+    const { data: existing, error: fetchError } = await supabase
+      .from("client_sites")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return c.json(
+        {
+          success: false,
+          error: "Site não encontrado. Crie o site primeiro.",
+        },
+        404
+      );
     }
-    
+
     // Atualizar com o código
+    const existingConfig = sqlToClientSiteConfig(existing);
     const updated: ClientSiteConfig = {
-      ...existing,
+      ...existingConfig,
       siteCode,
-      template: 'custom', // Marcar como customizado
-      updatedAt: new Date().toISOString()
+      template: "custom", // Marcar como customizado
+      updatedAt: new Date().toISOString(),
     };
-    
-    await kv.set(`client_site:${organizationId}`, updated);
-    
+
+    // Salvar no SQL
+    const sqlData = clientSiteConfigToSql(updated);
+    const { error: updateError } = await supabase
+      .from("client_sites")
+      .update(sqlData)
+      .eq("organization_id", organizationId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
     console.log(`[CLIENT-SITES] Código do site atualizado:`, organizationId);
-    
-    return c.json({ 
-      success: true, 
+
+    return c.json({
+      success: true,
       data: updated,
-      message: 'Código do site enviado com sucesso!'
+      message: "Código do site enviado com sucesso!",
     });
-    
   } catch (error) {
-    console.error('[CLIENT-SITES] Erro ao fazer upload do código:', error);
-    return c.json({ 
-      success: false, 
-      error: error.message 
-    }, 500);
+    console.error("[CLIENT-SITES] Erro ao fazer upload do código:", error);
+    return c.json(
+      {
+        success: false,
+        error: error.message,
+      },
+      500
+    );
+  }
+});
+
+// POST /make-server-67caf26a/client-sites/:organizationId/upload-archive
+// Upload de arquivo (ZIP/TAR) com o projeto completo do site (Bolt, v0, etc)
+app.post("/:organizationId/upload-archive", async (c) => {
+  try {
+    const { organizationId } = c.req.param();
+
+    const supabase = getSupabaseClient();
+
+    // Garantir que o site já exista no SQL
+    const { data: existing, error: fetchError } = await supabase
+      .from("client_sites")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return c.json(
+        {
+          success: false,
+          error: "Site não encontrado. Crie o site primeiro.",
+        },
+        404
+      );
+    }
+
+    const existingConfig = sqlToClientSiteConfig(existing);
+
+    // Ler multipart/form-data
+    const formData = await c.req.formData();
+    const file = formData.get("file");
+    const source =
+      (formData.get("source") as string | null) ||
+      existingConfig.source ||
+      "custom";
+
+    if (!file || !(file instanceof File)) {
+      return c.json(
+        {
+          success: false,
+          error:
+            'Arquivo não enviado. Use o campo "file" com um .zip ou .tar.gz',
+        },
+        400
+      );
+    }
+
+    // ✅ VALIDAÇÃO: Aceitar APENAS arquivos ZIP
+    const originalName = file.name || "site.zip";
+    const lowerName = originalName.toLowerCase();
+    const isZip = lowerName.endsWith(".zip");
+
+    if (!isZip) {
+      return c.json(
+        {
+          success: false,
+          error:
+            "Formato de arquivo não suportado. Envie APENAS um arquivo .zip com a pasta dist/ compilada.",
+        },
+        400
+      );
+    }
+
+    // Nome do bucket para armazenar sites de clientes
+    const bucketName = "client-sites";
+
+    // Tentar criar o bucket caso ainda não exista (ignorar erro de já existente)
+    try {
+      await supabase.storage.createBucket(bucketName, {
+        public: false,
+      });
+    } catch (_err) {
+      // Se já existir, ignoramos
+    }
+
+    // ✅ ETAPA 1: Validar ZIP antes de fazer upload
+    console.log("[CLIENT-SITES] 📦 Etapa 1: Abrindo ZIP para validação...");
+
+    const arrayBuffer = await file.arrayBuffer();
+    let zip: JSZip;
+
+    try {
+      zip = await JSZip.loadAsync(arrayBuffer);
+      console.log("[CLIENT-SITES] ✅ ZIP aberto com sucesso");
+    } catch (error) {
+      console.error("[CLIENT-SITES] ❌ Erro ao abrir ZIP:", error);
+      return c.json(
+        {
+          success: false,
+          error:
+            "Arquivo ZIP inválido ou corrompido. Verifique o arquivo e tente novamente.",
+        },
+        400
+      );
+    }
+
+    // ✅ ETAPA 2: Validar pasta dist/ obrigatória
+    console.log("[CLIENT-SITES] 📋 Etapa 2: Conferindo arquivos...");
+    const allFiles = Object.keys(zip.files);
+    const distFiles = allFiles.filter((f) => {
+      const lower = f.toLowerCase();
+      return lower.includes("dist/") && !zip.files[f].dir;
+    });
+
+    if (distFiles.length === 0) {
+      console.error("[CLIENT-SITES] ❌ Pasta dist/ não encontrada no ZIP");
+      return c.json(
+        {
+          success: false,
+          error:
+            'Pasta dist/ não encontrada no ZIP. O site precisa ser compilado antes do upload. Peça ao Bolt: "Compile este site para produção" ou execute npm run build manualmente.',
+          validation: {
+            step: "dist_validation",
+            hasDist: false,
+            totalFiles: allFiles.length,
+          },
+        },
+        400
+      );
+    }
+
+    console.log(
+      `[CLIENT-SITES] ✅ Pasta dist/ encontrada com ${distFiles.length} arquivos`
+    );
+
+    // ✅ ETAPA 3: Validar arquivos necessários
+    const distIndexHtml = distFiles.find((f) => {
+      const lower = f.toLowerCase();
+      return lower.endsWith("index.html") && lower.includes("dist/");
+    });
+
+    if (!distIndexHtml) {
+      console.error("[CLIENT-SITES] ❌ dist/index.html não encontrado");
+      return c.json(
+        {
+          success: false,
+          error:
+            "Arquivo dist/index.html não encontrado. O site compilado precisa ter um index.html na pasta dist/.",
+          validation: {
+            step: "index_html_validation",
+            hasDist: true,
+            hasIndexHtml: false,
+            distFiles: distFiles.slice(0, 10),
+          },
+        },
+        400
+      );
+    }
+
+    // Validar que tem pelo menos um arquivo JS e CSS (assets)
+    const jsFiles = distFiles.filter((f) => {
+      const lower = f.toLowerCase();
+      return lower.endsWith(".js") || lower.endsWith(".mjs");
+    });
+    const cssFiles = distFiles.filter((f) => {
+      const lower = f.toLowerCase();
+      return lower.endsWith(".css");
+    });
+
+    if (jsFiles.length === 0) {
+      console.warn(
+        "[CLIENT-SITES] ⚠️ Nenhum arquivo JavaScript encontrado em dist/"
+      );
+    }
+    if (cssFiles.length === 0) {
+      console.warn("[CLIENT-SITES] ⚠️ Nenhum arquivo CSS encontrado em dist/");
+    }
+
+    console.log(
+      `[CLIENT-SITES] ✅ Arquivos validados: ${distFiles.length} arquivos em dist/, ${jsFiles.length} JS, ${cssFiles.length} CSS`
+    );
+
+    // ✅ ETAPA 4: Upload para o Supabase Storage
+    console.log("[CLIENT-SITES] 📤 Etapa 3: Fazendo upload do arquivo...");
+    const timestamp = Date.now();
+    const objectPath = `${organizationId}/${timestamp}-${originalName.replace(
+      /[^a-zA-Z0-9.\-_]/g,
+      "_"
+    )}.zip`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucketName)
+      .upload(objectPath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error(
+        "[CLIENT-SITES] Erro ao fazer upload do arquivo:",
+        uploadError
+      );
+      return c.json(
+        {
+          success: false,
+          error: "Erro ao armazenar arquivo do site",
+        },
+        500
+      );
+    }
+
+    console.log("[CLIENT-SITES] ✅ Upload concluído com sucesso");
+
+    // Gerar URL assinada para uso futuro (deploy, inspeção, etc.)
+    const { data: signedUrlData, error: signedUrlError } =
+      await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(objectPath, 60 * 60 * 24 * 7); // 7 dias
+
+    let archiveUrl: string | undefined = undefined;
+    if (!signedUrlError && signedUrlData?.signedUrl) {
+      archiveUrl = signedUrlData.signedUrl;
+    }
+
+    // Atualizar config do site com path/URL do arquivo no SQL
+    const updated: ClientSiteConfig = {
+      ...existingConfig,
+      source: source as ClientSiteConfig["source"],
+      archivePath: objectPath,
+      archiveUrl: archiveUrl || existingConfig.archiveUrl,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const sqlData = clientSiteConfigToSql(updated);
+    const { error: updateError } = await supabase
+      .from("client_sites")
+      .update(sqlData)
+      .eq("organization_id", organizationId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    console.log(`[CLIENT-SITES] Arquivo do site armazenado:`, {
+      organizationId,
+      objectPath,
+      source,
+    });
+
+    return c.json({
+      success: true,
+      data: {
+        archivePath: objectPath,
+        archiveUrl,
+        source,
+        validation: {
+          hasDist: true,
+          hasIndexHtml: true,
+          distFilesCount: distFiles.length,
+          jsFilesCount: jsFiles.length,
+          cssFilesCount: cssFiles.length,
+          totalFiles: allFiles.length,
+        },
+      },
+      message:
+        "Arquivo validado e enviado com sucesso! O site está pronto para uso.",
+      steps: [
+        { step: 1, name: "Abrindo ZIP", status: "completed" },
+        { step: 2, name: "Conferindo arquivos", status: "completed" },
+        { step: 3, name: "Arquivos corretos", status: "completed" },
+      ],
+    });
+  } catch (error) {
+    console.error(
+      "[CLIENT-SITES] Erro ao fazer upload do arquivo do site:",
+      error
+    );
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Erro desconhecido ao enviar arquivo do site",
+      },
+      500
+    );
+  }
+});
+
+// POST /make-server-67caf26a/client-sites/:organizationId/upload-archive-from-url
+// Faz o download de um arquivo .zip ou .tar.gz remoto (ex: Google Drive, S3, etc)
+// e armazena no bucket "client-sites", associando ao site do cliente
+app.post("/:organizationId/upload-archive-from-url", async (c) => {
+  try {
+    const { organizationId } = c.req.param();
+    const body = await c.req.json();
+    const url = (body?.url as string | undefined)?.trim();
+    const source = (body?.source as string | undefined) || "custom";
+
+    if (!url) {
+      return c.json(
+        {
+          success: false,
+          error: "URL é obrigatória",
+        },
+        400
+      );
+    }
+
+    const supabase = getSupabaseClient();
+
+    // Garantir que o site já exista no SQL
+    const { data: existing, error: fetchError } = await supabase
+      .from("client_sites")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return c.json(
+        {
+          success: false,
+          error: "Site não encontrado. Crie o site primeiro.",
+        },
+        404
+      );
+    }
+
+    const existingConfig = sqlToClientSiteConfig(existing);
+
+    const lowerUrl = url.toLowerCase();
+    const isZip = lowerUrl.includes(".zip");
+    const isTarGz = lowerUrl.includes(".tar.gz") || lowerUrl.includes(".tgz");
+
+    if (!isZip && !isTarGz) {
+      console.warn(
+        "[CLIENT-SITES] URL não parece apontar para .zip ou .tar.gz:",
+        url
+      );
+      return c.json(
+        {
+          success: false,
+          error: "A URL deve apontar para um arquivo .zip ou .tar.gz",
+        },
+        400
+      );
+    }
+
+    console.log("[CLIENT-SITES] Baixando arquivo remoto para site:", {
+      organizationId,
+      url,
+      source,
+    });
+
+    const fetchResponse = await fetch(url);
+
+    if (!fetchResponse.ok) {
+      console.error(
+        "[CLIENT-SITES] Erro ao baixar arquivo remoto:",
+        fetchResponse.status,
+        fetchResponse.statusText
+      );
+      return c.json(
+        {
+          success: false,
+          error: `Erro ao baixar arquivo remoto (${fetchResponse.status} - ${fetchResponse.statusText})`,
+        },
+        502
+      );
+    }
+
+    const arrayBuffer = await fetchResponse.arrayBuffer();
+    const fileBytes = new Uint8Array(arrayBuffer);
+
+    const bucketName = "client-sites";
+
+    // Tentar criar o bucket caso ainda não exista (ignorar erro de já existente)
+    try {
+      await supabase.storage.createBucket(bucketName, {
+        public: false,
+      });
+    } catch (_err) {
+      // Se já existir, ignoramos
+    }
+
+    const timestamp = Date.now();
+    const ext = isTarGz ? ".tar.gz" : ".zip";
+    const objectPath = `${organizationId}/${timestamp}-remote${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucketName)
+      .upload(objectPath, fileBytes, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: "application/octet-stream",
+      });
+
+    if (uploadError) {
+      console.error(
+        "[CLIENT-SITES] Erro ao fazer upload do arquivo remoto:",
+        uploadError
+      );
+      return c.json(
+        {
+          success: false,
+          error: "Erro ao armazenar arquivo remoto do site",
+        },
+        500
+      );
+    }
+
+    const { data: signedUrlData, error: signedUrlError } =
+      await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(objectPath, 60 * 60 * 24 * 7); // 7 dias
+
+    let archiveUrl: string | undefined = existing.archiveUrl;
+    if (!signedUrlError && signedUrlData?.signedUrl) {
+      archiveUrl = signedUrlData.signedUrl;
+    }
+
+    const updated: ClientSiteConfig = {
+      ...existingConfig,
+      source: source as ClientSiteConfig["source"],
+      archivePath: objectPath,
+      archiveUrl,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const sqlData = clientSiteConfigToSql(updated);
+    const { error: updateError } = await supabase
+      .from("client_sites")
+      .update(sqlData)
+      .eq("organization_id", organizationId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    console.log("[CLIENT-SITES] Arquivo remoto associado ao site:", {
+      organizationId,
+      objectPath,
+      url,
+      source,
+    });
+
+    return c.json({
+      success: true,
+      data: {
+        archivePath: objectPath,
+        archiveUrl,
+        source,
+      },
+      message: "Arquivo remoto do site baixado e associado com sucesso!",
+    });
+  } catch (error) {
+    console.error(
+      "[CLIENT-SITES] Erro ao processar upload-archive-from-url:",
+      error
+    );
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Erro desconhecido ao processar URL remota",
+      },
+      500
+    );
+  }
+});
+
+// GET /make-server-67caf26a/client-sites/by-subdomain/:subdomain
+// Buscar site por subdomain (para visualização pública em localhost/produção)
+app.get("/by-subdomain/:subdomain", async (c) => {
+  try {
+    const subdomain = c.req.param("subdomain");
+
+    console.log(`[CLIENT-SITES] Buscando site por subdomain: ${subdomain}`);
+
+    if (!subdomain) {
+      return c.json(
+        {
+          success: false,
+          error: "Subdomain é obrigatório",
+        },
+        400
+      );
+    }
+
+    // Buscar site por subdomain do SQL
+    const supabase = getSupabaseClient();
+    const cleanSubdomain = subdomain.replace(".rendizy.app", "").toLowerCase();
+
+    // Tentar buscar da tabela client_sites (se existir)
+    let site: any = null;
+
+    try {
+      // Buscar por subdomain primeiro
+      let { data: sqlSite, error: sqlError } = await supabase
+        .from("client_sites")
+        .select("*")
+        .ilike("subdomain", cleanSubdomain)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      // Se não encontrar, tentar pelo subdomain original
+      if (sqlError || !sqlSite) {
+        const { data: sqlSite2, error: sqlError2 } = await supabase
+          .from("client_sites")
+          .select("*")
+          .ilike("subdomain", subdomain.toLowerCase())
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (!sqlError2 && sqlSite2) {
+          sqlSite = sqlSite2;
+          sqlError = sqlError2;
+        }
+      }
+
+      // Se ainda não encontrar, tentar pelo domain
+      if (sqlError || !sqlSite) {
+        const { data: sqlSite3, error: sqlError3 } = await supabase
+          .from("client_sites")
+          .select("*")
+          .ilike("domain", subdomain.toLowerCase())
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (!sqlError3 && sqlSite3) {
+          sqlSite = sqlSite3;
+        }
+      }
+
+      if (sqlSite) {
+        site = sqlToClientSiteConfig(sqlSite);
+      }
+    } catch (err) {
+      // Tabela não existe ou erro na query
+      console.error("[CLIENT-SITES] Erro ao buscar site do SQL:", err);
+      throw err;
+    }
+
+    if (!site) {
+      console.log(
+        `[CLIENT-SITES] Site não encontrado para subdomain: ${subdomain}`
+      );
+      return c.json(
+        {
+          success: false,
+          error: "Site não encontrado para este subdomain",
+        },
+        404
+      );
+    }
+
+    console.log(
+      `[CLIENT-SITES] Site encontrado: ${site.siteName} (${site.organizationId})`
+    );
+    console.log(`[CLIENT-SITES] Site ativo: ${site.isActive}`);
+    console.log(`[CLIENT-SITES] Tem siteCode: ${!!site.siteCode}`);
+    console.log(
+      `[CLIENT-SITES] siteCode tamanho: ${
+        site.siteCode ? site.siteCode.length : 0
+      } caracteres`
+    );
+    console.log(`[CLIENT-SITES] Tem archivePath: ${!!site.archivePath}`);
+    console.log(`[CLIENT-SITES] archivePath: ${site.archivePath || "N/A"}`);
+    console.log(`[CLIENT-SITES] Tem archiveUrl: ${!!site.archiveUrl}`);
+    console.log(`[CLIENT-SITES] archiveUrl: ${site.archiveUrl || "N/A"}`);
+
+    // Log completo do objeto site (sem siteCode se for muito grande)
+    const siteForLog = { ...site };
+    if (siteForLog.siteCode && siteForLog.siteCode.length > 500) {
+      siteForLog.siteCode = `${siteForLog.siteCode.substring(
+        0,
+        500
+      )}... [truncado, tamanho total: ${siteForLog.siteCode.length}]`;
+    }
+    console.log(
+      `[CLIENT-SITES] Site completo:`,
+      JSON.stringify(siteForLog, null, 2)
+    );
+
+    // Retornar site (rota pública, mas não retornar dados sensíveis se necessário)
+    return c.json({
+      success: true,
+      data: site,
+    });
+  } catch (error) {
+    console.error("[CLIENT-SITES] Erro ao buscar site por subdomain:", error);
+    return c.json(
+      {
+        success: false,
+        error: error.message,
+      },
+      500
+    );
   }
 });
 
 // GET /make-server-67caf26a/client-sites/by-domain/:domain
 // Buscar site por domínio (para roteamento)
-app.get('/by-domain/:domain', async (c) => {
+app.get("/by-domain/:domain", async (c) => {
   try {
     const { domain } = c.req.param();
-    
-    // Buscar todos os sites
-    const sites = await kv.getByPrefix<ClientSiteConfig>('client_site:');
-    
-    // Procurar por domínio customizado ou subdomínio
-    const site = sites.find(s => 
-      s.domain === domain || 
-      `${s.subdomain}.rendizy.app` === domain ||
-      s.subdomain === domain.replace('.rendizy.app', '')
-    );
-    
-    if (!site) {
-      return c.json({ 
-        success: false, 
-        error: 'Site não encontrado para este domínio' 
-      }, 404);
+
+    const supabase = getSupabaseClient();
+
+    // Buscar site por domínio do SQL
+    const { data: sqlSite, error: sqlError } = await supabase
+      .from("client_sites")
+      .select("*")
+      .or(
+        `domain.ilike.${domain},subdomain.ilike.${domain.replace(
+          ".rendizy.app",
+          ""
+        )}`
+      )
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (sqlError || !sqlSite) {
+      return c.json(
+        {
+          success: false,
+          error: "Site não encontrado para este domínio",
+        },
+        404
+      );
     }
-    
+
+    const site = sqlToClientSiteConfig(sqlSite);
     return c.json({ success: true, data: site });
-    
   } catch (error) {
-    console.error('[CLIENT-SITES] Erro ao buscar site por domínio:', error);
-    return c.json({ 
-      success: false, 
-      error: error.message 
-    }, 500);
+    console.error("[CLIENT-SITES] Erro ao buscar site por domínio:", error);
+    return c.json(
+      {
+        success: false,
+        error: error.message,
+      },
+      500
+    );
   }
 });
 
 // DELETE /make-server-67caf26a/client-sites/:organizationId
 // Desativar site (soft delete)
-app.delete('/:organizationId', async (c) => {
+app.delete("/:organizationId", async (c) => {
   try {
     const { organizationId } = c.req.param();
-    
-    const existing = await kv.get<ClientSiteConfig>(`client_site:${organizationId}`);
-    
-    if (!existing) {
-      return c.json({ 
-        success: false, 
-        error: 'Site não encontrado' 
-      }, 404);
+
+    const supabase = getSupabaseClient();
+
+    // Buscar site existente do SQL
+    const { data: existing, error: fetchError } = await supabase
+      .from("client_sites")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return c.json(
+        {
+          success: false,
+          error: "Site não encontrado",
+        },
+        404
+      );
     }
-    
-    // Desativar (soft delete)
-    const updated: ClientSiteConfig = {
-      ...existing,
-      isActive: false,
-      updatedAt: new Date().toISOString()
-    };
-    
-    await kv.set(`client_site:${organizationId}`, updated);
-    
+
+    // Desativar (soft delete) no SQL
+    const { error: updateError } = await supabase
+      .from("client_sites")
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("organization_id", organizationId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
     console.log(`[CLIENT-SITES] Site desativado:`, organizationId);
-    
-    return c.json({ 
-      success: true, 
-      message: 'Site desativado com sucesso!' 
+
+    return c.json({
+      success: true,
+      message: "Site desativado com sucesso!",
     });
-    
   } catch (error) {
-    console.error('[CLIENT-SITES] Erro ao desativar site:', error);
-    return c.json({ 
-      success: false, 
-      error: error.message 
-    }, 500);
+    console.error("[CLIENT-SITES] Erro ao desativar site:", error);
+    return c.json(
+      {
+        success: false,
+        error: error.message,
+      },
+      500
+    );
+  }
+});
+
+// ============================================================
+// ROTA PARA SERVIR ASSETS ESTÁTICOS DO ZIP (JS, CSS, imagens)
+// ============================================================
+// OPTIONS para CORS (deve vir ANTES do GET)
+app.options("/assets/:subdomain/*", async (c) => {
+  c.header("Access-Control-Allow-Origin", "*");
+  c.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+  c.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, apikey"
+  );
+  return c.text("", 200);
+});
+
+// GET /make-server-67caf26a/client-sites/assets/:subdomain/*
+// Serve arquivos estáticos (JS, CSS, imagens) do ZIP do site
+// ✅ ROTA PÚBLICA - Não requer autenticação
+app.get("/assets/:subdomain/*", async (c) => {
+  try {
+    const subdomain = c.req.param("subdomain");
+    // Extrair o caminho do asset após /assets/:subdomain/
+    const fullPath = c.req.path;
+    const assetPathMatch = fullPath.match(
+      new RegExp(`/assets/${subdomain}/(.+)$`)
+    );
+    const assetPath = assetPathMatch ? assetPathMatch[1] : "";
+
+    console.log(
+      `[CLIENT-SITES] Asset solicitado: ${assetPath} para subdomain: ${subdomain}`
+    );
+
+    if (!assetPath) {
+      return c.json(
+        { success: false, error: "Caminho do asset não fornecido" },
+        400
+      );
+    }
+
+    // Buscar site por subdomain do SQL
+    const supabase = getSupabaseClient();
+
+    // Buscar site por subdomain do SQL
+    const { data: sqlSite, error: sqlError } = await supabase
+      .from("client_sites")
+      .select("*")
+      .eq("subdomain", subdomain)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (sqlError || !sqlSite || !sqlSite.archive_path) {
+      return c.json(
+        { success: false, error: "Site não encontrado ou sem arquivo" },
+        404
+      );
+    }
+
+    const archivePath = sqlSite.archive_path;
+
+    // Download do ZIP do storage
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from("client-sites")
+      .download(archivePath);
+
+    if (downloadError || !fileData) {
+      console.error(`[CLIENT-SITES] Erro ao baixar ZIP:`, downloadError);
+      return c.json(
+        { success: false, error: "Erro ao acessar arquivo do site" },
+        500
+      );
+    }
+
+    // Extrair arquivo do ZIP
+    const arrayBuffer = await fileData.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+
+    // Buscar arquivo no ZIP (tentar diferentes variações do caminho)
+    // Normalizar assetPath (remover barra inicial se houver)
+    const normalizedPath = assetPath.replace(/^\//, "");
+
+    // Se o caminho já começa com dist/, não adicionar outro dist/
+    const possiblePaths = normalizedPath.startsWith("dist/")
+      ? [
+          normalizedPath,
+          `site ${subdomain}/${normalizedPath}`,
+          `site-${subdomain}/${normalizedPath}`,
+        ]
+      : [
+          normalizedPath,
+          `site ${subdomain}/${normalizedPath}`,
+          `site-${subdomain}/${normalizedPath}`,
+          `site ${subdomain}/src/${normalizedPath}`,
+          `site-${subdomain}/src/${normalizedPath}`,
+          `src/${normalizedPath}`,
+          `public/${normalizedPath}`,
+          `dist/${normalizedPath}`,
+        ];
+
+    let file: any = null;
+    let foundPath: string | null = null;
+
+    for (const path of possiblePaths) {
+      const zipFile = zip.files[path];
+      if (zipFile && !zipFile.dir) {
+        file = zipFile;
+        foundPath = path;
+        break;
+      }
+    }
+
+    if (!file) {
+      console.warn(`[CLIENT-SITES] Asset não encontrado: ${assetPath}`);
+      console.warn(`[CLIENT-SITES] Caminhos tentados:`, possiblePaths);
+      console.warn(
+        `[CLIENT-SITES] Arquivos disponíveis (primeiros 20):`,
+        Object.keys(zip.files).slice(0, 20)
+      );
+      return c.json(
+        { success: false, error: "Asset não encontrado no ZIP" },
+        404
+      );
+    }
+
+    console.log(`[CLIENT-SITES] ✅ Asset encontrado: ${foundPath}`);
+
+    // Determinar Content-Type baseado na extensão
+    const ext = foundPath.split(".").pop()?.toLowerCase() || "";
+    const contentTypes: Record<string, string> = {
+      js: "application/javascript",
+      mjs: "application/javascript",
+      ts: "application/typescript",
+      tsx: "application/typescript",
+      css: "text/css",
+      html: "text/html",
+      htm: "text/html",
+      json: "application/json",
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      svg: "image/svg+xml",
+      webp: "image/webp",
+      ico: "image/x-icon",
+      woff: "font/woff",
+      woff2: "font/woff2",
+      ttf: "font/ttf",
+      eot: "application/vnd.ms-fontobject",
+    };
+
+    const contentType = contentTypes[ext] || "application/octet-stream";
+
+    // Extrair conteúdo do arquivo
+    if (
+      ext === "png" ||
+      ext === "jpg" ||
+      ext === "jpeg" ||
+      ext === "gif" ||
+      ext === "svg" ||
+      ext === "webp" ||
+      ext === "ico"
+    ) {
+      // Arquivo binário (imagem)
+      const blob = await file.async("blob");
+      c.header("Content-Type", contentType);
+      c.header("Cache-Control", "public, max-age=3600");
+      return c.body(await blob.arrayBuffer(), 200);
+    } else {
+      // Arquivo de texto (JS, CSS, HTML, etc)
+      const content = await file.async("string");
+      c.header("Content-Type", contentType);
+      c.header("Cache-Control", "public, max-age=3600");
+      return c.text(content, 200);
+    }
+  } catch (error) {
+    console.error(`[CLIENT-SITES] Erro ao servir asset:`, error);
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Erro desconhecido",
+      },
+      500
+    );
+  }
+});
+
+// ============================================================
+// API PÚBLICA PARA IMÓVEIS DO CLIENTE (para exibir no site)
+// ============================================================
+// GET /make-server-67caf26a/client-sites/api/:subdomain/properties
+// Lista imóveis da organização associada ao site (público, sem autenticação)
+app.get("/api/:subdomain/properties", async (c) => {
+  try {
+    const subdomain = c.req.param("subdomain");
+
+    console.log(
+      `[CLIENT-SITES] API pública de imóveis solicitada para subdomain: ${subdomain}`
+    );
+
+    // Buscar site por subdomain do SQL
+    const supabase = getSupabaseClient();
+    const { data: sqlSite, error: sqlError } = await supabase
+      .from("client_sites")
+      .select("*")
+      .eq("subdomain", subdomain)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (sqlError || !sqlSite) {
+      return c.json(
+        {
+          success: false,
+          error: "Site não encontrado",
+        },
+        404
+      );
+    }
+
+    const organizationId = sqlSite.organization_id;
+    console.log(
+      `[CLIENT-SITES] Buscando imóveis para organização: ${organizationId}`
+    );
+
+    // Buscar imóveis da organização no SQL
+    const { data: properties, error } = await supabase
+      .from("properties")
+      .select(
+        "id, name, code, type, status, address_city, address_state, address_street, address_number, address_zip, price, currency, bedrooms, bathrooms, area, description, photos, created_at, updated_at"
+      )
+      .eq("organization_id", organizationId)
+      .eq("status", "active") // Apenas imóveis ativos
+      .order("created_at", { ascending: false })
+      .limit(100); // Limitar a 100 imóveis
+
+    if (error) {
+      console.error(`[CLIENT-SITES] Erro ao buscar imóveis:`, error);
+      return c.json(
+        {
+          success: false,
+          error: "Erro ao buscar imóveis",
+        },
+        500
+      );
+    }
+
+    console.log(
+      `[CLIENT-SITES] ✅ ${properties?.length || 0} imóveis encontrados`
+    );
+
+    // Formatar resposta para o site
+    const formattedProperties = (properties || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      code: p.code,
+      type: p.type,
+      status: p.status,
+      address: {
+        city: p.address_city,
+        state: p.address_state,
+        street: p.address_street,
+        number: p.address_number,
+        zip: p.address_zip,
+      },
+      price: p.price,
+      currency: p.currency || "BRL",
+      bedrooms: p.bedrooms,
+      bathrooms: p.bathrooms,
+      area: p.area,
+      description: p.description,
+      photos: p.photos || [],
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+    }));
+
+    // CORS headers para permitir acesso do site
+    c.header("Access-Control-Allow-Origin", "*");
+    c.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+    c.header("Access-Control-Allow-Headers", "Content-Type");
+
+    return c.json({
+      success: true,
+      data: formattedProperties,
+      total: formattedProperties.length,
+    });
+  } catch (error) {
+    console.error(`[CLIENT-SITES] Erro na API pública de imóveis:`, error);
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Erro desconhecido",
+      },
+      500
+    );
+  }
+});
+
+// OPTIONS para CORS
+app.options("/api/:subdomain/properties", async (c) => {
+  c.header("Access-Control-Allow-Origin", "*");
+  c.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+  c.header("Access-Control-Allow-Headers", "Content-Type");
+  return c.text("", 200);
+});
+
+// ROTA TEMPORÁRIA: Migração de KV Store para SQL
+// POST /make-server-67caf26a/client-sites/migrate-kv-to-sql
+app.post("/migrate-kv-to-sql", async (c) => {
+  try {
+    const supabase = getSupabaseClient();
+    const body = await c.req.json();
+    const organizationId =
+      body.organizationId || "e78c7bb9-7823-44b8-9aee-95c9b073e7b7"; // Medhome por padrão
+
+    // Buscar do KV Store usando a tabela SQL diretamente (já que kv_store.tsx usa SQL)
+    const { data: kvData } = await supabase
+      .from("kv_store_67caf26a")
+      .select("value")
+      .eq("key", `client_site:${organizationId}`)
+      .maybeSingle();
+
+    if (!kvData || !kvData.value) {
+      return c.json(
+        {
+          success: false,
+          error: "Site não encontrado no KV Store",
+        },
+        404
+      );
+    }
+
+    const kvSite = kvData.value as ClientSiteConfig;
+    const sqlData = clientSiteConfigToSql(kvSite);
+
+    // Verificar se já existe
+    const { data: existing } = await supabase
+      .from("client_sites")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (existing) {
+      // Atualizar
+      const { error: updateError } = await supabase
+        .from("client_sites")
+        .update(sqlData)
+        .eq("organization_id", organizationId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      return c.json({
+        success: true,
+        message: "Site atualizado no SQL",
+        data: sqlData,
+      });
+    } else {
+      // Inserir
+      const { error: insertError } = await supabase
+        .from("client_sites")
+        .insert(sqlData);
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      return c.json({
+        success: true,
+        message: "Site migrado para SQL com sucesso",
+        data: sqlData,
+      });
+    }
+  } catch (error) {
+    console.error("[CLIENT-SITES] Erro na migração:", error);
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Erro desconhecido",
+      },
+      500
+    );
   }
 });
 
