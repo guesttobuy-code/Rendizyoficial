@@ -33,6 +33,8 @@ export function CreateUserModal({ open, onClose, onSuccess, preselectedOrgId }: 
     organizationId: preselectedOrgId || '',
     name: '',
     email: '',
+    username: '', // Novo: username (opcional, usa email se não fornecido)
+    password: '', // Novo: senha (opcional, se fornecido cria como 'active')
     role: 'staff'
   });
 
@@ -97,8 +99,13 @@ export function CreateUserModal({ open, onClose, onSuccess, preselectedOrgId }: 
             'Authorization': `Bearer ${publicAnonKey}`
           },
           body: JSON.stringify({
-            ...formData,
-            status: 'invited',
+            organizationId: formData.organizationId,
+            name: formData.name,
+            email: formData.email,
+            username: formData.username || undefined, // Opcional
+            password: formData.password || undefined, // Opcional - se fornecido, cria como 'active'
+            role: formData.role,
+            status: formData.password ? 'active' : 'invited', // Se tem senha, cria ativo
             createdBy: 'user_master_rendizy' // ID do usuário master
           })
         }
@@ -119,6 +126,8 @@ export function CreateUserModal({ open, onClose, onSuccess, preselectedOrgId }: 
         organizationId: preselectedOrgId || '',
         name: '',
         email: '',
+        username: '',
+        password: '',
         role: 'staff'
       });
 
@@ -141,6 +150,8 @@ export function CreateUserModal({ open, onClose, onSuccess, preselectedOrgId }: 
         organizationId: preselectedOrgId || '',
         name: '',
         email: '',
+        username: '',
+        password: '',
         role: 'staff'
       });
       setError(null);
@@ -254,7 +265,44 @@ export function CreateUserModal({ open, onClose, onSuccess, preselectedOrgId }: 
                 disabled={loading}
               />
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Um convite será enviado para este email
+                {formData.password 
+                  ? 'Usuário será criado ativo e poderá fazer login imediatamente'
+                  : 'Um convite será enviado para este email'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="username">
+                Username <span className="text-gray-400 text-xs">(opcional)</span>
+              </Label>
+              <Input
+                id="username"
+                placeholder="medhome_admin (ou deixe vazio para usar email)"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                disabled={loading}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Se não fornecido, será usado o email como username
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">
+                Senha <span className="text-gray-400 text-xs">(opcional)</span>
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Deixe vazio para criar como convidado"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                disabled={loading}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {formData.password 
+                  ? '✅ Usuário será criado ATIVO e poderá fazer login imediatamente'
+                  : '⚠️ Se deixar vazio, usuário será criado como "convidado" (sem senha)'}
               </p>
             </div>
 

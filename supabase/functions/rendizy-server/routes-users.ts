@@ -1,5 +1,7 @@
 import { Hono } from 'npm:hono';
+import { createHash } from 'node:crypto';
 import * as kv from './kv_store.tsx';
+import { getSupabaseClient } from './kv_store.tsx';
 
 const app = new Hono();
 
@@ -24,6 +26,11 @@ function generateId(prefix: string): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2, 7);
   return `${prefix}_${timestamp}${random}`;
+}
+
+// Helper: Hash de senha (SHA256)
+function hashPassword(password: string): string {
+  return createHash('sha256').update(password).digest('hex');
 }
 
 // Helper: Obter permissões padrão por role
@@ -167,8 +174,10 @@ app.post('/', async (c) => {
       organizationId, 
       name, 
       email, 
+      username, // Novo: username opcional (se não fornecido, usa email)
+      password, // Novo: senha opcional (se fornecido, cria como 'active')
       role = 'staff', 
-      status = 'invited',
+      status, // Se password fornecido, será 'active', senão 'invited'
       createdBy 
     } = body;
 
@@ -222,7 +231,81 @@ app.post('/', async (c) => {
       }, 403);
     }
 
-    // Criar usuário
+    // ✅ NOVO: Determinar status e username
+    const finalStatus = password ? 'active' : (status || 'invited');
+    const finalUsername = username || email.split('@')[0]; // Usa email se username não fornecido
+    
+    // ✅ NOVO: Se password fornecido, criar no SQL com senha hashada
+    if (password) {
+      const supabase = getSupabaseClient();
+      const passwordHash = hashPassword(password);
+      const now = new Date().toISOString();
+      
+      // Verificar se username já existe
+      const { data: existingUserByUsername } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username', finalUsername)
+        .maybeSingle();
+      
+      if (existingUserByUsername) {
+        return c.json({ 
+          success: false, 
+          error: 'Username já está em uso' 
+        }, 409);
+      }
+      
+      // Criar no SQL
+      const { data: sqlUser, error: sqlError } = await supabase
+        .from('users')
+        .insert({
+          username: finalUsername,
+          email: email.toLowerCase(),
+          name,
+          password_hash: passwordHash,
+          type: role === 'owner' ? 'imobiliaria' : 'staff',
+          status: finalStatus,
+          organization_id: organizationId,
+          created_by: createdBy,
+          created_at: now,
+          updated_at: now,
+          ...(finalStatus === 'active' ? { joined_at: now } : { invited_at: now })
+        })
+        .select()
+        .single();
+      
+      if (sqlError) {
+        console.error('❌ Erro ao criar usuário no SQL:', sqlError);
+        return c.json({ 
+          success: false, 
+          error: `Erro ao criar usuário: ${sqlError.message}` 
+        }, 500);
+      }
+      
+      console.log(`✅ User created in SQL: ${email} in org ${organization.slug} (${sqlUser.id})`);
+      
+      // Converter para formato esperado pelo frontend
+      const user: User = {
+        id: sqlUser.id,
+        organizationId: sqlUser.organization_id,
+        name: sqlUser.name,
+        email: sqlUser.email,
+        role,
+        status: sqlUser.status as 'active' | 'invited' | 'suspended',
+        createdAt: sqlUser.created_at,
+        createdBy: sqlUser.created_by || createdBy,
+        permissions: getDefaultPermissions(role),
+        ...(sqlUser.invited_at ? { invitedAt: sqlUser.invited_at } : {}),
+        ...(sqlUser.joined_at ? { joinedAt: sqlUser.joined_at } : {})
+      };
+      
+      return c.json({ 
+        success: true, 
+        data: user 
+      }, 201);
+    }
+
+    // Se não tem password, criar no KV Store (compatibilidade)
     const id = generateId('user');
     const now = new Date().toISOString();
 
@@ -232,26 +315,26 @@ app.post('/', async (c) => {
       name,
       email: email.toLowerCase(),
       role,
-      status,
+      status: finalStatus,
       createdAt: now,
       createdBy,
       permissions: getDefaultPermissions(role)
     };
 
     // Se for convite, adicionar data de convite
-    if (status === 'invited') {
+    if (finalStatus === 'invited') {
       user.invitedAt = now;
     }
 
     // Se for ativo, adicionar data de entrada
-    if (status === 'active') {
+    if (finalStatus === 'active') {
       user.joinedAt = now;
     }
 
     // Salvar no KV store
     await kv.set(`user:${id}`, user);
 
-    console.log(`✅ User created: ${email} in org ${organization.slug} (${id})`);
+    console.log(`✅ User created in KV: ${email} in org ${organization.slug} (${id})`);
 
     return c.json({ 
       success: true, 

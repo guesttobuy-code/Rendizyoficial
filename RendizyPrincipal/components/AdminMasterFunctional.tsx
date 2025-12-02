@@ -47,6 +47,7 @@ import {
 } from './ui/dropdown-menu';
 import { CreateOrganizationModal } from './CreateOrganizationModal';
 import { CreateUserModal } from './CreateUserModal';
+import { ViewUsersModal } from './ViewUsersModal';
 import { ReservationsManagement } from './ReservationsManagement';
 import { PropertyTypesSeedTool } from './PropertyTypesSeedTool';
 import { toast } from 'sonner';
@@ -96,18 +97,19 @@ export function AdminMasterFunctional({ onNavigate }: AdminMasterProps) {
   
   const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [showViewUsersModal, setShowViewUsersModal] = useState(false);
   const [selectedOrgForUser, setSelectedOrgForUser] = useState<string | undefined>(undefined);
+  const [selectedOrgForView, setSelectedOrgForView] = useState<{ id: string; name: string } | null>(null);
 
-  // Load data
+  // Load data - sempre carregar organizações (Overview precisa dos dados)
   useEffect(() => {
-    if (activeTab === 'organizations') {
-      loadOrganizations();
-    }
-  }, [activeTab]);
+    loadOrganizations();
+  }, []); // Carregar uma vez ao montar
 
   const loadOrganizations = async () => {
     setLoading(true);
     try {
+      console.log('🔍 [AdminMaster] Carregando organizações...');
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations`,
         {
@@ -118,12 +120,28 @@ export function AdminMasterFunctional({ onNavigate }: AdminMasterProps) {
       );
 
       const result = await response.json();
+      console.log('📦 [AdminMaster] Resposta da API:', { 
+        success: result.success, 
+        dataLength: result.data?.length,
+        total: result.total,
+        data: result.data 
+      });
+      
       if (result.success) {
-        setOrganizations(result.data || []);
+        const orgs = result.data || [];
+        console.log(`✅ [AdminMaster] ${orgs.length} organizações carregadas:`, orgs.map(o => o.name));
+        setOrganizations(orgs);
+      } else {
+        console.error('❌ [AdminMaster] Erro na resposta:', result.error);
+        toast.error('Erro ao carregar imobiliárias', {
+          description: result.error || 'Erro desconhecido'
+        });
       }
     } catch (error) {
-      console.error('Error loading organizations:', error);
-      toast.error('Erro ao carregar imobiliárias');
+      console.error('❌ [AdminMaster] Erro ao carregar organizações:', error);
+      toast.error('Erro ao carregar imobiliárias', {
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
     } finally {
       setLoading(false);
     }
@@ -190,9 +208,11 @@ export function AdminMasterFunctional({ onNavigate }: AdminMasterProps) {
   };
 
   const handleViewUsers = (orgId: string) => {
-    loadUsers(orgId);
-    // Aqui você poderia abrir um drawer ou modal mostrando os usuários
-    toast.info('Carregando usuários...');
+    const org = organizations.find(o => o.id === orgId);
+    if (org) {
+      setSelectedOrgForView({ id: orgId, name: org.name });
+      setShowViewUsersModal(true);
+    }
   };
 
   // Stats calculados
@@ -595,9 +615,30 @@ export function AdminMasterFunctional({ onNavigate }: AdminMasterProps) {
         onSuccess={() => {
           loadUsers(selectedOrgForUser);
           toast.success('Usuário criado com sucesso!');
+          // Se o modal de visualização estiver aberto, recarregar usuários
+          if (showViewUsersModal && selectedOrgForView) {
+            // O ViewUsersModal vai recarregar automaticamente
+          }
         }}
         preselectedOrgId={selectedOrgForUser}
       />
+
+      {selectedOrgForView && (
+        <ViewUsersModal
+          open={showViewUsersModal}
+          onClose={() => {
+            setShowViewUsersModal(false);
+            setSelectedOrgForView(null);
+          }}
+          organizationId={selectedOrgForView.id}
+          organizationName={selectedOrgForView.name}
+          onAddUser={() => {
+            setShowViewUsersModal(false);
+            setSelectedOrgForUser(selectedOrgForView.id);
+            setShowCreateUserModal(true);
+          }}
+        />
+      )}
     </div>
   );
 }
