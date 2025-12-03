@@ -1,34 +1,43 @@
 /**
  * RENDIZY - Wizard Step: Localização
- * 
+ *
  * Step 2 do Wizard de Edição de Propriedades
  * Baseado na imagem fornecida pelo usuário
- * 
+ *
  * @version 1.0.103.9
  * @date 2025-10-29
  */
 
-import { useState } from 'react';
-import { MapPin, Upload, Image as ImageIcon, Car, Wifi, Globe, Clock, Zap } from 'lucide-react';
-import { Label } from '../ui/label';
-import { Input } from '../ui/input';
+import { useState } from "react";
+import {
+  MapPin,
+  Upload,
+  Image as ImageIcon,
+  Car,
+  Wifi,
+  Globe,
+  Clock,
+  Zap,
+} from "lucide-react";
+import { Label } from "../ui/label";
+import { Input } from "../ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../ui/select';
-import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+} from "../ui/select";
+import { Button } from "../ui/button";
+import { Card, CardContent } from "../ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-type AddressMode = 'new' | 'existing';
-type AddressVisibility = 'global' | 'individual';
+type AddressMode = "new" | "existing";
+type AddressVisibility = "global" | "individual";
 
 interface AddressData {
   country: string;
@@ -60,14 +69,22 @@ interface FormData {
 interface ContentLocationStepProps {
   data: FormData;
   onChange: (data: FormData) => void;
+  modalidades?: string[]; // 🆕 Modalidades selecionadas para filtrar campos
 }
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export function ContentLocationStep({ data, onChange }: ContentLocationStepProps) {
-  const [mapPreviewUrl, setMapPreviewUrl] = useState<string>('');
+export function ContentLocationStep({
+  data,
+  onChange,
+  modalidades = [],
+}: ContentLocationStepProps) {
+  const [mapPreviewUrl, setMapPreviewUrl] = useState<string>("");
+
+  // 🆕 Verificar se é modalidade de temporada (para mostrar campos específicos)
+  const isShortTermRental = modalidades.includes("short_term_rental");
 
   // ============================================================================
   // HANDLERS
@@ -91,7 +108,7 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
   };
 
   const handleCepBlur = async () => {
-    const cep = data.address.zipCode?.replace(/\D/g, '');
+    const cep = data.address.zipCode?.replace(/\D/g, "");
     if (cep?.length === 8) {
       try {
         const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
@@ -114,7 +131,7 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
           updateMapPreview(cepData);
         }
       } catch (error) {
-        console.error('Erro ao buscar CEP:', error);
+        console.error("Erro ao buscar CEP:", error);
       }
     }
   };
@@ -127,7 +144,9 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
     // URL do Google Maps Static API (simplificada para preview)
     const mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(
       address
-    )}&zoom=15&size=400x300&markers=color:red%7C${encodeURIComponent(address)}&key=YOUR_API_KEY`;
+    )}&zoom=15&size=400x300&markers=color:red%7C${encodeURIComponent(
+      address
+    )}&key=YOUR_API_KEY`;
 
     setMapPreviewUrl(mapUrl);
   };
@@ -136,7 +155,7 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
     const files = event.target.files;
     if (files) {
       // TODO: Implementar upload de fotos
-      console.log('Fotos selecionadas:', files);
+      console.log("Fotos selecionadas:", files);
     }
   };
 
@@ -149,7 +168,7 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
       {/* TABS: Novo endereço / Vincular a existente */}
       <Tabs
         value={data.mode}
-        onValueChange={(value) => handleChange('mode', value as AddressMode)}
+        onValueChange={(value) => handleChange("mode", value as AddressMode)}
       >
         <TabsList>
           <TabsTrigger value="new">Novo endereço</TabsTrigger>
@@ -166,7 +185,9 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                 <Label htmlFor="country">País:</Label>
                 <Select
                   value={data.address.country}
-                  onValueChange={(value) => handleAddressChange('country', value)}
+                  onValueChange={(value) =>
+                    handleAddressChange("country", value)
+                  }
                 >
                   <SelectTrigger id="country">
                     <SelectValue placeholder="Selecione o país" />
@@ -188,7 +209,9 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                     id="state"
                     placeholder="Rio De Janeiro"
                     value={data.address.state}
-                    onChange={(e) => handleAddressChange('state', e.target.value)}
+                    onChange={(e) =>
+                      handleAddressChange("state", e.target.value)
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -199,7 +222,10 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                     maxLength={2}
                     value={data.address.stateCode}
                     onChange={(e) =>
-                      handleAddressChange('stateCode', e.target.value.toUpperCase())
+                      handleAddressChange(
+                        "stateCode",
+                        e.target.value.toUpperCase()
+                      )
                     }
                   />
                 </div>
@@ -214,10 +240,10 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                   value={data.address.zipCode}
                   onChange={(e) => {
                     const formatted = e.target.value
-                      .replace(/\D/g, '')
-                      .replace(/(\d{5})(\d)/, '$1-$2')
+                      .replace(/\D/g, "")
+                      .replace(/(\d{5})(\d)/, "$1-$2")
                       .slice(0, 9);
-                    handleAddressChange('zipCode', formatted);
+                    handleAddressChange("zipCode", formatted);
                   }}
                   onBlur={handleCepBlur}
                 />
@@ -230,7 +256,7 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                   id="city"
                   placeholder="Armação dos Búzios"
                   value={data.address.city}
-                  onChange={(e) => handleAddressChange('city', e.target.value)}
+                  onChange={(e) => handleAddressChange("city", e.target.value)}
                 />
               </div>
 
@@ -241,7 +267,9 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                   id="neighborhood"
                   placeholder="Praia Rasa"
                   value={data.address.neighborhood}
-                  onChange={(e) => handleAddressChange('neighborhood', e.target.value)}
+                  onChange={(e) =>
+                    handleAddressChange("neighborhood", e.target.value)
+                  }
                 />
               </div>
 
@@ -253,7 +281,9 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                     id="street"
                     placeholder="rua Do Conforto"
                     value={data.address.street}
-                    onChange={(e) => handleAddressChange('street', e.target.value)}
+                    onChange={(e) =>
+                      handleAddressChange("street", e.target.value)
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -262,7 +292,9 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                     id="number"
                     placeholder="N 136 e"
                     value={data.address.number}
-                    onChange={(e) => handleAddressChange('number', e.target.value)}
+                    onChange={(e) =>
+                      handleAddressChange("number", e.target.value)
+                    }
                   />
                 </div>
               </div>
@@ -274,7 +306,9 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                   id="complement"
                   placeholder="Pousada Recanto das Palmeiras"
                   value={data.address.complement}
-                  onChange={(e) => handleAddressChange('complement', e.target.value)}
+                  onChange={(e) =>
+                    handleAddressChange("complement", e.target.value)
+                  }
                 />
               </div>
 
@@ -282,85 +316,47 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
               <div className="space-y-2">
                 <Label>Mostrar o número do prédio aos usuários?</Label>
                 <p className="text-sm text-muted-foreground">
-                  Marque (Não) para ocultar o número do prédio nos seus anúncios.
+                  Marque (Não) para ocultar o número do prédio nos seus
+                  anúncios.
                 </p>
                 <div className="flex gap-2 mt-2">
                   <Button
                     type="button"
-                    variant={data.showBuildingNumber === 'global' ? 'default' : 'outline'}
+                    variant={
+                      data.showBuildingNumber === "global"
+                        ? "default"
+                        : "outline"
+                    }
                     className="flex-1"
-                    onClick={() => handleChange('showBuildingNumber', 'global')}
+                    onClick={() => handleChange("showBuildingNumber", "global")}
                   >
                     Global
                   </Button>
                   <Button
                     type="button"
                     variant={
-                      data.showBuildingNumber === 'individual' ? 'default' : 'outline'
+                      data.showBuildingNumber === "individual"
+                        ? "default"
+                        : "outline"
                     }
                     className="flex-1"
-                    onClick={() => handleChange('showBuildingNumber', 'individual')}
+                    onClick={() =>
+                      handleChange("showBuildingNumber", "individual")
+                    }
                   >
                     Individual
                   </Button>
                 </div>
               </div>
 
-              {/* CARACTERÍSTICAS DO LOCAL - Sim/Não */}
+              {/* CARACTERÍSTICAS DO LOCAL - Sim/Não (Universais) */}
               <div className="space-y-4 pt-4 border-t">
                 <div>
                   <h4 className="font-medium mb-1">Características do Local</h4>
                   <p className="text-sm text-muted-foreground">
-                    Por favor, informe mais detalhes.
+                    Informações que se aplicam a todas as modalidades.
                   </p>
                 </div>
-
-                {/* Check-in/checkout expressos */}
-                <Card className="bg-white">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <Zap className="size-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium">Check-in/checkout expressos</p>
-                          <p className="text-xs text-muted-foreground">
-                            Por favor, informe mais detalhes.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={data.hasExpressCheckInOut === true ? 'default' : 'outline'}
-                          className={
-                            data.hasExpressCheckInOut === true
-                              ? 'bg-blue-500 hover:bg-blue-600'
-                              : ''
-                          }
-                          onClick={() => handleChange('hasExpressCheckInOut', true)}
-                        >
-                          Sim
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={data.hasExpressCheckInOut === false ? 'default' : 'outline'}
-                          className={
-                            data.hasExpressCheckInOut === false
-                              ? 'bg-blue-500 hover:bg-blue-600'
-                              : ''
-                          }
-                          onClick={() => handleChange('hasExpressCheckInOut', false)}
-                        >
-                          Não
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
 
                 {/* Estacionamento */}
                 <Card className="bg-white">
@@ -381,22 +377,30 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                         <Button
                           type="button"
                           size="sm"
-                          variant={data.hasParking === true ? 'default' : 'outline'}
-                          className={
-                            data.hasParking === true ? 'bg-blue-500 hover:bg-blue-600' : ''
+                          variant={
+                            data.hasParking === true ? "default" : "outline"
                           }
-                          onClick={() => handleChange('hasParking', true)}
+                          className={
+                            data.hasParking === true
+                              ? "bg-blue-500 hover:bg-blue-600"
+                              : ""
+                          }
+                          onClick={() => handleChange("hasParking", true)}
                         >
                           Sim
                         </Button>
                         <Button
                           type="button"
                           size="sm"
-                          variant={data.hasParking === false ? 'default' : 'outline'}
-                          className={
-                            data.hasParking === false ? 'bg-blue-500 hover:bg-blue-600' : ''
+                          variant={
+                            data.hasParking === false ? "default" : "outline"
                           }
-                          onClick={() => handleChange('hasParking', false)}
+                          className={
+                            data.hasParking === false
+                              ? "bg-blue-500 hover:bg-blue-600"
+                              : ""
+                          }
+                          onClick={() => handleChange("hasParking", false)}
                         >
                           Não
                         </Button>
@@ -424,26 +428,36 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                         <Button
                           type="button"
                           size="sm"
-                          variant={data.hasCableInternet === true ? 'default' : 'outline'}
+                          variant={
+                            data.hasCableInternet === true
+                              ? "default"
+                              : "outline"
+                          }
                           className={
                             data.hasCableInternet === true
-                              ? 'bg-blue-500 hover:bg-blue-600'
-                              : ''
+                              ? "bg-blue-500 hover:bg-blue-600"
+                              : ""
                           }
-                          onClick={() => handleChange('hasCableInternet', true)}
+                          onClick={() => handleChange("hasCableInternet", true)}
                         >
                           Sim
                         </Button>
                         <Button
                           type="button"
                           size="sm"
-                          variant={data.hasCableInternet === false ? 'default' : 'outline'}
+                          variant={
+                            data.hasCableInternet === false
+                              ? "default"
+                              : "outline"
+                          }
                           className={
                             data.hasCableInternet === false
-                              ? 'bg-blue-500 hover:bg-blue-600'
-                              : ''
+                              ? "bg-blue-500 hover:bg-blue-600"
+                              : ""
                           }
-                          onClick={() => handleChange('hasCableInternet', false)}
+                          onClick={() =>
+                            handleChange("hasCableInternet", false)
+                          }
                         >
                           Não
                         </Button>
@@ -471,69 +485,30 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                         <Button
                           type="button"
                           size="sm"
-                          variant={data.hasWiFi === true ? 'default' : 'outline'}
-                          className={
-                            data.hasWiFi === true ? 'bg-blue-500 hover:bg-blue-600' : ''
+                          variant={
+                            data.hasWiFi === true ? "default" : "outline"
                           }
-                          onClick={() => handleChange('hasWiFi', true)}
+                          className={
+                            data.hasWiFi === true
+                              ? "bg-blue-500 hover:bg-blue-600"
+                              : ""
+                          }
+                          onClick={() => handleChange("hasWiFi", true)}
                         >
                           Sim
                         </Button>
                         <Button
                           type="button"
                           size="sm"
-                          variant={data.hasWiFi === false ? 'default' : 'outline'}
-                          className={
-                            data.hasWiFi === false ? 'bg-blue-500 hover:bg-blue-600' : ''
+                          variant={
+                            data.hasWiFi === false ? "default" : "outline"
                           }
-                          onClick={() => handleChange('hasWiFi', false)}
-                        >
-                          Não
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Recepção 24 horas */}
-                <Card className="bg-white">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <Clock className="size-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium">Recepção 24 horas</p>
-                          <p className="text-xs text-muted-foreground">
-                            Por favor, informe mais detalhes.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={data.has24hReception === true ? 'default' : 'outline'}
                           className={
-                            data.has24hReception === true
-                              ? 'bg-blue-500 hover:bg-blue-600'
-                              : ''
+                            data.hasWiFi === false
+                              ? "bg-blue-500 hover:bg-blue-600"
+                              : ""
                           }
-                          onClick={() => handleChange('has24hReception', true)}
-                        >
-                          Sim
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={data.has24hReception === false ? 'default' : 'outline'}
-                          className={
-                            data.has24hReception === false
-                              ? 'bg-blue-500 hover:bg-blue-600'
-                              : ''
-                          }
-                          onClick={() => handleChange('has24hReception', false)}
+                          onClick={() => handleChange("hasWiFi", false)}
                         >
                           Não
                         </Button>
@@ -542,6 +517,143 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                   </CardContent>
                 </Card>
               </div>
+
+              {/* SERVIÇOS DE TEMPORADA - Apenas para Aluguel por Temporada */}
+              {isShortTermRental && (
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium mb-1">Serviços de Temporada</h4>
+                    <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded-full">
+                      Apenas Temporada
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Serviços específicos para aluguel por temporada.
+                  </p>
+
+                  {/* Check-in/checkout expressos */}
+                  <Card className="bg-white">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <Zap className="size-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium">
+                              Check-in/checkout expressos
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Permite check-in e checkout sem necessidade de
+                              presença física.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={
+                              data.hasExpressCheckInOut === true
+                                ? "default"
+                                : "outline"
+                            }
+                            className={
+                              data.hasExpressCheckInOut === true
+                                ? "bg-blue-500 hover:bg-blue-600"
+                                : ""
+                            }
+                            onClick={() =>
+                              handleChange("hasExpressCheckInOut", true)
+                            }
+                          >
+                            Sim
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={
+                              data.hasExpressCheckInOut === false
+                                ? "default"
+                                : "outline"
+                            }
+                            className={
+                              data.hasExpressCheckInOut === false
+                                ? "bg-blue-500 hover:bg-blue-600"
+                                : ""
+                            }
+                            onClick={() =>
+                              handleChange("hasExpressCheckInOut", false)
+                            }
+                          >
+                            Não
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Recepção 24 horas */}
+                  <Card className="bg-white">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <Clock className="size-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium">Recepção 24 horas</p>
+                            <p className="text-xs text-muted-foreground">
+                              Recepção disponível 24 horas por dia, 7 dias por
+                              semana.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={
+                              data.has24hReception === true
+                                ? "default"
+                                : "outline"
+                            }
+                            className={
+                              data.has24hReception === true
+                                ? "bg-blue-500 hover:bg-blue-600"
+                                : ""
+                            }
+                            onClick={() =>
+                              handleChange("has24hReception", true)
+                            }
+                          >
+                            Sim
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={
+                              data.has24hReception === false
+                                ? "default"
+                                : "outline"
+                            }
+                            className={
+                              data.has24hReception === false
+                                ? "bg-blue-500 hover:bg-blue-600"
+                                : ""
+                            }
+                            onClick={() =>
+                              handleChange("has24hReception", false)
+                            }
+                          >
+                            Não
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
             </div>
 
             {/* COLUNA DIREITA - MAPA */}
@@ -585,9 +697,12 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
           {/* FOTOS RELACIONADAS AO ENDEREÇO */}
           <div className="space-y-4 pt-6 border-t">
             <div className="space-y-1">
-              <h3 className="text-lg font-semibold">Fotos relacionadas ao endereço</h3>
+              <h3 className="text-lg font-semibold">
+                Fotos relacionadas ao endereço
+              </h3>
               <p className="text-sm text-muted-foreground">
-                Adicione fotos do entorno e áreas sociais do endereço da sua unidade.
+                Adicione fotos do entorno e áreas sociais do endereço da sua
+                unidade.
               </p>
             </div>
 
@@ -633,8 +748,10 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                       type="button"
                       className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
                       onClick={() => {
-                        const newPhotos = data.photos.filter((_, i) => i !== index);
-                        handleChange('photos', newPhotos);
+                        const newPhotos = data.photos.filter(
+                          (_, i) => i !== index
+                        );
+                        handleChange("photos", newPhotos);
                       }}
                     >
                       ×
@@ -654,8 +771,8 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
                 <MapPin className="h-8 w-8 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground text-center max-w-md">
-                Selecione um endereço já cadastrado no sistema para vincular a esta
-                propriedade.
+                Selecione um endereço já cadastrado no sistema para vincular a
+                esta propriedade.
               </p>
               <Button type="button" variant="outline" className="mt-4">
                 Selecionar Endereço Existente
@@ -666,7 +783,7 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
       </Tabs>
 
       {/* Resumo do Endereço */}
-      {data.mode === 'new' && data.address.city && (
+      {data.mode === "new" && data.address.city && (
         <Card className="bg-muted/50">
           <CardContent className="pt-6">
             <div className="space-y-2">

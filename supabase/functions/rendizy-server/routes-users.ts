@@ -86,23 +86,59 @@ function isValidEmail(email: string): boolean {
 app.get('/', async (c) => {
   try {
     const organizationId = c.req.query('organizationId');
+    const supabase = getSupabaseClient();
     
-    let users = await kv.getByPrefix('user:');
+    // Construir query base
+    let query = supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
 
     // Filtrar por organização se fornecido
     if (organizationId) {
-      users = users.filter((u: User) => u.organizationId === organizationId);
+      query = query.eq('organization_id', organizationId);
     }
 
-    // Ordenar por data de criação (mais recentes primeiro)
-    const sorted = users.sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    const { data: sqlUsers, error: queryError } = await query;
+
+    if (queryError) {
+      console.error('❌ Erro ao buscar usuários no SQL:', queryError);
+      return c.json({ 
+        success: false, 
+        error: `Erro ao buscar usuários: ${queryError.message}` 
+      }, 500);
+    }
+
+    // Converter para formato esperado pelo frontend
+    // Mapear 'type' para 'role' (type: 'imobiliaria' -> role: 'owner' ou 'admin', type: 'staff' -> role: 'staff')
+    const users: User[] = (sqlUsers || []).map((sqlUser: any) => {
+      // Mapear type para role
+      let role: 'owner' | 'admin' | 'manager' | 'staff' | 'readonly' = 'staff';
+      if (sqlUser.type === 'imobiliaria') {
+        role = 'admin'; // Por padrão, imobiliaria é admin
+      } else if (sqlUser.type === 'superadmin') {
+        role = 'owner'; // SuperAdmin é owner
+      } else {
+        role = 'staff';
+      }
+
+      return {
+        id: sqlUser.id,
+        organizationId: sqlUser.organization_id,
+        name: sqlUser.name,
+        email: sqlUser.email,
+        role,
+        status: sqlUser.status as 'active' | 'invited' | 'suspended',
+        createdAt: sqlUser.created_at,
+        createdBy: sqlUser.created_by || '',
+        permissions: getDefaultPermissions(role)
+      };
+    });
 
     return c.json({ 
       success: true, 
-      data: sorted,
-      total: sorted.length 
+      data: users,
+      total: users.length 
     });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -197,23 +233,39 @@ app.post('/', async (c) => {
       }, 400);
     }
 
-    // Verificar se organização existe
-    const organization = await kv.get(`org:${organizationId}`);
-    if (!organization) {
+    // Verificar se organização existe no SQL
+    const supabase = getSupabaseClient();
+    const { data: organization, error: orgError } = await supabase
+      .from('organizations')
+      .select('id, name, slug, limits_users')
+      .eq('id', organizationId)
+      .maybeSingle();
+
+    if (orgError || !organization) {
+      console.error('❌ Erro ao buscar organização:', orgError);
       return c.json({ 
         success: false, 
         error: 'Organization not found' 
       }, 404);
     }
 
-    // Verificar se email já existe na organização
-    const existingUsers = await kv.getByPrefix('user:');
-    const emailExists = existingUsers.some((u: User) => 
-      u.email.toLowerCase() === email.toLowerCase() && 
-      u.organizationId === organizationId
-    );
+    // Verificar se email já existe na organização no SQL
+    const { data: existingUserByEmail, error: userByEmailError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .eq('organization_id', organizationId)
+      .maybeSingle();
 
-    if (emailExists) {
+    if (userByEmailError) {
+      console.error('❌ Erro ao verificar email existente:', userByEmailError);
+      return c.json({ 
+        success: false, 
+        error: 'Database error checking email' 
+      }, 500);
+    }
+
+    if (existingUserByEmail) {
       return c.json({ 
         success: false, 
         error: 'User with this email already exists in this organization' 
@@ -221,10 +273,22 @@ app.post('/', async (c) => {
     }
 
     // Verificar limites do plano
-    const orgUsers = existingUsers.filter((u: User) => u.organizationId === organizationId);
-    const maxUsers = organization.settings.maxUsers;
+    const { data: orgUsersCount, error: countError } = await supabase
+      .from('users')
+      .select('count', { count: 'exact' })
+      .eq('organization_id', organizationId);
+
+    if (countError) {
+      console.error('❌ Erro ao contar usuários:', countError);
+      return c.json({ 
+        success: false, 
+        error: 'Database error counting users' 
+      }, 500);
+    }
+
+    const maxUsers = organization.limits_users;
     
-    if (maxUsers !== -1 && orgUsers.length >= maxUsers) {
+    if (maxUsers !== -1 && (orgUsersCount?.count || 0) >= maxUsers) {
       return c.json({ 
         success: false, 
         error: `Organization has reached the maximum number of users (${maxUsers})` 
@@ -237,7 +301,6 @@ app.post('/', async (c) => {
     
     // ✅ NOVO: Se password fornecido, criar no SQL com senha hashada
     if (password) {
-      const supabase = getSupabaseClient();
       const passwordHash = hashPassword(password);
       const now = new Date().toISOString();
       
@@ -268,8 +331,7 @@ app.post('/', async (c) => {
           organization_id: organizationId,
           created_by: createdBy,
           created_at: now,
-          updated_at: now,
-          ...(finalStatus === 'active' ? { joined_at: now } : { invited_at: now })
+          updated_at: now
         })
         .select()
         .single();
@@ -294,9 +356,7 @@ app.post('/', async (c) => {
         status: sqlUser.status as 'active' | 'invited' | 'suspended',
         createdAt: sqlUser.created_at,
         createdBy: sqlUser.created_by || createdBy,
-        permissions: getDefaultPermissions(role),
-        ...(sqlUser.invited_at ? { invitedAt: sqlUser.invited_at } : {}),
-        ...(sqlUser.joined_at ? { joinedAt: sqlUser.joined_at } : {})
+        permissions: getDefaultPermissions(role)
       };
       
       return c.json({ 

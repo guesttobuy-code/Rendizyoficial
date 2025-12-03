@@ -1,43 +1,78 @@
 /**
  * RENDIZY - Wizard Step: Cômodos e Distribuição
- * 
+ *
  * Step 3 do Wizard de Edição de Propriedades
  * - Tipos de camas baseados em Airbnb/Booking
  * - Sistema de fotos por cômodo com tags
  * - Seleção em lote + tags múltiplas
  * - Drag & drop para reordenar fotos
- * 
+ *
  * @version 1.0.103.10
  * @date 2025-10-29
  */
 
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, GripVertical, Image as ImageIcon, Tag as TagIcon, Check, Upload, Loader2 } from 'lucide-react';
-import { Label } from '../ui/label';
-import { Input } from '../ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Checkbox } from '../ui/checkbox';
-import { ScrollArea } from '../ui/scroll-area';
-import { Separator } from '../ui/separator';
-import { toast } from 'sonner';
-import { uploadRoomPhoto, deleteRoomPhoto } from '../../utils/roomsApi';
+import { useState, useEffect } from "react";
+import {
+  Plus,
+  Trash2,
+  GripVertical,
+  Image as ImageIcon,
+  Tag as TagIcon,
+  Check,
+  Upload,
+  Loader2,
+} from "lucide-react";
+import { Label } from "../ui/label";
+import { Input } from "../ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { Button } from "../ui/button";
+import { Card, CardContent } from "../ui/card";
+import { Badge } from "../ui/badge";
+import { Checkbox } from "../ui/checkbox";
+import { ScrollArea } from "../ui/scroll-area";
+import { Separator } from "../ui/separator";
+import { toast } from "sonner";
+import { uploadRoomPhoto, deleteRoomPhoto } from "../../utils/roomsApi";
 
 // ============================================================================
 // CONSTANTS - TIPOS DE CAMAS (AIRBNB/BOOKING)
 // ============================================================================
 
 const BED_TYPES = [
-  { id: 'cama-casal-1p', name: 'Cama 1p de Casal', icon: '🛏️', capacity: 2 },
-  { id: 'cama-solteiro-2p', name: 'Cama 2p de Solteiro', icon: '🛏️', capacity: 2 },
-  { id: 'cama-queen-1p', name: 'Cama 1p de Queen', icon: '🛏️', capacity: 2 },
-  { id: 'cama-king-1p', name: 'Cama Dupla (King)', icon: '🛏️', capacity: 2 },
-  { id: 'beliche-1p-2pessoas', name: 'Cama 1p de Beliche (2 pessoas)', icon: '🛏️', capacity: 2 },
-  { id: 'berco-baby', name: 'Cama Berço (Berço/Baby)', icon: '👶', capacity: 1 },
-  { id: 'futon-casal', name: 'Colchão (Futon Casal)', icon: '🛋️', capacity: 2 },
-  { id: 'sofa-cama-casal', name: 'Sofá-cama (p/ Casal)', icon: '🛋️', capacity: 2 },
+  { id: "cama-casal-1p", name: "Cama 1p de Casal", icon: "🛏️", capacity: 2 },
+  {
+    id: "cama-solteiro-2p",
+    name: "Cama 2p de Solteiro",
+    icon: "🛏️",
+    capacity: 2,
+  },
+  { id: "cama-queen-1p", name: "Cama 1p de Queen", icon: "🛏️", capacity: 2 },
+  { id: "cama-king-1p", name: "Cama Dupla (King)", icon: "🛏️", capacity: 2 },
+  {
+    id: "beliche-1p-2pessoas",
+    name: "Cama 1p de Beliche (2 pessoas)",
+    icon: "🛏️",
+    capacity: 2,
+  },
+  {
+    id: "berco-baby",
+    name: "Cama Berço (Berço/Baby)",
+    icon: "👶",
+    capacity: 1,
+  },
+  { id: "futon-casal", name: "Colchão (Futon Casal)", icon: "🛋️", capacity: 2 },
+  {
+    id: "sofa-cama-casal",
+    name: "Sofá-cama (p/ Casal)",
+    icon: "🛋️",
+    capacity: 2,
+  },
 ];
 
 // ============================================================================
@@ -45,18 +80,44 @@ const BED_TYPES = [
 // ============================================================================
 
 const ROOM_TYPES = [
-  { id: 'suite', name: 'Suíte', icon: '🛏️', category: 'bedroom', hasBathroom: true },
-  { id: 'quarto-duplo', name: 'Quarto Duplo/Std/Eco', icon: '🛏️', category: 'bedroom' },
-  { id: 'quarto-individual', name: 'Individual', icon: '🛏️', category: 'bedroom' },
-  { id: 'estudio', name: 'Estúdio', icon: '🏠', category: 'bedroom' },
-  { id: 'sala-comum', name: 'Sala/Estar Comum', icon: '🏠', category: 'living' },
-  { id: 'area-comum', name: 'área/Área Comum', icon: '🏠', category: 'living' },
-  { id: 'banheiro', name: 'Banheiro', icon: '🚿', category: 'bathroom' },
-  { id: 'meio-banheiro', name: '1/2 Banheiro', icon: '🚽', category: 'bathroom' },
-  { id: 'balcao', name: 'Balcão', icon: '🌳', category: 'outdoor' },
-  { id: 'sotao', name: 'Sotão', icon: '🏚️', category: 'other' },
-  { id: 'subarea', name: 'Subárea', icon: '🏗️', category: 'other' },
-  { id: 'outras', name: 'Outras Dependências', icon: '🚪', category: 'other' },
+  {
+    id: "suite",
+    name: "Suíte",
+    icon: "🛏️",
+    category: "bedroom",
+    hasBathroom: true,
+  },
+  {
+    id: "quarto-duplo",
+    name: "Quarto Duplo/Std/Eco",
+    icon: "🛏️",
+    category: "bedroom",
+  },
+  {
+    id: "quarto-individual",
+    name: "Individual",
+    icon: "🛏️",
+    category: "bedroom",
+  },
+  { id: "estudio", name: "Estúdio", icon: "🏠", category: "bedroom" },
+  {
+    id: "sala-comum",
+    name: "Sala/Estar Comum",
+    icon: "🏠",
+    category: "living",
+  },
+  { id: "area-comum", name: "área/Área Comum", icon: "🏠", category: "living" },
+  { id: "banheiro", name: "Banheiro", icon: "🚿", category: "bathroom" },
+  {
+    id: "meio-banheiro",
+    name: "1/2 Banheiro",
+    icon: "🚽",
+    category: "bathroom",
+  },
+  { id: "balcao", name: "Balcão", icon: "🌳", category: "outdoor" },
+  { id: "sotao", name: "Sotão", icon: "🏚️", category: "other" },
+  { id: "subarea", name: "Subárea", icon: "🏗️", category: "other" },
+  { id: "outras", name: "Outras Dependências", icon: "🚪", category: "other" },
 ];
 
 // ============================================================================
@@ -64,64 +125,64 @@ const ROOM_TYPES = [
 // ============================================================================
 
 const CUSTOM_SPACE_NAMES = [
-  'Academia',
-  'Adega',
-  'Área Comum Externa',
-  'Área de Lazer',
-  'Área de Serviço',
-  'Ateliê',
-  'Banheiro Externo',
-  'Biblioteca',
-  'Brinquedoteca',
-  'Chalé',
-  'Churrasqueira',
-  'Closet',
-  'Cobertura',
-  'Corredor',
-  'Cozinha',
-  'Cozinha Gourmet',
-  'Deck',
-  'Dependência de Empregada',
-  'Depósito',
-  'Despensa',
-  'Elevador',
-  'Entrada',
-  'Espaço Externo',
-  'Espaço Gourmet',
-  'Escritório',
-  'Estacionamento',
-  'Garagem',
-  'Gazebo',
-  'Hall',
-  'Hidromassagem',
-  'Home Office',
-  'Home Theater',
-  'Jacuzzi',
-  'Jardim',
-  'Jardim de Inverno',
-  'Laboratório',
-  'Lavabo',
-  'Lavanderia',
-  'Mirante',
-  'Pátio',
-  'Pergolado',
-  'Piscina',
-  'Playground',
-  'Quadra Esportiva',
-  'Quiosque',
-  'Sala de Estar',
-  'Sala de Jantar',
-  'Sala de Jogos',
-  'Sala de TV',
-  'Salão de Festas',
-  'Sauna',
-  'Solário',
-  'Spa',
-  'Terraço',
-  'Varanda',
-  'Varanda Gourmet',
-  'Vestiário',
-  'Outro (especificar)',
+  "Academia",
+  "Adega",
+  "Área Comum Externa",
+  "Área de Lazer",
+  "Área de Serviço",
+  "Ateliê",
+  "Banheiro Externo",
+  "Biblioteca",
+  "Brinquedoteca",
+  "Chalé",
+  "Churrasqueira",
+  "Closet",
+  "Cobertura",
+  "Corredor",
+  "Cozinha",
+  "Cozinha Gourmet",
+  "Deck",
+  "Dependência de Empregada",
+  "Depósito",
+  "Despensa",
+  "Elevador",
+  "Entrada",
+  "Espaço Externo",
+  "Espaço Gourmet",
+  "Escritório",
+  "Estacionamento",
+  "Garagem",
+  "Gazebo",
+  "Hall",
+  "Hidromassagem",
+  "Home Office",
+  "Home Theater",
+  "Jacuzzi",
+  "Jardim",
+  "Jardim de Inverno",
+  "Laboratório",
+  "Lavabo",
+  "Lavanderia",
+  "Mirante",
+  "Pátio",
+  "Pergolado",
+  "Piscina",
+  "Playground",
+  "Quadra Esportiva",
+  "Quiosque",
+  "Sala de Estar",
+  "Sala de Jantar",
+  "Sala de Jogos",
+  "Sala de TV",
+  "Salão de Festas",
+  "Sauna",
+  "Solário",
+  "Spa",
+  "Terraço",
+  "Varanda",
+  "Varanda Gourmet",
+  "Vestiário",
+  "Outro (especificar)",
 ].sort();
 
 // ============================================================================
@@ -129,21 +190,21 @@ const CUSTOM_SPACE_NAMES = [
 // ============================================================================
 
 const PHOTO_TAGS = [
-  'Academia / Espaço Fitness',
-  'ADAM',
-  'Alimentos e Bebidas',
-  'Almoço',
-  'Animais',
-  'Animais de Estimação',
-  'Área de Compras',
-  'Área de estar',
-  'Área e instalações',
-  'Área para café / chá',
-  'Arredores',
-  'Atividades',
-  'Banheira/jacuzzi',
-  'Banheiro',
-  'Banheiro compartilhado',
+  "Academia / Espaço Fitness",
+  "ADAM",
+  "Alimentos e Bebidas",
+  "Almoço",
+  "Animais",
+  "Animais de Estimação",
+  "Área de Compras",
+  "Área de estar",
+  "Área e instalações",
+  "Área para café / chá",
+  "Arredores",
+  "Atividades",
+  "Banheira/jacuzzi",
+  "Banheiro",
+  "Banheiro compartilhado",
 ];
 
 // ============================================================================
@@ -185,7 +246,11 @@ interface ContentRoomsStepProps {
 // MAIN COMPONENT
 // ============================================================================
 
-export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsStepProps) {
+export function ContentRoomsStep({
+  data,
+  onChange,
+  propertyId,
+}: ContentRoomsStepProps) {
   const [selectedRoomIndex, setSelectedRoomIndex] = useState<number>(0);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [showTagsModal, setShowTagsModal] = useState(false);
@@ -199,8 +264,8 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
   const addRoom = () => {
     const newRoom: Room = {
       id: `room-${Date.now()}`,
-      type: '',
-      typeName: '',
+      type: "",
+      typeName: "",
       isShared: false,
       beds: {},
       photos: [],
@@ -232,7 +297,11 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
   // BED MANAGEMENT
   // ============================================================================
 
-  const updateBedCount = (roomIndex: number, bedTypeId: string, delta: number) => {
+  const updateBedCount = (
+    roomIndex: number,
+    bedTypeId: string,
+    delta: number
+  ) => {
     const room = data.rooms[roomIndex];
     const currentCount = room.beds[bedTypeId] || 0;
     const newCount = Math.max(0, currentCount + delta);
@@ -251,7 +320,9 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
   // PHOTO MANAGEMENT
   // ============================================================================
 
-  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const files = event.target.files;
     if (!files || selectedRoomIndex === -1) return;
 
@@ -283,12 +354,16 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        
+
         toast.loading(`Fazendo upload da foto ${i + 1}/${files.length}...`, {
-          id: 'photo-upload',
+          id: "photo-upload",
         });
 
-        const uploadedPhoto = await uploadRoomPhoto(file, propertyId, room.type);
+        const uploadedPhoto = await uploadRoomPhoto(
+          file,
+          propertyId,
+          room.type
+        );
 
         newPhotos.push({
           id: uploadedPhoto.id,
@@ -304,12 +379,12 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
       });
 
       toast.success(`${files.length} foto(s) enviada(s) com sucesso!`, {
-        id: 'photo-upload',
+        id: "photo-upload",
       });
     } catch (error) {
-      console.error('Error uploading photos:', error);
-      toast.error('Erro ao fazer upload das fotos', {
-        id: 'photo-upload',
+      console.error("Error uploading photos:", error);
+      toast.error("Erro ao fazer upload das fotos", {
+        id: "photo-upload",
       });
     } finally {
       setUploadingPhotos(false);
@@ -374,10 +449,10 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
     if (photo?.path && propertyId) {
       try {
         await deleteRoomPhoto(photo.path);
-        toast.success('Foto deletada com sucesso!');
+        toast.success("Foto deletada com sucesso!");
       } catch (error) {
-        console.error('Error deleting photo:', error);
-        toast.error('Erro ao deletar foto');
+        console.error("Error deleting photo:", error);
+        toast.error("Erro ao deletar foto");
         return;
       }
     }
@@ -386,8 +461,6 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
 
     updateRoom(selectedRoomIndex, { photos: updatedPhotos });
   };
-
-
 
   // ============================================================================
   // DRAG & DROP
@@ -444,7 +517,9 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
   const summary = getSummary();
   const currentRoom = data.rooms[selectedRoomIndex];
   const currentRoomType = ROOM_TYPES.find((rt) => rt.id === currentRoom?.type);
-  const allowsBeds = currentRoomType?.category === 'bedroom' || currentRoomType?.category === 'living';
+  const allowsBeds =
+    currentRoomType?.category === "bedroom" ||
+    currentRoomType?.category === "living";
 
   // ============================================================================
   // RENDER
@@ -452,6 +527,22 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
 
   return (
     <div className="h-full flex flex-col gap-4">
+      {/* 🆕 TEXTO EXPLICATIVO SOBRE UPLOAD DE FOTOS */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <Upload className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-blue-900">
+              Arraste fotos para cada cômodo ou área do seu imóvel, ou clique
+              para selecionar
+            </p>
+            <p className="text-xs text-blue-700">
+              Aceito: JPG, PNG, WebP até 20MB • Compressão automática aplicada
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* RESUMO VISUAL */}
       {data.rooms.length > 0 && (
         <Card>
@@ -465,28 +556,38 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">🛏️</span>
                     <span className="font-bold text-lg">{summary.bedroom}</span>
-                    <span className="text-xs text-muted-foreground hidden lg:inline">Quartos</span>
+                    <span className="text-xs text-muted-foreground hidden lg:inline">
+                      Quartos
+                    </span>
                   </div>
                 )}
                 {summary.bathroom && (
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">🚿</span>
-                    <span className="font-bold text-lg">{summary.bathroom}</span>
-                    <span className="text-xs text-muted-foreground hidden lg:inline">Banheiros</span>
+                    <span className="font-bold text-lg">
+                      {summary.bathroom}
+                    </span>
+                    <span className="text-xs text-muted-foreground hidden lg:inline">
+                      Banheiros
+                    </span>
                   </div>
                 )}
                 {summary.living && (
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">🏠</span>
                     <span className="font-bold text-lg">{summary.living}</span>
-                    <span className="text-xs text-muted-foreground hidden lg:inline">Salas</span>
+                    <span className="text-xs text-muted-foreground hidden lg:inline">
+                      Salas
+                    </span>
                   </div>
                 )}
                 {summary.outdoor && (
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">🌳</span>
                     <span className="font-bold text-lg">{summary.outdoor}</span>
-                    <span className="text-xs text-muted-foreground hidden lg:inline">Externos</span>
+                    <span className="text-xs text-muted-foreground hidden lg:inline">
+                      Externos
+                    </span>
                   </div>
                 )}
               </div>
@@ -514,22 +615,25 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                     key={room.id}
                     className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
                       selectedRoomIndex === index
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'hover:bg-muted'
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "hover:bg-muted"
                     }`}
                     onClick={() => setSelectedRoomIndex(index)}
                   >
                     <span className="text-lg">
-                      {ROOM_TYPES.find((rt) => rt.id === room.type)?.icon || '📋'}
+                      {ROOM_TYPES.find((rt) => rt.id === room.type)?.icon ||
+                        "📋"}
                     </span>
                     <div className="flex-1 flex flex-col gap-0.5">
                       <span className="text-sm truncate">
-                        {room.type === 'outras' && room.customName 
-                          ? room.customName 
-                          : (room.typeName || `Cômodo ${index + 1}`)}
+                        {room.type === "outras" && room.customName
+                          ? room.customName
+                          : room.typeName || `Cômodo ${index + 1}`}
                       </span>
-                      {room.type === 'outras' && room.customName && (
-                        <span className="text-xs opacity-70">Outras Dependências</span>
+                      {room.type === "outras" && room.customName && (
+                        <span className="text-xs opacity-70">
+                          Outras Dependências
+                        </span>
                       )}
                     </div>
                     <Button
@@ -563,9 +667,10 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                     const roomType = ROOM_TYPES.find((rt) => rt.id === value);
                     updateRoom(selectedRoomIndex, {
                       type: value,
-                      typeName: roomType?.name || '',
+                      typeName: roomType?.name || "",
                       // Limpar customName se não for mais "outras"
-                      customName: value === 'outras' ? currentRoom.customName : undefined,
+                      customName:
+                        value === "outras" ? currentRoom.customName : undefined,
                     });
                   }}
                 >
@@ -586,14 +691,14 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
               </div>
 
               {/* NOME PERSONALIZADO - Apenas para "Outras Dependências" */}
-              {currentRoom.type === 'outras' && (
+              {currentRoom.type === "outras" && (
                 <div className="space-y-2">
                   <Label>Como se chama este espaço personalizado?</Label>
                   <p className="text-sm text-gray-500">
                     Selecione o nome do espaço na lista abaixo:
                   </p>
                   <Select
-                    value={currentRoom.customName || ''}
+                    value={currentRoom.customName || ""}
                     onValueChange={(value) => {
                       updateRoom(selectedRoomIndex, { customName: value });
                     }}
@@ -619,17 +724,21 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                   <div className="flex gap-2">
                     <Button
                       type="button"
-                      variant={currentRoom.isShared ? 'default' : 'outline'}
+                      variant={currentRoom.isShared ? "default" : "outline"}
                       className="flex-1"
-                      onClick={() => updateRoom(selectedRoomIndex, { isShared: true })}
+                      onClick={() =>
+                        updateRoom(selectedRoomIndex, { isShared: true })
+                      }
                     >
                       Sim
                     </Button>
                     <Button
                       type="button"
-                      variant={!currentRoom.isShared ? 'default' : 'outline'}
+                      variant={!currentRoom.isShared ? "default" : "outline"}
                       className="flex-1"
-                      onClick={() => updateRoom(selectedRoomIndex, { isShared: false })}
+                      onClick={() =>
+                        updateRoom(selectedRoomIndex, { isShared: false })
+                      }
                     >
                       Não
                     </Button>
@@ -651,7 +760,10 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                     {BED_TYPES.map((bedType) => {
                       const count = currentRoom.beds[bedType.id] || 0;
                       return (
-                        <div key={bedType.id} className="flex items-center justify-between">
+                        <div
+                          key={bedType.id}
+                          className="flex items-center justify-between"
+                        >
                           <div className="flex items-center gap-2">
                             <span className="text-lg">{bedType.icon}</span>
                             <span className="text-sm">{bedType.name}</span>
@@ -661,17 +773,27 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                               size="icon"
                               variant="outline"
                               className="h-8 w-8"
-                              onClick={() => updateBedCount(selectedRoomIndex, bedType.id, -1)}
+                              onClick={() =>
+                                updateBedCount(
+                                  selectedRoomIndex,
+                                  bedType.id,
+                                  -1
+                                )
+                              }
                               disabled={count === 0}
                             >
                               -
                             </Button>
-                            <span className="w-8 text-center font-medium">{count}</span>
+                            <span className="w-8 text-center font-medium">
+                              {count}
+                            </span>
                             <Button
                               size="icon"
                               variant="outline"
                               className="h-8 w-8"
-                              onClick={() => updateBedCount(selectedRoomIndex, bedType.id, 1)}
+                              onClick={() =>
+                                updateBedCount(selectedRoomIndex, bedType.id, 1)
+                              }
                             >
                               +
                             </Button>
@@ -699,7 +821,9 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                       size="sm"
                       variant="outline"
                       onClick={selectAllPhotos}
-                      disabled={selectedPhotos.length === currentRoom.photos.length}
+                      disabled={
+                        selectedPhotos.length === currentRoom.photos.length
+                      }
                     >
                       Selecionar Todas
                     </Button>
@@ -749,7 +873,12 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                           disabled={uploadingPhotos}
                         />
                         <label htmlFor={`photo-upload-${currentRoom.id}`}>
-                          <Button type="button" variant="outline" asChild disabled={uploadingPhotos}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            asChild
+                            disabled={uploadingPhotos}
+                          >
                             <span>
                               <Upload className="h-4 w-4 mr-2" />
                               Selecionar Imagens
@@ -773,15 +902,17 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                         onDragEnd={handleDragEnd}
                         className={`relative group rounded-lg overflow-hidden border-2 cursor-move ${
                           selectedPhotos.includes(photo.id)
-                            ? 'border-primary ring-2 ring-primary'
-                            : 'border-transparent'
+                            ? "border-primary ring-2 ring-primary"
+                            : "border-transparent"
                         }`}
                       >
                         {/* Checkbox de seleção */}
                         <div className="absolute top-2 left-2 z-10">
                           <Checkbox
                             checked={selectedPhotos.includes(photo.id)}
-                            onCheckedChange={() => togglePhotoSelection(photo.id)}
+                            onCheckedChange={() =>
+                              togglePhotoSelection(photo.id)
+                            }
                             className="bg-white"
                           />
                         </div>
@@ -862,7 +993,8 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
               <div>
                 <h3 className="text-lg font-semibold">Adicionar Tags</h3>
                 <p className="text-sm text-muted-foreground">
-                  Selecione as tags para adicionar às {selectedPhotos.length} foto(s) selecionada(s)
+                  Selecione as tags para adicionar às {selectedPhotos.length}{" "}
+                  foto(s) selecionada(s)
                 </p>
               </div>
 
@@ -894,7 +1026,7 @@ function TagsSelector({
   onCancel: () => void;
 }) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
 
   const filteredTags = PHOTO_TAGS.filter((tag) =>
     tag.toLowerCase().includes(searchQuery.toLowerCase())
@@ -902,8 +1034,10 @@ function TagsSelector({
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) => {
-      const newTags = prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag];
-      console.log('Tags selecionadas (ContentRoomsStep):', newTags);
+      const newTags = prev.includes(tag)
+        ? prev.filter((t) => t !== tag)
+        : [...prev, tag];
+      console.log("Tags selecionadas (ContentRoomsStep):", newTags);
       return newTags;
     });
   };
@@ -922,13 +1056,15 @@ function TagsSelector({
             <div
               key={tag}
               className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-muted ${
-                selectedTags.includes(tag) ? 'bg-primary/10 border-primary' : ''
+                selectedTags.includes(tag) ? "bg-primary/10 border-primary" : ""
               }`}
               onClick={() => toggleTag(tag)}
             >
               <Checkbox checked={selectedTags.includes(tag)} />
               <span className="text-sm">{tag}</span>
-              {selectedTags.includes(tag) && <Check className="h-4 w-4 ml-auto text-primary" />}
+              {selectedTags.includes(tag) && (
+                <Check className="h-4 w-4 ml-auto text-primary" />
+              )}
             </div>
           ))
         ) : (
@@ -942,7 +1078,10 @@ function TagsSelector({
         <span className="text-sm text-muted-foreground">
           {selectedTags.length} tag(s) selecionada(s)
         </span>
-        <Button onClick={() => onApply(selectedTags)} disabled={selectedTags.length === 0}>
+        <Button
+          onClick={() => onApply(selectedTags)}
+          disabled={selectedTags.length === 0}
+        >
           <Check className="mr-2 h-4 w-4" />
           Confirmar
         </Button>

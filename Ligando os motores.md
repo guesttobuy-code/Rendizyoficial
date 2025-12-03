@@ -234,6 +234,16 @@ Este script verifica automaticamente se você não violou regras estabelecidas.
    - ✅ **Seguindo boas práticas internacionais:** Feature Flags, API Versioning, Contract Testing
    - 📚 Referência completa: Seção 4.6.1 do `Ligando os motores.md` + `RESUMO_CADEADOS_CAPSULAS.md`
 
+5. **`REGRA_MULTI_TENANT_ORGANIZACAO_SUPERADMIN.md`** ⚠️ **OBRIGATÓRIO - REGRA DE OURO - MULTI-TENANT**
+   - ✅ **Superadmin tem organização própria:** `RENDIZY_MASTER_ORG_ID = '00000000-0000-0000-0000-000000000000'`
+   - ✅ **Superadmin SEMPRE cria propriedades/usuários/dados na organização Rendizy (master)**
+   - ❌ **NUNCA** pegar primeira organização do banco para superadmin
+   - ❌ **NUNCA** criar dados de superadmin em organizações de clientes
+   - ✅ **Usuários normais:** Sempre usar `organization_id` da sessão/usuário
+   - ✅ **Helper obrigatório:** Usar `getOrganizationIdForRequest(c)` ou `RENDIZY_MASTER_ORG_ID` diretamente
+   - 📚 Referência: `supabase/functions/rendizy-server/utils-multi-tenant.ts`
+   - 📚 Migration: `supabase/migrations/20241126_create_rendizy_master_organization.sql`
+
 ### 📋 **Documentação Geral:**
 - ⚠️ **`WHATSAPP_VENCIDO_CONSOLIDADO.md`** - Tudo que já vencemos no WhatsApp (OBRIGATÓRIO LER)
 - `src/docs/RESUMO_FINAL_28OUT2025.md`

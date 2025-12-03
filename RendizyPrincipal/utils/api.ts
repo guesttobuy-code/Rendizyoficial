@@ -5,9 +5,19 @@
 // Suporta modo MOCK para desenvolvimento sem backend
 // ============================================================================
 
-import { projectId, publicAnonKey } from './supabase/info';
-import { Photo } from '../components/PhotoManager';
-import type { Deal, DealStage, DealSource, DealActivity, DealMessage, DealProduct, ActivityType } from '../types/crm';
+import { projectId, publicAnonKey } from "./supabase/info";
+import { Photo } from "../components/PhotoManager";
+// ✅ ARQUITETURA OAuth2 v1.0.103.1010: Importar refreshToken para interceptador 401
+import { refreshToken } from "../services/authService";
+import type {
+  Deal,
+  DealStage,
+  DealSource,
+  DealActivity,
+  DealMessage,
+  DealProduct,
+  ActivityType,
+} from "../types/crm";
 // Mock backend desabilitado em v1.0.103.305 - Sistema usa apenas Supabase
 
 // Base URL da API
@@ -55,11 +65,11 @@ export interface Location {
     email?: string;
   };
   buildingAccess?: {
-    type: 'portaria' | 'código' | 'livre' | 'outro';
+    type: "portaria" | "código" | "livre" | "outro";
     instructions?: string;
     hasElevator: boolean;
     hasParking: boolean;
-    parkingType?: 'gratuito' | 'pago' | 'rotativo';
+    parkingType?: "gratuito" | "pago" | "rotativo";
   };
   photos: string[];
   coverPhoto?: string;
@@ -85,16 +95,16 @@ export interface Property {
   code: string;
   type: string;
   status: string;
-  
+
   // 🔗 VÍNCULO COM LOCATION (hierarquia)
-  locationId?: string;           // ID do Location pai
-  
+  locationId?: string; // ID do Location pai
+
   address: {
     city: string;
     state: string;
     street: string;
     number: string;
-    complement?: string;         // "Apto 101", "Bloco A"
+    complement?: string; // "Apto 101", "Bloco A"
     neighborhood: string;
     zipCode: string;
     country: string;
@@ -262,18 +272,18 @@ export interface AIProviderTestResponse {
 // AUTOMATIONS - NATURAL LANGUAGE
 // ============================================================================
 
-export type AutomationPriority = 'baixa' | 'media' | 'alta';
+export type AutomationPriority = "baixa" | "media" | "alta";
 
 export interface AutomationNaturalLanguageRequest {
   input: string;
   module?: string; // Mantido para compatibilidade
   modules?: string[]; // NOVO: Array de módulos
   properties?: string[]; // NOVO: IDs dos imóveis
-  channel?: 'chat' | 'whatsapp' | 'email' | 'sms' | 'dashboard';
+  channel?: "chat" | "whatsapp" | "email" | "sms" | "dashboard";
   priority?: AutomationPriority;
   language?: string;
   conversationMode?: boolean;
-  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
 }
 
 export interface AutomationCondition {
@@ -335,52 +345,147 @@ export async function apiRequest<T>(
 ): Promise<ApiResponse<T>> {
   try {
     const url = `${API_BASE_URL}${endpoint}`;
-    
+
     // ✅ CORREÇÃO: Usar token do usuário do localStorage ao invés de publicAnonKey
     // ✅ SOLUÇÃO: Usar header customizado X-Auth-Token para evitar validação JWT automática do Supabase
-    const userToken = localStorage.getItem('rendizy-token');
-    
+    const userToken = localStorage.getItem("rendizy-token");
+
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase Edge Functions
-      ...(options.headers as Record<string, string> || {}),
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${publicAnonKey}`, // Necessário para Supabase Edge Functions
+      ...((options.headers as Record<string, string>) || {}),
     };
-    
+
     // ✅ Adicionar token customizado em header separado para evitar validação JWT automática
     if (userToken) {
-      headers['X-Auth-Token'] = userToken;
+      headers["X-Auth-Token"] = userToken;
     }
-    
+
+    // 🆕 DEBUG: Log detalhado para requisições POST (criação de rascunho)
+    if (options.method === "POST" && endpoint.includes("/properties")) {
+      const bodyData = options.body ? JSON.parse(options.body as string) : null;
+      console.log("🚀 [apiRequest] POST /properties - Enviando requisição:", {
+        url,
+        method: options.method,
+        hasToken: !!userToken,
+        tokenLength: userToken?.length || 0,
+        bodyStatus: bodyData?.status,
+        bodyHasId: !!bodyData?.id,
+        bodyType: bodyData?.type,
+      });
+      console.log(
+        "📦 [apiRequest] BODY COMPLETO:",
+        JSON.stringify(bodyData, null, 2)
+      );
+    }
+
     // ✅ GARANTIR que credentials não seja passado via options
     const { credentials, ...restOptions } = options;
-    
-    const response = await fetch(url, {
+
+    let response = await fetch(url, {
       ...restOptions,
       headers,
-      credentials: 'omit', // ✅ Explícito: não enviar credentials
+      credentials: "omit", // ✅ Explícito: não enviar credentials
     });
+
+    // 🆕 DEBUG: Log da resposta para requisições POST
+    if (options.method === "POST" && endpoint.includes("/properties")) {
+      console.log("📡 [apiRequest] POST /properties - Resposta recebida:", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
+    }
+
+    // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Interceptador 401 - Refresh automático
+    if (response.status === 401 && userToken) {
+      console.log(
+        "🔄 [apiRequest] 401 detectado - tentando refresh automático..."
+      );
+
+      try {
+        // ✅ Tentar refresh do token
+        const refreshResult = await refreshToken();
+
+        if (
+          refreshResult.success &&
+          (refreshResult.accessToken || refreshResult.token)
+        ) {
+          const newToken = refreshResult.accessToken || refreshResult.token;
+          console.log(
+            "✅ [apiRequest] Token renovado - retentando requisição..."
+          );
+
+          // ✅ Atualizar header com novo token
+          headers["X-Auth-Token"] = newToken;
+
+          // ✅ Retentar requisição com novo token
+          response = await fetch(url, {
+            ...restOptions,
+            headers,
+            credentials: "omit",
+          });
+
+          // 🆕 DEBUG: Log do retry para requisições POST
+          if (options.method === "POST" && endpoint.includes("/properties")) {
+            console.log(
+              "🔄 [apiRequest] POST /properties - Retry após refresh:",
+              {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok,
+              }
+            );
+          }
+        } else {
+          // ✅ Se refresh falhou, limpar token
+          console.error("❌ [apiRequest] Refresh falhou - limpando token");
+          localStorage.removeItem("rendizy-token");
+          throw new Error("Sessão expirada. Por favor, faça login novamente.");
+        }
+      } catch (refreshError) {
+        console.error("❌ [apiRequest] Erro no refresh:", refreshError);
+        localStorage.removeItem("rendizy-token");
+        throw new Error("Sessão expirada. Por favor, faça login novamente.");
+      }
+    }
 
     const data = await response.json();
 
+    // 🆕 DEBUG: Log detalhado para erros em POST /properties
     if (!response.ok) {
+      if (options.method === "POST" && endpoint.includes("/properties")) {
+        console.error("❌ [apiRequest] POST /properties - ERRO:", {
+          status: response.status,
+          statusText: response.statusText,
+          data,
+          endpoint,
+          url,
+        });
+        console.error(
+          "❌ [apiRequest] ERRO COMPLETO:",
+          JSON.stringify(data, null, 2)
+        );
+      }
       console.error(`API Error [${endpoint}]:`, data);
-      
+
       // ⚡ AUTO-RECUPERAÇÃO: Se "Property not found", resetar dados automaticamente
-      if (data.error === 'Property not found') {
-        console.warn('⚠️ ERRO: Propriedade não encontrada!');
-        console.warn('🔄 AUTO-RECUPERAÇÃO: Resetando dados corrompidos...');
-        
+      if (data.error === "Property not found") {
+        console.warn("⚠️ ERRO: Propriedade não encontrada!");
+        console.warn("🔄 AUTO-RECUPERAÇÃO: Resetando dados corrompidos...");
+
         // Resetar dados automaticamente
-        localStorage.removeItem('rendizy_mock_data');
-        localStorage.removeItem('rendizy_data_version');
-        
-        console.log('✅ Dados resetados! Recarregando página...');
-        
+        localStorage.removeItem("rendizy_mock_data");
+        localStorage.removeItem("rendizy_data_version");
+
+        console.log("✅ Dados resetados! Recarregando página...");
+
         // Recarregar após 1 segundo
         setTimeout(() => {
           window.location.reload();
         }, 1000);
-        
+
         return data;
       }
     }
@@ -388,46 +493,49 @@ export async function apiRequest<T>(
     // Se conseguiu conectar, marca backend como online
     backendOfflineDetected = false;
     return data;
-    
   } catch (error) {
     console.error(`❌ Network Error [${endpoint}]:`, error);
     console.error(`   ❌ Full URL: ${API_BASE_URL}${endpoint}`);
     console.error(`   �� Error type: ${error?.constructor?.name}`);
-    console.error(`   ❌ Error message: ${error instanceof Error ? error.message : 'Unknown'}`);
-    
+    console.error(
+      `   ❌ Error message: ${
+        error instanceof Error ? error.message : "Unknown"
+      }`
+    );
+
     // Detectar se é "Failed to fetch" (backend offline)
-    const isBackendOffline = error instanceof TypeError && 
-                            error.message.includes('fetch');
-    
+    const isBackendOffline =
+      error instanceof TypeError && error.message.includes("fetch");
+
     if (isBackendOffline && !backendOfflineDetected) {
       backendOfflineDetected = true;
-      console.info('');
-      console.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.info('ℹ️  Backend ainda não foi deployado');
-      console.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.info('');
-      console.info('📘 O sistema está usando dados mockados temporários.');
-      console.info('');
-      console.info('✅ Para habilitar backend completo:');
-      console.info('   ./DEPLOY_BACKEND_NOW.sh');
-      console.info('');
-      console.info('📚 Documentação: START_HERE_v1.0.103.181.md');
-      console.info('');
-      console.info('🔄 MODO FALLBACK ATIVO');
-      console.info('   • Usando localStorage como backend temporário');
-      console.info('   • Sistema funciona normalmente');
-      console.info('   • Dados salvos localmente');
-      console.info('');
-      console.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.info("");
+      console.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.info("ℹ️  Backend ainda não foi deployado");
+      console.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.info("");
+      console.info("📘 O sistema está usando dados mockados temporários.");
+      console.info("");
+      console.info("✅ Para habilitar backend completo:");
+      console.info("   ./DEPLOY_BACKEND_NOW.sh");
+      console.info("");
+      console.info("📚 Documentação: START_HERE_v1.0.103.181.md");
+      console.info("");
+      console.info("🔄 MODO FALLBACK ATIVO");
+      console.info("   • Usando localStorage como backend temporário");
+      console.info("   • Sistema funciona normalmente");
+      console.info("   • Dados salvos localmente");
+      console.info("");
+      console.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
-    
+
     // ⚠️ FALLBACK REMOVIDO v1.0.103.308 - Sistema usa apenas Supabase
     // Não há mais fallback para localStorage para dados de negócio
-    
+
     return {
       success: false,
-      error: 'Network error',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      error: "Network error",
+      message: error instanceof Error ? error.message : "Unknown error",
       timestamp: new Date().toISOString(),
     };
   }
@@ -445,9 +553,9 @@ function tryLocalStorageFallback<T>(
 ): ApiResponse<T> | null {
   // ⚠️ FUNÇÃO DESABILITADA v1.0.103.308
   // Retorna null para forçar uso do Supabase apenas
-  console.warn('⚠️ tryLocalStorageFallback DESABILITADO - Use apenas Supabase');
+  console.warn("⚠️ tryLocalStorageFallback DESABILITADO - Use apenas Supabase");
   return null;
-  
+
   /* CÓDIGO LEGADO DESABILITADO:
   const method = options.method || 'GET';
   
@@ -612,15 +720,15 @@ export const propertiesApi = {
   }): Promise<ApiResponse<Property[]>> => {
     // ✅ SUPABASE ONLY (desde v1.0.103.305)
     const params = new URLSearchParams();
-    if (filters?.status) params.set('status', filters.status.join(','));
-    if (filters?.type) params.set('type', filters.type.join(','));
-    if (filters?.city) params.set('city', filters.city.join(','));
-    if (filters?.tags) params.set('tags', filters.tags.join(','));
-    if (filters?.folder) params.set('folder', filters.folder);
-    if (filters?.search) params.set('search', filters.search);
+    if (filters?.status) params.set("status", filters.status.join(","));
+    if (filters?.type) params.set("type", filters.type.join(","));
+    if (filters?.city) params.set("city", filters.city.join(","));
+    if (filters?.tags) params.set("tags", filters.tags.join(","));
+    if (filters?.folder) params.set("folder", filters.folder);
+    if (filters?.search) params.set("search", filters.search);
 
     const query = params.toString();
-    return apiRequest<Property[]>(`/properties${query ? '?' + query : ''}`);
+    return apiRequest<Property[]>(`/properties${query ? "?" + query : ""}`);
   },
 
   // Buscar propriedade por ID
@@ -631,30 +739,38 @@ export const propertiesApi = {
 
   // Criar nova propriedade
   // ✅ BOAS PRÁTICAS v1.0.103.1000 - Aceitar dados do wizard (estrutura aninhada ou plana)
-  create: async (data: Partial<Property> | any): Promise<ApiResponse<Property>> => {
-    return apiRequest<Property>('/properties', {
-      method: 'POST',
+  create: async (
+    data: Partial<Property> | any
+  ): Promise<ApiResponse<Property>> => {
+    return apiRequest<Property>("/properties", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
 
   // Atualizar propriedade
-  update: async (id: string, data: Partial<Property>): Promise<ApiResponse<Property>> => {
+  update: async (
+    id: string,
+    data: Partial<Property>
+  ): Promise<ApiResponse<Property>> => {
     return apiRequest<Property>(`/properties/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   },
 
   // Deletar propriedade
-  delete: async (id: string, options?: { permanent?: boolean; force?: boolean }): Promise<ApiResponse<null>> => {
+  delete: async (
+    id: string,
+    options?: { permanent?: boolean; force?: boolean }
+  ): Promise<ApiResponse<null>> => {
     const params = new URLSearchParams();
-    if (options?.permanent) params.set('permanent', 'true');
-    if (options?.force) params.set('force', 'true');
-    
+    if (options?.permanent) params.set("permanent", "true");
+    if (options?.force) params.set("force", "true");
+
     const query = params.toString();
-    return apiRequest<null>(`/properties/${id}${query ? '?' + query : ''}`, {
-      method: 'DELETE',
+    return apiRequest<null>(`/properties/${id}${query ? "?" + query : ""}`, {
+      method: "DELETE",
     });
   },
 
@@ -679,15 +795,17 @@ export const reservationsApi = {
     checkInTo?: string;
   }): Promise<ApiResponse<Reservation[]>> => {
     const params = new URLSearchParams();
-    if (filters?.propertyId) params.set('propertyId', filters.propertyId);
-    if (filters?.guestId) params.set('guestId', filters.guestId);
-    if (filters?.status) params.set('status', filters.status.join(','));
-    if (filters?.platform) params.set('platform', filters.platform.join(','));
-    if (filters?.checkInFrom) params.set('checkInFrom', filters.checkInFrom);
-    if (filters?.checkInTo) params.set('checkInTo', filters.checkInTo);
+    if (filters?.propertyId) params.set("propertyId", filters.propertyId);
+    if (filters?.guestId) params.set("guestId", filters.guestId);
+    if (filters?.status) params.set("status", filters.status.join(","));
+    if (filters?.platform) params.set("platform", filters.platform.join(","));
+    if (filters?.checkInFrom) params.set("checkInFrom", filters.checkInFrom);
+    if (filters?.checkInTo) params.set("checkInTo", filters.checkInTo);
 
     const query = params.toString();
-    return apiRequest<Reservation[]>(`/reservations${query ? '?' + query : ''}`);
+    return apiRequest<Reservation[]>(
+      `/reservations${query ? "?" + query : ""}`
+    );
   },
 
   // Buscar reserva por ID
@@ -700,13 +818,15 @@ export const reservationsApi = {
     propertyId: string;
     checkIn: string;
     checkOut: string;
-  }): Promise<ApiResponse<{
-    available: boolean;
-    reason?: string;
-    conflictingReservation?: any;
-  }>> => {
-    return apiRequest('/reservations/check-availability', {
-      method: 'POST',
+  }): Promise<
+    ApiResponse<{
+      available: boolean;
+      reason?: string;
+      conflictingReservation?: any;
+    }>
+  > => {
+    return apiRequest("/reservations/check-availability", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
@@ -726,42 +846,50 @@ export const reservationsApi = {
     specialRequests?: string;
     externalId?: string;
   }): Promise<ApiResponse<Reservation>> => {
-    return apiRequest<Reservation>('/reservations', {
-      method: 'POST',
+    return apiRequest<Reservation>("/reservations", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
 
   // Atualizar reserva
-  update: async (id: string, data: {
-    propertyId?: string;        // 🎯 v1.0.103.273 - Transferir para outro imóvel
-    status?: string;
-    checkIn?: string;
-    checkOut?: string;
-    adults?: number;
-    children?: number;
-    notes?: string;
-    internalComments?: string;
-    paymentStatus?: string;
-  }): Promise<ApiResponse<Reservation>> => {
+  update: async (
+    id: string,
+    data: {
+      propertyId?: string; // 🎯 v1.0.103.273 - Transferir para outro imóvel
+      status?: string;
+      checkIn?: string;
+      checkOut?: string;
+      adults?: number;
+      children?: number;
+      notes?: string;
+      internalComments?: string;
+      paymentStatus?: string;
+    }
+  ): Promise<ApiResponse<Reservation>> => {
     return apiRequest<Reservation>(`/reservations/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   },
 
   // Cancelar reserva
-  cancel: async (id: string, options?: { reason?: string }): Promise<ApiResponse<Reservation>> => {
+  cancel: async (
+    id: string,
+    options?: { reason?: string }
+  ): Promise<ApiResponse<Reservation>> => {
     return apiRequest<Reservation>(`/reservations/${id}/cancel`, {
-      method: 'POST',
-      body: JSON.stringify({ reason: options?.reason || 'Cancelada pelo usuário' }),
+      method: "POST",
+      body: JSON.stringify({
+        reason: options?.reason || "Cancelada pelo usuário",
+      }),
     });
   },
 
   // Deletar reserva
   delete: async (id: string): Promise<ApiResponse<null>> => {
     return apiRequest<null>(`/reservations/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
 };
@@ -777,13 +905,13 @@ export const guestsApi = {
     blacklisted?: boolean;
   }): Promise<ApiResponse<Guest[]>> => {
     const params = new URLSearchParams();
-    if (filters?.search) params.set('search', filters.search);
+    if (filters?.search) params.set("search", filters.search);
     if (filters?.blacklisted !== undefined) {
-      params.set('blacklisted', filters.blacklisted.toString());
+      params.set("blacklisted", filters.blacklisted.toString());
     }
 
     const query = params.toString();
-    return apiRequest<Guest[]>(`/guests${query ? '?' + query : ''}`);
+    return apiRequest<Guest[]>(`/guests${query ? "?" + query : ""}`);
   },
 
   // Buscar hóspede por ID
@@ -800,16 +928,19 @@ export const guestsApi = {
     cpf?: string;
     source: string;
   }): Promise<ApiResponse<Guest>> => {
-    return apiRequest<Guest>('/guests', {
-      method: 'POST',
+    return apiRequest<Guest>("/guests", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
 
   // Atualizar hóspede
-  update: async (id: string, data: Partial<Guest>): Promise<ApiResponse<Guest>> => {
+  update: async (
+    id: string,
+    data: Partial<Guest>
+  ): Promise<ApiResponse<Guest>> => {
     return apiRequest<Guest>(`/guests/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   },
@@ -817,15 +948,19 @@ export const guestsApi = {
   // Deletar hóspede
   delete: async (id: string): Promise<ApiResponse<null>> => {
     return apiRequest<null>(`/guests/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
 
   // Buscar histórico do hóspede
-  getHistory: async (id: string): Promise<ApiResponse<{
-    guest: Guest;
-    reservations: Reservation[];
-  }>> => {
+  getHistory: async (
+    id: string
+  ): Promise<
+    ApiResponse<{
+      guest: Guest;
+      reservations: Reservation[];
+    }>
+  > => {
     return apiRequest(`/guests/${id}/history`);
   },
 
@@ -836,7 +971,7 @@ export const guestsApi = {
     reason?: string
   ): Promise<ApiResponse<Guest>> => {
     return apiRequest<Guest>(`/guests/${id}/blacklist`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ blacklist, reason }),
     });
   },
@@ -854,45 +989,52 @@ export const calendarApi = {
     propertyIds?: string[];
     includeBlocks?: boolean;
     includePrices?: boolean;
-  }): Promise<ApiResponse<{
-    properties: Property[];
-    reservations: Reservation[];
-    blocks: any[];
-    customPrices: any[];
-    customMinNights: any[];
-    dateRange: {
-      startDate: string;
-      endDate: string;
-    };
-  }>> => {
+  }): Promise<
+    ApiResponse<{
+      properties: Property[];
+      reservations: Reservation[];
+      blocks: any[];
+      customPrices: any[];
+      customMinNights: any[];
+      dateRange: {
+        startDate: string;
+        endDate: string;
+      };
+    }>
+  > => {
     const searchParams = new URLSearchParams({
       startDate: params.startDate,
       endDate: params.endDate,
     });
 
     if (params.propertyIds && params.propertyIds.length > 0) {
-      searchParams.set('propertyIds', params.propertyIds.join(','));
+      searchParams.set("propertyIds", params.propertyIds.join(","));
     }
     if (params.includeBlocks !== undefined) {
-      searchParams.set('includeBlocks', params.includeBlocks.toString());
+      searchParams.set("includeBlocks", params.includeBlocks.toString());
     }
     if (params.includePrices !== undefined) {
-      searchParams.set('includePrices', params.includePrices.toString());
+      searchParams.set("includePrices", params.includePrices.toString());
     }
 
     return apiRequest(`/calendar?${searchParams.toString()}`);
   },
 
   // Buscar estatísticas do calendário
-  getStats: async (startDate: string, endDate: string): Promise<ApiResponse<{
-    totalProperties: number;
-    totalReservations: number;
-    totalBlocks: number;
-    occupiedNights: number;
-    availableNights: number;
-    totalRevenue: number;
-    occupancyRate: number;
-  }>> => {
+  getStats: async (
+    startDate: string,
+    endDate: string
+  ): Promise<
+    ApiResponse<{
+      totalProperties: number;
+      totalReservations: number;
+      totalBlocks: number;
+      occupiedNights: number;
+      availableNights: number;
+      totalRevenue: number;
+      occupancyRate: number;
+    }>
+  > => {
     const params = new URLSearchParams({ startDate, endDate });
     return apiRequest(`/calendar/stats?${params.toString()}`);
   },
@@ -902,25 +1044,28 @@ export const calendarApi = {
     propertyId: string;
     startDate: string;
     endDate: string;
-    type: 'block';
-    subtype?: 'simple' | 'predictive' | 'maintenance';
+    type: "block";
+    subtype?: "simple" | "predictive" | "maintenance";
     reason: string;
     notes?: string;
   }): Promise<ApiResponse<any>> => {
-    return apiRequest('/calendar/blocks', {
-      method: 'POST',
+    return apiRequest("/calendar/blocks", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
 
   // Atualizar bloqueio
-  updateBlock: async (id: string, data: {
-    subtype?: 'simple' | 'predictive' | 'maintenance';
-    reason?: string;
-    notes?: string;
-  }): Promise<ApiResponse<any>> => {
+  updateBlock: async (
+    id: string,
+    data: {
+      subtype?: "simple" | "predictive" | "maintenance";
+      reason?: string;
+      notes?: string;
+    }
+  ): Promise<ApiResponse<any>> => {
     return apiRequest(`/calendar/blocks/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   },
@@ -928,7 +1073,7 @@ export const calendarApi = {
   // Deletar bloqueio
   deleteBlock: async (id: string): Promise<ApiResponse<null>> => {
     return apiRequest<null>(`/calendar/blocks/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
 
@@ -939,16 +1084,18 @@ export const calendarApi = {
     endDate: string;
     price?: number;
     adjustment?: {
-      type: 'increase' | 'decrease';
+      type: "increase" | "decrease";
       value: number;
     };
     reason?: string;
-  }): Promise<ApiResponse<{
-    count: number;
-    prices: any[];
-  }>> => {
-    return apiRequest('/calendar/bulk-update-prices', {
-      method: 'POST',
+  }): Promise<
+    ApiResponse<{
+      count: number;
+      prices: any[];
+    }>
+  > => {
+    return apiRequest("/calendar/bulk-update-prices", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
@@ -960,12 +1107,14 @@ export const calendarApi = {
     endDate: string;
     minNights: number;
     reason?: string;
-  }): Promise<ApiResponse<{
-    count: number;
-    minNights: any[];
-  }>> => {
-    return apiRequest('/calendar/bulk-update-min-nights', {
-      method: 'POST',
+  }): Promise<
+    ApiResponse<{
+      count: number;
+      minNights: any[];
+    }>
+  > => {
+    return apiRequest("/calendar/bulk-update-min-nights", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
@@ -975,11 +1124,13 @@ export const calendarApi = {
     propertyIds: string[];
     startDate: string;
     endDate: string;
-  }): Promise<ApiResponse<{
-    count: number;
-  }>> => {
-    return apiRequest('/calendar/delete-custom-prices', {
-      method: 'POST',
+  }): Promise<
+    ApiResponse<{
+      count: number;
+    }>
+  > => {
+    return apiRequest("/calendar/delete-custom-prices", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
@@ -999,21 +1150,27 @@ export const locationsApi = {
     hasParking?: boolean;
   }): Promise<ApiResponse<Location[]>> => {
     const params = new URLSearchParams();
-    if (filters?.city) params.set('city', filters.city.join(','));
-    if (filters?.state) params.set('state', filters.state.join(','));
-    if (filters?.search) params.set('search', filters.search);
-    if (filters?.hasElevator !== undefined) params.set('hasElevator', String(filters.hasElevator));
-    if (filters?.hasParking !== undefined) params.set('hasParking', String(filters.hasParking));
+    if (filters?.city) params.set("city", filters.city.join(","));
+    if (filters?.state) params.set("state", filters.state.join(","));
+    if (filters?.search) params.set("search", filters.search);
+    if (filters?.hasElevator !== undefined)
+      params.set("hasElevator", String(filters.hasElevator));
+    if (filters?.hasParking !== undefined)
+      params.set("hasParking", String(filters.hasParking));
 
     const query = params.toString();
-    return apiRequest<Location[]>(`/locations${query ? '?' + query : ''}`);
+    return apiRequest<Location[]>(`/locations${query ? "?" + query : ""}`);
   },
 
   // Buscar location por ID
-  get: async (id: string): Promise<ApiResponse<{
-    location: Location;
-    accommodations: Property[];
-  }>> => {
+  get: async (
+    id: string
+  ): Promise<
+    ApiResponse<{
+      location: Location;
+      accommodations: Property[];
+    }>
+  > => {
     return apiRequest(`/locations/${id}`);
   },
 
@@ -1021,50 +1178,60 @@ export const locationsApi = {
   create: async (data: {
     name: string;
     code: string;
-    address: Location['address'];
+    address: Location["address"];
     sharedAmenities?: string[];
-    management?: Location['management'];
-    buildingAccess?: Location['buildingAccess'];
+    management?: Location["management"];
+    buildingAccess?: Location["buildingAccess"];
     description?: string;
     showBuildingNumber?: boolean;
   }): Promise<ApiResponse<Location>> => {
-    return apiRequest<Location>('/locations', {
-      method: 'POST',
+    return apiRequest<Location>("/locations", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
 
   // Atualizar location
-  update: async (id: string, data: Partial<Location>): Promise<ApiResponse<Location>> => {
+  update: async (
+    id: string,
+    data: Partial<Location>
+  ): Promise<ApiResponse<Location>> => {
     return apiRequest<Location>(`/locations/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   },
 
   // Deletar location
-  delete: async (id: string, options?: { permanent?: boolean; force?: boolean }): Promise<ApiResponse<null>> => {
+  delete: async (
+    id: string,
+    options?: { permanent?: boolean; force?: boolean }
+  ): Promise<ApiResponse<null>> => {
     const params = new URLSearchParams();
-    if (options?.permanent) params.set('permanent', 'true');
-    if (options?.force) params.set('force', 'true');
-    
+    if (options?.permanent) params.set("permanent", "true");
+    if (options?.force) params.set("force", "true");
+
     const query = params.toString();
-    return apiRequest<null>(`/locations/${id}${query ? '?' + query : ''}`, {
-      method: 'DELETE',
+    return apiRequest<null>(`/locations/${id}${query ? "?" + query : ""}`, {
+      method: "DELETE",
     });
   },
 
   // Buscar accommodations de um location
-  getAccommodations: async (id: string): Promise<ApiResponse<{
-    location: {
-      id: string;
-      name: string;
-      code: string;
-      address: Location['address'];
-    };
-    accommodations: Property[];
-    total: number;
-  }>> => {
+  getAccommodations: async (
+    id: string
+  ): Promise<
+    ApiResponse<{
+      location: {
+        id: string;
+        name: string;
+        code: string;
+        address: Location["address"];
+      };
+      accommodations: Property[];
+      total: number;
+    }>
+  > => {
     return apiRequest(`/locations/${id}/accommodations`);
   },
 };
@@ -1075,27 +1242,31 @@ export const locationsApi = {
 
 export const devApi = {
   // Seed com estrutura antiga (compatibilidade)
-  seedDatabase: async (): Promise<ApiResponse<{
-    propertiesCount: number;
-    guestsCount: number;
-    reservationsCount: number;
-  }>> => {
-    return apiRequest('/dev/seed-database', {
-      method: 'POST',
+  seedDatabase: async (): Promise<
+    ApiResponse<{
+      propertiesCount: number;
+      guestsCount: number;
+      reservationsCount: number;
+    }>
+  > => {
+    return apiRequest("/dev/seed-database", {
+      method: "POST",
     });
   },
 
   // Seed com NOVA estrutura (Location → Accommodation)
-  seedDatabaseNew: async (): Promise<ApiResponse<{
-    locationsCount: number;
-    accommodationsCount: number;
-    guestsCount: number;
-    reservationsCount: number;
-    linkedAccommodations: number;
-    standaloneAccommodations: number;
-  }>> => {
-    return apiRequest('/dev/seed-database-new', {
-      method: 'POST',
+  seedDatabaseNew: async (): Promise<
+    ApiResponse<{
+      locationsCount: number;
+      accommodationsCount: number;
+      guestsCount: number;
+      reservationsCount: number;
+      linkedAccommodations: number;
+      standaloneAccommodations: number;
+    }>
+  > => {
+    return apiRequest("/dev/seed-database-new", {
+      method: "POST",
     });
   },
 };
@@ -1111,8 +1282,8 @@ export interface Listing {
   propertyName: string;
   title: string;
   description: string;
-  propertyType: 'apartment' | 'house' | 'studio' | 'loft';
-  status: 'draft' | 'active' | 'inactive' | 'archived';
+  propertyType: "apartment" | "house" | "studio" | "loft";
+  status: "draft" | "active" | "inactive" | "archived";
   publishedPlatforms: Platform[];
   pricing: {
     basePrice: number;
@@ -1143,8 +1314,8 @@ export interface Listing {
 }
 
 export interface Platform {
-  name: 'airbnb' | 'booking' | 'vrbo' | 'direct';
-  status: 'active' | 'inactive' | 'pending';
+  name: "airbnb" | "booking" | "vrbo" | "direct";
+  status: "active" | "inactive" | "pending";
   listingUrl?: string;
   externalId?: string;
   publishedAt?: string;
@@ -1156,8 +1327,8 @@ export const listingsApi = {
     try {
       const response = await fetch(`${API_BASE_URL}/listings`, {
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${publicAnonKey}`,
+          "Content-Type": "application/json",
         },
       });
 
@@ -1168,10 +1339,10 @@ export const listingsApi = {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Erro ao listar listings:', error);
+      console.error("Erro ao listar listings:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         timestamp: new Date().toISOString(),
       };
     }
@@ -1182,8 +1353,8 @@ export const listingsApi = {
     try {
       const response = await fetch(`${API_BASE_URL}/listings/${id}`, {
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${publicAnonKey}`,
+          "Content-Type": "application/json",
         },
       });
 
@@ -1194,10 +1365,10 @@ export const listingsApi = {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Erro ao buscar listing:', error);
+      console.error("Erro ao buscar listing:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         timestamp: new Date().toISOString(),
       };
     }
@@ -1207,10 +1378,10 @@ export const listingsApi = {
   create: async (listing: Partial<Listing>): Promise<ApiResponse<Listing>> => {
     try {
       const response = await fetch(`${API_BASE_URL}/listings`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${publicAnonKey}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(listing),
       });
@@ -1223,23 +1394,26 @@ export const listingsApi = {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Erro ao criar listing:', error);
+      console.error("Erro ao criar listing:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         timestamp: new Date().toISOString(),
       };
     }
   },
 
   // Atualizar listing
-  update: async (id: string, listing: Partial<Listing>): Promise<ApiResponse<Listing>> => {
+  update: async (
+    id: string,
+    listing: Partial<Listing>
+  ): Promise<ApiResponse<Listing>> => {
     try {
       const response = await fetch(`${API_BASE_URL}/listings/${id}`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${publicAnonKey}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(listing),
       });
@@ -1252,10 +1426,10 @@ export const listingsApi = {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Erro ao atualizar listing:', error);
+      console.error("Erro ao atualizar listing:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         timestamp: new Date().toISOString(),
       };
     }
@@ -1265,9 +1439,9 @@ export const listingsApi = {
   delete: async (id: string): Promise<ApiResponse> => {
     try {
       const response = await fetch(`${API_BASE_URL}/listings/${id}`, {
-        method: 'DELETE',
+        method: "DELETE",
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          Authorization: `Bearer ${publicAnonKey}`,
         },
       });
 
@@ -1278,23 +1452,27 @@ export const listingsApi = {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Erro ao deletar listing:', error);
+      console.error("Erro ao deletar listing:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         timestamp: new Date().toISOString(),
       };
     }
   },
 
   // Publicar em plataforma
-  publish: async (id: string, platform: string, listingUrl?: string): Promise<ApiResponse<Platform>> => {
+  publish: async (
+    id: string,
+    platform: string,
+    listingUrl?: string
+  ): Promise<ApiResponse<Platform>> => {
     try {
       const response = await fetch(`${API_BASE_URL}/listings/${id}/publish`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${publicAnonKey}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ platform, listingUrl }),
       });
@@ -1307,10 +1485,10 @@ export const listingsApi = {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Erro ao publicar listing:', error);
+      console.error("Erro ao publicar listing:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         timestamp: new Date().toISOString(),
       };
     }
@@ -1319,12 +1497,15 @@ export const listingsApi = {
   // Despublicar de plataforma
   unpublish: async (id: string, platform: string): Promise<ApiResponse> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/listings/${id}/unpublish/${platform}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/listings/${id}/unpublish/${platform}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+        }
+      );
 
       const data = await response.json();
       return {
@@ -1333,23 +1514,32 @@ export const listingsApi = {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Erro ao despublicar listing:', error);
+      console.error("Erro ao despublicar listing:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         timestamp: new Date().toISOString(),
       };
     }
   },
 
   // Registrar estatísticas
-  recordStats: async (id: string, stats: { views?: number; reservations?: number; revenue?: number; avgRating?: number; date?: string }): Promise<ApiResponse> => {
+  recordStats: async (
+    id: string,
+    stats: {
+      views?: number;
+      reservations?: number;
+      revenue?: number;
+      avgRating?: number;
+      date?: string;
+    }
+  ): Promise<ApiResponse> => {
     try {
       const response = await fetch(`${API_BASE_URL}/listings/${id}/stats`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${publicAnonKey}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(stats),
       });
@@ -1362,10 +1552,10 @@ export const listingsApi = {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Erro ao registrar stats:', error);
+      console.error("Erro ao registrar stats:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         timestamp: new Date().toISOString(),
       };
     }
@@ -1376,7 +1566,7 @@ export const listingsApi = {
     try {
       const response = await fetch(`${API_BASE_URL}/listings/${id}/stats`, {
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          Authorization: `Bearer ${publicAnonKey}`,
         },
       });
 
@@ -1387,10 +1577,10 @@ export const listingsApi = {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Erro ao buscar stats:', error);
+      console.error("Erro ao buscar stats:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         timestamp: new Date().toISOString(),
       };
     }
@@ -1401,7 +1591,7 @@ export const listingsApi = {
     try {
       const response = await fetch(`${API_BASE_URL}/listings/stats/summary`, {
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          Authorization: `Bearer ${publicAnonKey}`,
         },
       });
 
@@ -1412,10 +1602,10 @@ export const listingsApi = {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('Erro ao buscar resumo:', error);
+      console.error("Erro ao buscar resumo:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         timestamp: new Date().toISOString(),
       };
     }
@@ -1428,101 +1618,126 @@ export const listingsApi = {
 
 export const photosApi = {
   // Upload de foto
-  upload: async (file: File, propertyId: string, room: string): Promise<ApiResponse<Photo>> => {
-    console.log('📸 Frontend: Starting upload', { 
-      fileName: file.name, 
-      fileSize: file.size, 
+  upload: async (
+    file: File,
+    propertyId: string,
+    room: string
+  ): Promise<ApiResponse<Photo>> => {
+    console.log("📸 Frontend: Starting upload", {
+      fileName: file.name,
+      fileSize: file.size,
       fileType: file.type,
-      propertyId, 
-      room 
+      propertyId,
+      room,
     });
-    
+
     // COMPRESSÃO AUTOMÁTICA se > 5MB
     let fileToUpload = file;
     const MAX_SIZE_MB = 5;
     const fileSizeMB = file.size / 1024 / 1024;
-    
+
     if (fileSizeMB > MAX_SIZE_MB) {
-      console.log(`🗜️ Arquivo muito grande (${fileSizeMB.toFixed(2)}MB), comprimindo...`);
-      console.log('🔧 Iniciando importação do módulo de compressão...');
-      
+      console.log(
+        `🗜️ Arquivo muito grande (${fileSizeMB.toFixed(2)}MB), comprimindo...`
+      );
+      console.log("🔧 Iniciando importação do módulo de compressão...");
+
       try {
         // Importar compressão dinamicamente
-        const compressionModule = await import('./imageCompression');
-        console.log('✅ Módulo de compressão importado com sucesso');
-        
+        const compressionModule = await import("./imageCompression");
+        console.log("✅ Módulo de compressão importado com sucesso");
+
         const { compressImage } = compressionModule;
-        
+
         if (!compressImage) {
-          console.error('❌ Função compressImage não encontrada no módulo');
-          throw new Error('Módulo de compressão não disponível');
+          console.error("❌ Função compressImage não encontrada no módulo");
+          throw new Error("Módulo de compressão não disponível");
         }
-        
-        console.log('🗜️ Chamando compressImage...');
+
+        console.log("🗜️ Chamando compressImage...");
         fileToUpload = await compressImage(file, {
           maxWidth: 1920,
           maxHeight: 1920,
           quality: 0.85,
           maxSizeMB: 4.5, // Um pouco abaixo do limite de 5MB
         });
-        
+
         const newSizeMB = fileToUpload.size / 1024 / 1024;
-        const reduction = ((1 - fileToUpload.size / file.size) * 100).toFixed(1);
-        
-        console.log(`✅ Compressão concluída: ${fileSizeMB.toFixed(2)}MB → ${newSizeMB.toFixed(2)}MB (${reduction}% redução)`);
+        const reduction = ((1 - fileToUpload.size / file.size) * 100).toFixed(
+          1
+        );
+
+        console.log(
+          `✅ Compressão concluída: ${fileSizeMB.toFixed(
+            2
+          )}MB → ${newSizeMB.toFixed(2)}MB (${reduction}% redução)`
+        );
       } catch (compressionError) {
-        console.error('❌ Erro completo na compressão:', compressionError);
-        console.error('❌ Stack trace:', compressionError instanceof Error ? compressionError.stack : 'N/A');
-        
+        console.error("❌ Erro completo na compressão:", compressionError);
+        console.error(
+          "❌ Stack trace:",
+          compressionError instanceof Error ? compressionError.stack : "N/A"
+        );
+
         // Se a compressão falhar, vamos tentar enviar mesmo assim para o backend validar
-        console.warn('⚠️ Enviando arquivo original (sem compressão) - backend pode rejeitar');
+        console.warn(
+          "⚠️ Enviando arquivo original (sem compressão) - backend pode rejeitar"
+        );
       }
     }
-    
-    const formData = new FormData();
-    formData.append('file', fileToUpload);
-    formData.append('propertyId', propertyId);
-    formData.append('room', room);
 
-    console.log('📦 FormData created');
-    console.log('🌐 Uploading to:', `${API_BASE_URL}/photos/upload`);
+    const formData = new FormData();
+    formData.append("file", fileToUpload);
+    formData.append("propertyId", propertyId);
+    formData.append("room", room);
+
+    console.log("📦 FormData created");
+    console.log("🌐 Uploading to:", `${API_BASE_URL}/photos/upload`);
 
     let response;
     try {
       response = await fetch(`${API_BASE_URL}/photos/upload`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          Authorization: `Bearer ${publicAnonKey}`,
         },
         body: formData,
       });
-      console.log('📡 Response received:', response.status, response.statusText);
+      console.log(
+        "📡 Response received:",
+        response.status,
+        response.statusText
+      );
     } catch (fetchError) {
-      console.error('❌ Fetch error:', fetchError);
-      throw new Error(`Network error: ${fetchError instanceof Error ? fetchError.message : 'Unknown'}`);
+      console.error("❌ Fetch error:", fetchError);
+      throw new Error(
+        `Network error: ${
+          fetchError instanceof Error ? fetchError.message : "Unknown"
+        }`
+      );
     }
 
     if (!response.ok) {
       let errorData;
       try {
         errorData = await response.json();
-        console.error('❌ Upload failed:', errorData);
+        console.error("❌ Upload failed:", errorData);
       } catch (e) {
-        console.error('❌ Could not parse error response');
+        console.error("❌ Could not parse error response");
         throw new Error(`Upload failed with status ${response.status}`);
       }
-      throw new Error(errorData.error || 'Failed to upload photo');
+      throw new Error(errorData.error || "Failed to upload photo");
     }
 
     let data;
     try {
       data = await response.json();
-      console.log('✅ Upload successful:', data);
+      console.log("✅ Upload successful:", data);
     } catch (parseError) {
-      console.error('❌ Could not parse success response');
-      throw new Error('Invalid response from server');
+      console.error("❌ Could not parse success response");
+      throw new Error("Invalid response from server");
     }
-    
+
     return {
       success: true,
       data: data.photo,
@@ -1533,12 +1748,14 @@ export const photosApi = {
   // Deletar foto
   delete: async (path: string): Promise<ApiResponse<null>> => {
     return apiRequest<null>(`/photos/${encodeURIComponent(path)}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
 
   // Listar fotos de uma propriedade
-  listByProperty: async (propertyId: string): Promise<ApiResponse<{ photos: Photo[] }>> => {
+  listByProperty: async (
+    propertyId: string
+  ): Promise<ApiResponse<{ photos: Photo[] }>> => {
     return apiRequest(`/photos/property/${propertyId}`);
   },
 };
@@ -1547,255 +1764,328 @@ export const photosApi = {
 // FINANCEIRO API (MÓDULO FINANCEIRO v1.0.103.400)
 // ============================================================================
 
-import type { 
-  Lancamento, 
-  Titulo, 
-  ContaBancaria, 
+import type {
+  Lancamento,
+  Titulo,
+  ContaBancaria,
   CentroCusto,
   ContaContabil,
-    FiltroFinanceiro,
-    PaginatedResponse,
-    RegraConciliacao,
-    LinhaExtrato,
-} from '../types/financeiro';
+  FiltroFinanceiro,
+  PaginatedResponse,
+  RegraConciliacao,
+  LinhaExtrato,
+} from "../types/financeiro";
 
 export const financeiroApi = {
   // ============================================================================
   // LANÇAMENTOS
   // ============================================================================
-  
+
   lancamentos: {
-    list: async (filtros?: FiltroFinanceiro): Promise<ApiResponse<PaginatedResponse<Lancamento>>> => {
+    list: async (
+      filtros?: FiltroFinanceiro
+    ): Promise<ApiResponse<PaginatedResponse<Lancamento>>> => {
       const params = new URLSearchParams();
-      if (filtros?.dataInicio) params.append('dataInicio', filtros.dataInicio);
-      if (filtros?.dataFim) params.append('dataFim', filtros.dataFim);
-      if (filtros?.tipo) params.append('tipo', filtros.tipo);
-      if (filtros?.categoriaId) params.append('categoriaId', filtros.categoriaId);
-      if (filtros?.centroCustoId) params.append('centroCustoId', filtros.centroCustoId);
-      if (filtros?.contaId) params.append('contaId', filtros.contaId);
-      if (filtros?.conciliado !== undefined) params.append('conciliado', filtros.conciliado.toString());
-      if (filtros?.busca) params.append('busca', filtros.busca);
-      if (filtros?.page) params.append('page', filtros.page.toString());
-      if (filtros?.limit) params.append('limit', filtros.limit.toString());
-      if (filtros?.orderBy) params.append('orderBy', filtros.orderBy);
-      if (filtros?.order) params.append('order', filtros.order);
-      
-      return apiRequest<PaginatedResponse<Lancamento>>(`/financeiro/lancamentos?${params.toString()}`);
+      if (filtros?.dataInicio) params.append("dataInicio", filtros.dataInicio);
+      if (filtros?.dataFim) params.append("dataFim", filtros.dataFim);
+      if (filtros?.tipo) params.append("tipo", filtros.tipo);
+      if (filtros?.categoriaId)
+        params.append("categoriaId", filtros.categoriaId);
+      if (filtros?.centroCustoId)
+        params.append("centroCustoId", filtros.centroCustoId);
+      if (filtros?.contaId) params.append("contaId", filtros.contaId);
+      if (filtros?.conciliado !== undefined)
+        params.append("conciliado", filtros.conciliado.toString());
+      if (filtros?.busca) params.append("busca", filtros.busca);
+      if (filtros?.page) params.append("page", filtros.page.toString());
+      if (filtros?.limit) params.append("limit", filtros.limit.toString());
+      if (filtros?.orderBy) params.append("orderBy", filtros.orderBy);
+      if (filtros?.order) params.append("order", filtros.order);
+
+      return apiRequest<PaginatedResponse<Lancamento>>(
+        `/financeiro/lancamentos?${params.toString()}`
+      );
     },
-    
-    create: async (data: Partial<Lancamento>): Promise<ApiResponse<Lancamento>> => {
-      return apiRequest<Lancamento>('/financeiro/lancamentos', {
-        method: 'POST',
+
+    create: async (
+      data: Partial<Lancamento>
+    ): Promise<ApiResponse<Lancamento>> => {
+      return apiRequest<Lancamento>("/financeiro/lancamentos", {
+        method: "POST",
         body: JSON.stringify(data),
       });
     },
-    
-    update: async (id: string, data: Partial<Lancamento>): Promise<ApiResponse<Lancamento>> => {
+
+    update: async (
+      id: string,
+      data: Partial<Lancamento>
+    ): Promise<ApiResponse<Lancamento>> => {
       return apiRequest<Lancamento>(`/financeiro/lancamentos/${id}`, {
-        method: 'PUT',
+        method: "PUT",
         body: JSON.stringify(data),
       });
     },
-    
+
     delete: async (id: string): Promise<ApiResponse<null>> => {
       return apiRequest<null>(`/financeiro/lancamentos/${id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
     },
   },
-  
+
   // ============================================================================
   // TÍTULOS
   // ============================================================================
-  
+
   titulos: {
-    list: async (filtros?: FiltroFinanceiro): Promise<ApiResponse<PaginatedResponse<Titulo>>> => {
+    list: async (
+      filtros?: FiltroFinanceiro
+    ): Promise<ApiResponse<PaginatedResponse<Titulo>>> => {
       const params = new URLSearchParams();
-      if (filtros?.tipo) params.append('tipo', filtros.tipo);
-      if (filtros?.status) params.append('status', filtros.status);
-      if (filtros?.page) params.append('page', filtros.page.toString());
-      if (filtros?.limit) params.append('limit', filtros.limit.toString());
-      
-      return apiRequest<PaginatedResponse<Titulo>>(`/financeiro/titulos?${params.toString()}`);
+      if (filtros?.tipo) params.append("tipo", filtros.tipo);
+      if (filtros?.status) params.append("status", filtros.status);
+      if (filtros?.page) params.append("page", filtros.page.toString());
+      if (filtros?.limit) params.append("limit", filtros.limit.toString());
+
+      return apiRequest<PaginatedResponse<Titulo>>(
+        `/financeiro/titulos?${params.toString()}`
+      );
     },
-    
+
     create: async (data: Partial<Titulo>): Promise<ApiResponse<Titulo>> => {
-      return apiRequest<Titulo>('/financeiro/titulos', {
-        method: 'POST',
+      return apiRequest<Titulo>("/financeiro/titulos", {
+        method: "POST",
         body: JSON.stringify(data),
       });
     },
-    
-    quitar: async (id: string, data: { valorPago?: number; dataPagamento?: string }): Promise<ApiResponse<Titulo>> => {
+
+    quitar: async (
+      id: string,
+      data: { valorPago?: number; dataPagamento?: string }
+    ): Promise<ApiResponse<Titulo>> => {
       return apiRequest<Titulo>(`/financeiro/titulos/${id}/quitar`, {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify(data),
       });
     },
   },
-  
+
   // ============================================================================
   // CONTAS BANCÁRIAS
   // ============================================================================
-  
+
   contasBancarias: {
     list: async (): Promise<ApiResponse<ContaBancaria[]>> => {
-      return apiRequest<ContaBancaria[]>('/financeiro/contas-bancarias');
+      return apiRequest<ContaBancaria[]>("/financeiro/contas-bancarias");
     },
-    
-    create: async (data: Partial<ContaBancaria>): Promise<ApiResponse<ContaBancaria>> => {
-      return apiRequest<ContaBancaria>('/financeiro/contas-bancarias', {
-        method: 'POST',
+
+    create: async (
+      data: Partial<ContaBancaria>
+    ): Promise<ApiResponse<ContaBancaria>> => {
+      return apiRequest<ContaBancaria>("/financeiro/contas-bancarias", {
+        method: "POST",
         body: JSON.stringify(data),
       });
     },
   },
-  
+
   // ============================================================================
   // CATEGORIAS (Plano de Contas)
   // ============================================================================
-  
+
   categorias: {
     list: async (): Promise<ApiResponse<ContaContabil[]>> => {
-      return apiRequest<ContaContabil[]>('/make-server-67caf26a/financeiro/categorias');
+      return apiRequest<ContaContabil[]>(
+        "/make-server-67caf26a/financeiro/categorias"
+      );
     },
-    
-    create: async (data: Partial<ContaContabil>): Promise<ApiResponse<ContaContabil>> => {
-      return apiRequest<ContaContabil>('/make-server-67caf26a/financeiro/categorias', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
+
+    create: async (
+      data: Partial<ContaContabil>
+    ): Promise<ApiResponse<ContaContabil>> => {
+      return apiRequest<ContaContabil>(
+        "/make-server-67caf26a/financeiro/categorias",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        }
+      );
     },
   },
-  
+
   // ============================================================================
   // MAPEAMENTO DE CAMPOS DO SISTEMA PARA PLANO DE CONTAS
   // ============================================================================
-  
+
   campoMappings: {
     list: async (): Promise<ApiResponse<any[]>> => {
-      return apiRequest<any[]>('/make-server-67caf26a/financeiro/campo-mappings');
+      return apiRequest<any[]>(
+        "/make-server-67caf26a/financeiro/campo-mappings"
+      );
     },
-    
+
     create: async (data: any): Promise<ApiResponse<any>> => {
-      return apiRequest<any>('/make-server-67caf26a/financeiro/campo-mappings', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
+      return apiRequest<any>(
+        "/make-server-67caf26a/financeiro/campo-mappings",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        }
+      );
     },
-    
+
     update: async (id: string, data: any): Promise<ApiResponse<any>> => {
-      return apiRequest<any>(`/make-server-67caf26a/financeiro/campo-mappings/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      });
+      return apiRequest<any>(
+        `/make-server-67caf26a/financeiro/campo-mappings/${id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(data),
+        }
+      );
     },
-    
+
     delete: async (id: string): Promise<ApiResponse<null>> => {
-      return apiRequest<null>(`/make-server-67caf26a/financeiro/campo-mappings/${id}`, {
-        method: 'DELETE',
-      });
+      return apiRequest<null>(
+        `/make-server-67caf26a/financeiro/campo-mappings/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
     },
     register: async (data: {
       modulo: string;
       campo_codigo: string;
       campo_nome: string;
-      campo_tipo: 'receita' | 'despesa';
+      campo_tipo: "receita" | "despesa";
       descricao?: string;
       registered_by_module?: string;
       obrigatorio?: boolean;
     }): Promise<ApiResponse<any>> => {
-      return apiRequest<any>('/make-server-67caf26a/financeiro/campo-mappings/register', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
+      return apiRequest<any>(
+        "/make-server-67caf26a/financeiro/campo-mappings/register",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        }
+      );
     },
   },
-  
+
   // ============================================================================
   // CENTRO DE CUSTOS
   // ============================================================================
-  
+
   centroCustos: {
     list: async (): Promise<ApiResponse<CentroCusto[]>> => {
-      return apiRequest<CentroCusto[]>('/financeiro/centro-custos');
+      return apiRequest<CentroCusto[]>("/financeiro/centro-custos");
     },
-    
-    create: async (data: Partial<CentroCusto>): Promise<ApiResponse<CentroCusto>> => {
-      return apiRequest<CentroCusto>('/financeiro/centro-custos', {
-        method: 'POST',
+
+    create: async (
+      data: Partial<CentroCusto>
+    ): Promise<ApiResponse<CentroCusto>> => {
+      return apiRequest<CentroCusto>("/financeiro/centro-custos", {
+        method: "POST",
         body: JSON.stringify(data),
       });
     },
   },
-  
+
   // ============================================================================
   // CONCILIAÇÃO BANCÁRIA
   // ============================================================================
-  
+
   conciliacao: {
-    importar: async (arquivo: File, contaId: string, formato: 'csv' | 'ofx'): Promise<ApiResponse<any>> => {
+    importar: async (
+      arquivo: File,
+      contaId: string,
+      formato: "csv" | "ofx"
+    ): Promise<ApiResponse<any>> => {
       const formData = new FormData();
-      formData.append('arquivo', arquivo);
-      formData.append('contaId', contaId);
-      formData.append('formato', formato);
-      
-      return apiRequest<any>('/financeiro/conciliacao/importar', {
-        method: 'POST',
+      formData.append("arquivo", arquivo);
+      formData.append("contaId", contaId);
+      formData.append("formato", formato);
+
+      return apiRequest<any>("/financeiro/conciliacao/importar", {
+        method: "POST",
         body: formData,
       });
     },
-    
-    pendentes: async (filtros?: { contaId?: string; dataInicio?: string; dataFim?: string; conciliado?: boolean }): Promise<ApiResponse<any>> => {
+
+    pendentes: async (filtros?: {
+      contaId?: string;
+      dataInicio?: string;
+      dataFim?: string;
+      conciliado?: boolean;
+    }): Promise<ApiResponse<any>> => {
       const params = new URLSearchParams();
-      if (filtros?.contaId) params.append('contaId', filtros.contaId);
-      if (filtros?.dataInicio) params.append('dataInicio', filtros.dataInicio);
-      if (filtros?.dataFim) params.append('dataFim', filtros.dataFim);
-      if (filtros?.conciliado !== undefined) params.append('conciliado', filtros.conciliado.toString());
-      
-      return apiRequest<any>(`/financeiro/conciliacao/pendentes?${params.toString()}`);
+      if (filtros?.contaId) params.append("contaId", filtros.contaId);
+      if (filtros?.dataInicio) params.append("dataInicio", filtros.dataInicio);
+      if (filtros?.dataFim) params.append("dataFim", filtros.dataFim);
+      if (filtros?.conciliado !== undefined)
+        params.append("conciliado", filtros.conciliado.toString());
+
+      return apiRequest<any>(
+        `/financeiro/conciliacao/pendentes?${params.toString()}`
+      );
     },
-    
-    match: async (linhaExtratoId: string, lancamentoId: string, observacoes?: string): Promise<ApiResponse<any>> => {
-      return apiRequest<any>('/financeiro/conciliacao/match', {
-        method: 'POST',
+
+    match: async (
+      linhaExtratoId: string,
+      lancamentoId: string,
+      observacoes?: string
+    ): Promise<ApiResponse<any>> => {
+      return apiRequest<any>("/financeiro/conciliacao/match", {
+        method: "POST",
         body: JSON.stringify({ linhaExtratoId, lancamentoId, observacoes }),
       });
     },
-    
+
     aplicarRegras: async (linhaIds?: string[]): Promise<ApiResponse<any>> => {
-      return apiRequest<any>('/financeiro/conciliacao/aplicar-regras', {
-        method: 'POST',
+      return apiRequest<any>("/financeiro/conciliacao/aplicar-regras", {
+        method: "POST",
         body: JSON.stringify({ linhaIds: linhaIds || [] }),
       });
     },
-    
-    fechamento: async (data: string, contaId: string): Promise<ApiResponse<any>> => {
-      return apiRequest<any>(`/financeiro/conciliacao/fechamento?data=${data}&contaId=${contaId}`);
+
+    fechamento: async (
+      data: string,
+      contaId: string
+    ): Promise<ApiResponse<any>> => {
+      return apiRequest<any>(
+        `/financeiro/conciliacao/fechamento?data=${data}&contaId=${contaId}`
+      );
     },
-    
+
     regras: {
       list: async (): Promise<ApiResponse<RegraConciliacao[]>> => {
-        return apiRequest<RegraConciliacao[]>('/financeiro/conciliacao/regras');
+        return apiRequest<RegraConciliacao[]>("/financeiro/conciliacao/regras");
       },
-      
-      create: async (data: Partial<RegraConciliacao>): Promise<ApiResponse<RegraConciliacao>> => {
-        return apiRequest<RegraConciliacao>('/financeiro/conciliacao/regras', {
-          method: 'POST',
+
+      create: async (
+        data: Partial<RegraConciliacao>
+      ): Promise<ApiResponse<RegraConciliacao>> => {
+        return apiRequest<RegraConciliacao>("/financeiro/conciliacao/regras", {
+          method: "POST",
           body: JSON.stringify(data),
         });
       },
-      
-      update: async (id: string, data: Partial<RegraConciliacao>): Promise<ApiResponse<RegraConciliacao>> => {
-        return apiRequest<RegraConciliacao>(`/financeiro/conciliacao/regras/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        });
+
+      update: async (
+        id: string,
+        data: Partial<RegraConciliacao>
+      ): Promise<ApiResponse<RegraConciliacao>> => {
+        return apiRequest<RegraConciliacao>(
+          `/financeiro/conciliacao/regras/${id}`,
+          {
+            method: "PUT",
+            body: JSON.stringify(data),
+          }
+        );
       },
-      
+
       delete: async (id: string): Promise<ApiResponse<null>> => {
         return apiRequest<null>(`/financeiro/conciliacao/regras/${id}`, {
-          method: 'DELETE',
+          method: "DELETE",
         });
       },
     },
@@ -1809,36 +2099,62 @@ export const financeiroApi = {
 export const integrationsApi = {
   ai: {
     getConfig: async (): Promise<ApiResponse<AIProviderConfigResponse>> => {
-      return apiRequest<AIProviderConfigResponse>('/make-server-67caf26a/integrations/ai/config');
+      return apiRequest<AIProviderConfigResponse>(
+        "/make-server-67caf26a/integrations/ai/config"
+      );
     },
-    listConfigs: async (): Promise<ApiResponse<{ configs: AIProviderConfigListItem[]; organizationId: string }>> => {
-      return apiRequest<{ configs: AIProviderConfigListItem[]; organizationId: string }>('/make-server-67caf26a/integrations/ai/configs');
+    listConfigs: async (): Promise<
+      ApiResponse<{
+        configs: AIProviderConfigListItem[];
+        organizationId: string;
+      }>
+    > => {
+      return apiRequest<{
+        configs: AIProviderConfigListItem[];
+        organizationId: string;
+      }>("/make-server-67caf26a/integrations/ai/configs");
     },
     upsertConfig: async (
       payload: UpsertAIProviderConfigRequest
     ): Promise<ApiResponse<AIProviderConfigResponse>> => {
-      return apiRequest<AIProviderConfigResponse>('/make-server-67caf26a/integrations/ai/config', {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
+      return apiRequest<AIProviderConfigResponse>(
+        "/make-server-67caf26a/integrations/ai/config",
+        {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }
+      );
     },
-    toggleStatus: async (configId: string, isActive: boolean): Promise<ApiResponse<AIProviderConfigResponse>> => {
-      return apiRequest<AIProviderConfigResponse>(`/make-server-67caf26a/integrations/ai/config/${configId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isActive }),
-      });
+    toggleStatus: async (
+      configId: string,
+      isActive: boolean
+    ): Promise<ApiResponse<AIProviderConfigResponse>> => {
+      return apiRequest<AIProviderConfigResponse>(
+        `/make-server-67caf26a/integrations/ai/config/${configId}/status`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ isActive }),
+        }
+      );
     },
-    deleteConfig: async (configId: string): Promise<ApiResponse<{ deleted: boolean; id: string }>> => {
-      return apiRequest<{ deleted: boolean; id: string }>(`/make-server-67caf26a/integrations/ai/config/${configId}`, {
-        method: 'DELETE',
-      });
+    deleteConfig: async (
+      configId: string
+    ): Promise<ApiResponse<{ deleted: boolean; id: string }>> => {
+      return apiRequest<{ deleted: boolean; id: string }>(
+        `/make-server-67caf26a/integrations/ai/config/${configId}`,
+        {
+          method: "DELETE",
+        }
+      );
     },
-    testConfig: async (configId?: string): Promise<ApiResponse<AIProviderTestResponse>> => {
-      const url = configId 
+    testConfig: async (
+      configId?: string
+    ): Promise<ApiResponse<AIProviderTestResponse>> => {
+      const url = configId
         ? `/make-server-67caf26a/integrations/ai/test?configId=${configId}`
-        : '/make-server-67caf26a/integrations/ai/test';
+        : "/make-server-67caf26a/integrations/ai/test";
       return apiRequest<AIProviderTestResponse>(url, {
-        method: 'POST',
+        method: "POST",
       });
     },
   },
@@ -1877,16 +2193,16 @@ export interface Automation {
       payload?: Record<string, any>;
     }>;
     metadata?: {
-      priority?: 'baixa' | 'media' | 'alta';
+      priority?: "baixa" | "media" | "alta";
       requiresApproval?: boolean;
       notifyChannels?: string[];
     };
   };
-  status: 'draft' | 'active' | 'paused';
+  status: "draft" | "active" | "paused";
   module?: string; // Mantido para compatibilidade
   modules?: string[]; // NOVO: Array de módulos
   channel?: string;
-  priority: 'baixa' | 'media' | 'alta';
+  priority: "baixa" | "media" | "alta";
   properties?: string[]; // NOVO: IDs dos imóveis selecionados
   ai_interpretation_summary?: string; // NOVO: Resumo do que a IA interpretou
   impact_description?: string; // NOVO: Descrição do impacto da automação
@@ -1900,24 +2216,25 @@ export interface Automation {
 export interface CreateAutomationRequest {
   name: string;
   description?: string;
-  definition: Automation['definition'];
-  status?: 'draft' | 'active' | 'paused';
+  definition: Automation["definition"];
+  status?: "draft" | "active" | "paused";
   module?: string; // Mantido para compatibilidade
   modules?: string[]; // NOVO: Array de módulos
   properties?: string[]; // NOVO: IDs dos imóveis
   ai_interpretation_summary?: string; // NOVO: Resumo da interpretação da IA
   impact_description?: string; // NOVO: Descrição do impacto
   channel?: string;
-  priority?: 'baixa' | 'media' | 'alta';
+  priority?: "baixa" | "media" | "alta";
 }
 
-export interface UpdateAutomationRequest extends Partial<CreateAutomationRequest> {}
+export interface UpdateAutomationRequest
+  extends Partial<CreateAutomationRequest> {}
 
 export interface AutomationExecution {
   id: string;
   automation_id: string;
   organization_id: string;
-  status: 'success' | 'failed' | 'skipped';
+  status: "success" | "failed" | "skipped";
   trigger_event?: string;
   conditions_met: boolean;
   actions_executed?: any;
@@ -1931,50 +2248,68 @@ export const automationsApi = {
     interpretNaturalLanguage: async (
       payload: AutomationNaturalLanguageRequest
     ): Promise<ApiResponse<AutomationNaturalLanguageResponse>> => {
-      return apiRequest<AutomationNaturalLanguageResponse>('/automations/ai/interpret', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      return apiRequest<AutomationNaturalLanguageResponse>(
+        "/automations/ai/interpret",
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }
+      );
     },
   },
   // CRUD de Automações
   list: async (): Promise<ApiResponse<Automation[]>> => {
-    return apiRequest<Automation[]>('/automations', {
-      method: 'GET',
+    return apiRequest<Automation[]>("/automations", {
+      method: "GET",
     });
   },
   get: async (id: string): Promise<ApiResponse<Automation>> => {
     return apiRequest<Automation>(`/automations/${id}`, {
-      method: 'GET',
+      method: "GET",
     });
   },
-  create: async (payload: CreateAutomationRequest): Promise<ApiResponse<Automation>> => {
-    return apiRequest<Automation>('/automations', {
-      method: 'POST',
+  create: async (
+    payload: CreateAutomationRequest
+  ): Promise<ApiResponse<Automation>> => {
+    return apiRequest<Automation>("/automations", {
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },
-  update: async (id: string, payload: UpdateAutomationRequest): Promise<ApiResponse<Automation>> => {
+  update: async (
+    id: string,
+    payload: UpdateAutomationRequest
+  ): Promise<ApiResponse<Automation>> => {
     return apiRequest<Automation>(`/automations/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(payload),
     });
   },
   delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
     return apiRequest<{ message: string }>(`/automations/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
-  updateStatus: async (id: string, status: 'draft' | 'active' | 'paused'): Promise<ApiResponse<Automation>> => {
+  updateStatus: async (
+    id: string,
+    status: "draft" | "active" | "paused"
+  ): Promise<ApiResponse<Automation>> => {
     return apiRequest<Automation>(`/automations/${id}/status`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify({ status }),
     });
   },
-  getExecutions: async (id: string, limit = 50, offset = 0): Promise<ApiResponse<AutomationExecution[]>> => {
-    return apiRequest<AutomationExecution[]>(`/automations/${id}/executions?limit=${limit}&offset=${offset}`, {
-      method: 'GET',
-    });
+  getExecutions: async (
+    id: string,
+    limit = 50,
+    offset = 0
+  ): Promise<ApiResponse<AutomationExecution[]>> => {
+    return apiRequest<AutomationExecution[]>(
+      `/automations/${id}/executions?limit=${limit}&offset=${offset}`,
+      {
+        method: "GET",
+      }
+    );
   },
 };
 
@@ -1989,7 +2324,7 @@ export const automationsApi = {
 export interface CreateDealRequest {
   title: string;
   value: number;
-  currency: 'BRL' | 'USD' | 'EUR';
+  currency: "BRL" | "USD" | "EUR";
   stage: DealStage;
   source: DealSource;
   probability: number;
@@ -2023,59 +2358,72 @@ export interface CreateDealMessageRequest {
 
 export const dealsApi = {
   list: async (): Promise<ApiResponse<Deal[]>> => {
-    return apiRequest<Deal[]>('/crm/deals', {
-      method: 'GET',
+    return apiRequest<Deal[]>("/crm/deals", {
+      method: "GET",
     });
   },
   get: async (id: string): Promise<ApiResponse<Deal>> => {
     return apiRequest<Deal>(`/crm/deals/${id}`, {
-      method: 'GET',
+      method: "GET",
     });
   },
   create: async (payload: CreateDealRequest): Promise<ApiResponse<Deal>> => {
-    return apiRequest<Deal>('/crm/deals', {
-      method: 'POST',
+    return apiRequest<Deal>("/crm/deals", {
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },
-  update: async (id: string, payload: UpdateDealRequest): Promise<ApiResponse<Deal>> => {
+  update: async (
+    id: string,
+    payload: UpdateDealRequest
+  ): Promise<ApiResponse<Deal>> => {
     return apiRequest<Deal>(`/crm/deals/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(payload),
     });
   },
-  updateStage: async (id: string, newStage: DealStage, note?: string): Promise<ApiResponse<Deal>> => {
+  updateStage: async (
+    id: string,
+    newStage: DealStage,
+    note?: string
+  ): Promise<ApiResponse<Deal>> => {
     return apiRequest<Deal>(`/crm/deals/${id}/stage`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify({ stage: newStage, note }),
     });
   },
   delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
     return apiRequest<{ message: string }>(`/crm/deals/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
   // Activities
-  getActivities: async (dealId: string): Promise<ApiResponse<DealActivity[]>> => {
+  getActivities: async (
+    dealId: string
+  ): Promise<ApiResponse<DealActivity[]>> => {
     return apiRequest<DealActivity[]>(`/crm/deals/${dealId}/activities`, {
-      method: 'GET',
+      method: "GET",
     });
   },
-  createActivity: async (payload: CreateDealActivityRequest): Promise<ApiResponse<DealActivity>> => {
+  createActivity: async (
+    payload: CreateDealActivityRequest
+  ): Promise<ApiResponse<DealActivity>> => {
     return apiRequest<DealActivity>(`/crm/deals/${payload.dealId}/activities`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },
   // Messages
   getMessages: async (dealId: string): Promise<ApiResponse<DealMessage[]>> => {
     return apiRequest<DealMessage[]>(`/crm/deals/${dealId}/messages`, {
-      method: 'GET',
+      method: "GET",
     });
   },
-  sendMessage: async (payload: CreateDealMessageRequest): Promise<ApiResponse<DealMessage>> => {
+  sendMessage: async (
+    payload: CreateDealMessageRequest
+  ): Promise<ApiResponse<DealMessage>> => {
     return apiRequest<DealMessage>(`/crm/deals/${payload.dealId}/messages`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },
@@ -2085,25 +2433,31 @@ export const dealsApi = {
 // SERVICES TICKETS API (Funil de Serviços)
 // ============================================================================
 
-import type { ServiceTicket, ServiceTask, Funnel, ServiceTicketTemplate } from '../types/funnels';
+import type {
+  ServiceTicket,
+  ServiceTask,
+  Funnel,
+  ServiceTicketTemplate,
+} from "../types/funnels";
 
 export interface CreateServiceTicketRequest {
   funnelId: string;
   stageId: string;
   title: string;
   description?: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
+  priority: "low" | "medium" | "high" | "urgent";
   assignedTo?: string;
   productId?: string;
   value?: number;
-  currency?: 'BRL' | 'USD' | 'EUR';
+  currency?: "BRL" | "USD" | "EUR";
   dueDate?: string;
   templateId?: string; // Se foi criado de um template
   tasks?: ServiceTask[]; // Tarefas iniciais (se criado de template)
 }
 
-export interface UpdateServiceTicketRequest extends Partial<CreateServiceTicketRequest> {
-  status?: ServiceTicket['status'];
+export interface UpdateServiceTicketRequest
+  extends Partial<CreateServiceTicketRequest> {
+  status?: ServiceTicket["status"];
   stageId?: string;
 }
 
@@ -2117,56 +2471,84 @@ export interface CreateServiceTaskRequest {
 
 export const servicesTicketsApi = {
   list: async (funnelId?: string): Promise<ApiResponse<ServiceTicket[]>> => {
-    const url = funnelId ? `/crm/services/tickets?funnelId=${funnelId}` : '/crm/services/tickets';
+    const url = funnelId
+      ? `/crm/services/tickets?funnelId=${funnelId}`
+      : "/crm/services/tickets";
     return apiRequest<ServiceTicket[]>(url, {
-      method: 'GET',
+      method: "GET",
     });
   },
   get: async (id: string): Promise<ApiResponse<ServiceTicket>> => {
     return apiRequest<ServiceTicket>(`/crm/services/tickets/${id}`, {
-      method: 'GET',
+      method: "GET",
     });
   },
-  create: async (payload: CreateServiceTicketRequest): Promise<ApiResponse<ServiceTicket>> => {
-    return apiRequest<ServiceTicket>('/crm/services/tickets', {
-      method: 'POST',
+  create: async (
+    payload: CreateServiceTicketRequest
+  ): Promise<ApiResponse<ServiceTicket>> => {
+    return apiRequest<ServiceTicket>("/crm/services/tickets", {
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },
-  update: async (id: string, payload: UpdateServiceTicketRequest): Promise<ApiResponse<ServiceTicket>> => {
+  update: async (
+    id: string,
+    payload: UpdateServiceTicketRequest
+  ): Promise<ApiResponse<ServiceTicket>> => {
     return apiRequest<ServiceTicket>(`/crm/services/tickets/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(payload),
     });
   },
-  updateStage: async (id: string, newStageId: string): Promise<ApiResponse<ServiceTicket>> => {
+  updateStage: async (
+    id: string,
+    newStageId: string
+  ): Promise<ApiResponse<ServiceTicket>> => {
     return apiRequest<ServiceTicket>(`/crm/services/tickets/${id}/stage`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify({ stageId: newStageId }),
     });
   },
   delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
     return apiRequest<{ message: string }>(`/crm/services/tickets/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
   // Tasks
-  createTask: async (payload: CreateServiceTaskRequest): Promise<ApiResponse<ServiceTask>> => {
-    return apiRequest<ServiceTask>(`/crm/services/tickets/${payload.ticketId}/tasks`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+  createTask: async (
+    payload: CreateServiceTaskRequest
+  ): Promise<ApiResponse<ServiceTask>> => {
+    return apiRequest<ServiceTask>(
+      `/crm/services/tickets/${payload.ticketId}/tasks`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
   },
-  updateTask: async (ticketId: string, taskId: string, payload: Partial<ServiceTask>): Promise<ApiResponse<ServiceTask>> => {
-    return apiRequest<ServiceTask>(`/crm/services/tickets/${ticketId}/tasks/${taskId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
+  updateTask: async (
+    ticketId: string,
+    taskId: string,
+    payload: Partial<ServiceTask>
+  ): Promise<ApiResponse<ServiceTask>> => {
+    return apiRequest<ServiceTask>(
+      `/crm/services/tickets/${ticketId}/tasks/${taskId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }
+    );
   },
-  deleteTask: async (ticketId: string, taskId: string): Promise<ApiResponse<{ message: string }>> => {
-    return apiRequest<{ message: string }>(`/crm/services/tickets/${ticketId}/tasks/${taskId}`, {
-      method: 'DELETE',
-    });
+  deleteTask: async (
+    ticketId: string,
+    taskId: string
+  ): Promise<ApiResponse<{ message: string }>> => {
+    return apiRequest<{ message: string }>(
+      `/crm/services/tickets/${ticketId}/tasks/${taskId}`,
+      {
+        method: "DELETE",
+      }
+    );
   },
 };
 
@@ -2176,30 +2558,33 @@ export const servicesTicketsApi = {
 
 export const funnelsApi = {
   list: async (): Promise<ApiResponse<Funnel[]>> => {
-    return apiRequest<Funnel[]>('/crm/funnels', {
-      method: 'GET',
+    return apiRequest<Funnel[]>("/crm/funnels", {
+      method: "GET",
     });
   },
   get: async (id: string): Promise<ApiResponse<Funnel>> => {
     return apiRequest<Funnel>(`/crm/funnels/${id}`, {
-      method: 'GET',
+      method: "GET",
     });
   },
   create: async (funnel: Funnel): Promise<ApiResponse<Funnel>> => {
-    return apiRequest<Funnel>('/crm/funnels', {
-      method: 'POST',
+    return apiRequest<Funnel>("/crm/funnels", {
+      method: "POST",
       body: JSON.stringify(funnel),
     });
   },
-  update: async (id: string, funnel: Partial<Funnel>): Promise<ApiResponse<Funnel>> => {
+  update: async (
+    id: string,
+    funnel: Partial<Funnel>
+  ): Promise<ApiResponse<Funnel>> => {
     return apiRequest<Funnel>(`/crm/funnels/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(funnel),
     });
   },
   delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
     return apiRequest<{ message: string }>(`/crm/funnels/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
 };
@@ -2210,38 +2595,49 @@ export const funnelsApi = {
 
 export const ticketTemplatesApi = {
   list: async (): Promise<ApiResponse<ServiceTicketTemplate[]>> => {
-    return apiRequest<ServiceTicketTemplate[]>('/crm/services/templates', {
-      method: 'GET',
+    return apiRequest<ServiceTicketTemplate[]>("/crm/services/templates", {
+      method: "GET",
     });
   },
   get: async (id: string): Promise<ApiResponse<ServiceTicketTemplate>> => {
     return apiRequest<ServiceTicketTemplate>(`/crm/services/templates/${id}`, {
-      method: 'GET',
+      method: "GET",
     });
   },
-  create: async (template: ServiceTicketTemplate): Promise<ApiResponse<ServiceTicketTemplate>> => {
-    return apiRequest<ServiceTicketTemplate>('/crm/services/templates', {
-      method: 'POST',
+  create: async (
+    template: ServiceTicketTemplate
+  ): Promise<ApiResponse<ServiceTicketTemplate>> => {
+    return apiRequest<ServiceTicketTemplate>("/crm/services/templates", {
+      method: "POST",
       body: JSON.stringify(template),
     });
   },
-  update: async (id: string, template: Partial<ServiceTicketTemplate>): Promise<ApiResponse<ServiceTicketTemplate>> => {
+  update: async (
+    id: string,
+    template: Partial<ServiceTicketTemplate>
+  ): Promise<ApiResponse<ServiceTicketTemplate>> => {
     return apiRequest<ServiceTicketTemplate>(`/crm/services/templates/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(template),
     });
   },
   delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
     return apiRequest<{ message: string }>(`/crm/services/templates/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
   // Criar ticket a partir de template
-  createFromTemplate: async (templateId: string, ticketData: Partial<ServiceTicket>): Promise<ApiResponse<ServiceTicket>> => {
-    return apiRequest<ServiceTicket>(`/crm/services/templates/${templateId}/create-ticket`, {
-      method: 'POST',
-      body: JSON.stringify(ticketData),
-    });
+  createFromTemplate: async (
+    templateId: string,
+    ticketData: Partial<ServiceTicket>
+  ): Promise<ApiResponse<ServiceTicket>> => {
+    return apiRequest<ServiceTicket>(
+      `/crm/services/templates/${templateId}/create-ticket`,
+      {
+        method: "POST",
+        body: JSON.stringify(ticketData),
+      }
+    );
   },
 };
 

@@ -1,40 +1,24 @@
-# Script para Verificar Status do Deploy
-Write-Host "=== VERIFICACAO DE DEPLOY ===" -ForegroundColor Cyan
-Write-Host ""
+# Script para verificar se o deploy foi aplicado
+Write-Host "🔍 Verificando se código está no arquivo local..." -ForegroundColor Cyan
 
-$projectPath = "C:\Users\rafae\OneDrive\Desktop\RENDIZY PASTA OFICIAL"
-Set-Location $projectPath
+$filePath = "supabase\functions\rendizy-server\routes-properties.ts"
+$content = Get-Content $filePath -Raw
 
-Write-Host "1. Status do Git:" -ForegroundColor Yellow
-git status
-Write-Host ""
-
-Write-Host "2. Ultimos 3 commits:" -ForegroundColor Yellow
-git log --oneline -3
-Write-Host ""
-
-Write-Host "3. Remote configurado:" -ForegroundColor Yellow
-git remote -v
-Write-Host ""
-
-Write-Host "4. Branch atual:" -ForegroundColor Yellow
-git branch --show-current
-Write-Host ""
-
-Write-Host "5. Comparando com remoto:" -ForegroundColor Yellow
-git fetch origin master 2>&1 | Out-Null
-$localCommit = git rev-parse HEAD 2>$null
-$remoteCommit = git rev-parse origin/master 2>$null
-
-if ($localCommit -eq $remoteCommit) {
-    Write-Host "   ✅ Local e remoto estao sincronizados!" -ForegroundColor Green
+if ($content -match "BODY COMPLETO") {
+    Write-Host "✅ Código encontrado no arquivo local!" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "📤 Fazendo deploy para Supabase..." -ForegroundColor Yellow
+    npx supabase functions deploy rendizy-server
+    Write-Host ""
+    Write-Host "✅ Deploy concluído!" -ForegroundColor Green
 } else {
-    Write-Host "   ⚠️  Local e remoto estao diferentes" -ForegroundColor Yellow
-    Write-Host "   Local:  $localCommit" -ForegroundColor Gray
-    Write-Host "   Remoto: $remoteCommit" -ForegroundColor Gray
+    Write-Host "❌ Código NÃO encontrado no arquivo local!" -ForegroundColor Red
+    Write-Host "   Verifique se as alterações foram salvas." -ForegroundColor Yellow
 }
+
 Write-Host ""
-
-Write-Host "=== FIM DA VERIFICACAO ===" -ForegroundColor Cyan
-
-
+Write-Host "📋 Para verificar no Supabase Dashboard:" -ForegroundColor Cyan
+Write-Host "   1. Acesse: https://supabase.com/dashboard/project/odcgnzfremrqnvtitpcc/functions/rendizy-server" -ForegroundColor White
+Write-Host "   2. Clique em 'View Source' ou 'Edit'" -ForegroundColor White
+Write-Host "   3. Procure por: 'BODY COMPLETO'" -ForegroundColor White
+Write-Host ""

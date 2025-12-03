@@ -1,29 +1,50 @@
 /**
  * RENDIZY - Content Location Amenities Step (PASSO 4)
- * 
+ *
  * Step 4: Amenidades do Local
  * Estrutura EXATA do Stays.net com duas colunas:
  * - ESQUERDA (70%): Colunas tickáveis de amenidades do local
  * - DIREITA (30%): Acesso, estacionamento e internet do local
- * 
+ *
  * @version 1.0.103.82
  * @date 2025-10-30
  */
 
-import React, { useState } from 'react';
-import { Building2, ChevronDown, ChevronUp, Search, Wifi, Cable, Clock, Car, CheckSquare, Home } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Input } from '../ui/input';
-import { Button } from '../ui/button';
-import { ScrollArea } from '../ui/scroll-area';
-import { Separator } from '../ui/separator';
-import { Checkbox } from '../ui/checkbox';
-import { Label } from '../ui/label';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Textarea } from '../ui/textarea';
-import { LOCATION_AMENITIES } from '../../utils/amenities-categories';
+import React, { useState } from "react";
+import {
+  Building2,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  Wifi,
+  Cable,
+  Clock,
+  Car,
+  CheckSquare,
+  Home,
+} from "lucide-react";
+import { Card, CardContent, CardHeader } from "../ui/card";
+import { Badge } from "../ui/badge";
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
+import { ScrollArea } from "../ui/scroll-area";
+import { Separator } from "../ui/separator";
+import { Checkbox } from "../ui/checkbox";
+import { Label } from "../ui/label";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { Textarea } from "../ui/textarea";
+import { LOCATION_AMENITIES } from "../../utils/amenities-categories";
 
 // ============================================================================
 // TYPES
@@ -32,7 +53,7 @@ import { LOCATION_AMENITIES } from '../../utils/amenities-categories';
 interface LocationAmenitiesData {
   // Amenidades tickáveis (checkboxes simples)
   tickableAmenities: string[];
-  
+
   // Amenidades complexas (com detalhes extras)
   checkInCheckout?: {
     enabled: boolean;
@@ -40,21 +61,21 @@ interface LocationAmenitiesData {
   };
   parking?: {
     enabled: boolean;
-    type?: 'free' | 'paid' | 'not-specified';
-    location?: 'on-site' | 'nearby' | 'public';
-    reservation?: 'required' | 'not-required' | 'not-available';
+    type?: "free" | "paid" | "not-specified";
+    location?: "on-site" | "nearby" | "public";
+    reservation?: "required" | "not-required" | "not-available";
     area?: string;
     rate?: string;
   };
   cableInternet?: {
     enabled: boolean;
     availability?: string[]; // "all-property", "public-areas", "all-rooms", "some-rooms", "business-center"
-    pricing?: 'free' | 'additional-cost';
+    pricing?: "free" | "additional-cost";
   };
   wifiInternet?: {
     enabled: boolean;
     availability?: string[];
-    pricing?: 'free' | 'additional-cost';
+    pricing?: "free" | "additional-cost";
   };
   reception24h?: {
     enabled: boolean;
@@ -63,9 +84,10 @@ interface LocationAmenitiesData {
 }
 
 interface ContentLocationAmenitiesStepProps {
-  propertyType?: 'individual' | 'location-linked';
+  propertyType?: "individual" | "location-linked";
   data?: LocationAmenitiesData;
   onChange?: (data: LocationAmenitiesData) => void;
+  modalidades?: string[]; // 🆕 Modalidades selecionadas para filtrar campos
 }
 
 // ============================================================================
@@ -73,19 +95,24 @@ interface ContentLocationAmenitiesStepProps {
 // ============================================================================
 
 export function ContentLocationAmenitiesStep({
-  propertyType = 'individual',
+  propertyType = "individual",
   data,
   onChange,
+  modalidades = [],
 }: ContentLocationAmenitiesStepProps) {
-  
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set() // Todas fechadas por padrão
   );
 
-  const [localData, setLocalData] = useState<LocationAmenitiesData>(data || {
-    tickableAmenities: [],
-  });
+  const [localData, setLocalData] = useState<LocationAmenitiesData>(
+    data || {
+      tickableAmenities: [],
+    }
+  );
+
+  // 🆕 Verificar se é modalidade de temporada (para mostrar campos específicos)
+  const isShortTermRental = modalidades.includes("short_term_rental");
 
   // ============================================================================
   // HANDLERS - Amenidades Tickáveis
@@ -93,16 +120,16 @@ export function ContentLocationAmenitiesStep({
 
   const handleToggleTickable = (amenityId: string) => {
     const newTickable = localData.tickableAmenities.includes(amenityId)
-      ? localData.tickableAmenities.filter(id => id !== amenityId)
+      ? localData.tickableAmenities.filter((id) => id !== amenityId)
       : [...localData.tickableAmenities, amenityId];
-    
+
     const newData = { ...localData, tickableAmenities: newTickable };
     setLocalData(newData);
     onChange?.(newData);
   };
 
   const toggleCategory = (categoryId: string) => {
-    setExpandedCategories(prev => {
+    setExpandedCategories((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(categoryId)) {
         newSet.delete(categoryId);
@@ -126,25 +153,31 @@ export function ContentLocationAmenitiesStep({
     onChange?.(newData);
   };
 
-  const handleSaveParking = (parking: LocationAmenitiesData['parking']) => {
+  const handleSaveParking = (parking: LocationAmenitiesData["parking"]) => {
     const newData = { ...localData, parking };
     setLocalData(newData);
     onChange?.(newData);
   };
 
-  const handleSaveCableInternet = (internet: LocationAmenitiesData['cableInternet']) => {
+  const handleSaveCableInternet = (
+    internet: LocationAmenitiesData["cableInternet"]
+  ) => {
     const newData = { ...localData, cableInternet: internet };
     setLocalData(newData);
     onChange?.(newData);
   };
 
-  const handleSaveWifiInternet = (internet: LocationAmenitiesData['wifiInternet']) => {
+  const handleSaveWifiInternet = (
+    internet: LocationAmenitiesData["wifiInternet"]
+  ) => {
     const newData = { ...localData, wifiInternet: internet };
     setLocalData(newData);
     onChange?.(newData);
   };
 
-  const handleSaveReception = (reception: LocationAmenitiesData['reception24h']) => {
+  const handleSaveReception = (
+    reception: LocationAmenitiesData["reception24h"]
+  ) => {
     const newData = { ...localData, reception24h: reception };
     setLocalData(newData);
     onChange?.(newData);
@@ -154,12 +187,12 @@ export function ContentLocationAmenitiesStep({
   // FILTRO DE BUSCA
   // ============================================================================
 
-  const filteredCategories = LOCATION_AMENITIES.map(category => ({
+  const filteredCategories = LOCATION_AMENITIES.map((category) => ({
     ...category,
-    amenities: category.amenities.filter(amenity =>
+    amenities: category.amenities.filter((amenity) =>
       amenity.name.toLowerCase().includes(searchQuery.toLowerCase())
     ),
-  })).filter(category => category.amenities.length > 0);
+  })).filter((category) => category.amenities.length > 0);
 
   // ============================================================================
   // RENDER
@@ -167,12 +200,10 @@ export function ContentLocationAmenitiesStep({
 
   return (
     <div className="h-full flex gap-6 p-6">
-      
       {/* ============================================================ */}
       {/* COLUNA ESQUERDA - Colunas tickáveis (70%) */}
       {/* ============================================================ */}
       <div className="flex-1 flex flex-col gap-4">
-        
         {/* Busca */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -225,7 +256,8 @@ export function ContentLocationAmenitiesStep({
                       <CardContent className="p-4">
                         <div className="space-y-3">
                           {category.amenities.map((amenity) => {
-                            const isChecked = localData.tickableAmenities.includes(amenity.id);
+                            const isChecked =
+                              localData.tickableAmenities.includes(amenity.id);
 
                             return (
                               <div
@@ -235,7 +267,9 @@ export function ContentLocationAmenitiesStep({
                                 <Checkbox
                                   id={`amenity-${amenity.id}`}
                                   checked={isChecked}
-                                  onCheckedChange={() => handleToggleTickable(amenity.id)}
+                                  onCheckedChange={() =>
+                                    handleToggleTickable(amenity.id)
+                                  }
                                 />
                                 <Label
                                   htmlFor={`amenity-${amenity.id}`}
@@ -263,7 +297,6 @@ export function ContentLocationAmenitiesStep({
       <div className="w-[400px] flex flex-col gap-4">
         <ScrollArea className="flex-1">
           <div className="space-y-4 pr-4">
-
             {/* ========== CARD 1: Amenidades básicas ========== */}
             <AmenityCard
               icon={<Home className="size-5" />}
@@ -277,16 +310,19 @@ export function ContentLocationAmenitiesStep({
             </AmenityCard>
 
             {/* ========== CARD 2: Check-in/checkout expressos ========== */}
-            <AmenityCard
-              icon={<CheckSquare className="size-5" />}
-              title="Check-in/checkout"
-              subtitle="expressos"
-            >
-              <YesNoButtons
-                value={localData.checkInCheckout?.enabled}
-                onChange={(enabled) => handleSaveCheckInCheckout(enabled)}
-              />
-            </AmenityCard>
+            {/* 🆕 Apenas para modalidade de temporada */}
+            {isShortTermRental && (
+              <AmenityCard
+                icon={<CheckSquare className="size-5" />}
+                title="Check-in/checkout"
+                subtitle="expressos"
+              >
+                <YesNoButtons
+                  value={localData.checkInCheckout?.enabled}
+                  onChange={(enabled) => handleSaveCheckInCheckout(enabled)}
+                />
+              </AmenityCard>
+            )}
 
             {/* ========== CARD 3: Estacionamento ========== */}
             <AmenityCard
@@ -297,9 +333,11 @@ export function ContentLocationAmenitiesStep({
               <div className="space-y-4">
                 <YesNoButtons
                   value={localData.parking?.enabled}
-                  onChange={(enabled) => handleSaveParking({ ...localData.parking, enabled })}
+                  onChange={(enabled) =>
+                    handleSaveParking({ ...localData.parking, enabled })
+                  }
                 />
-                
+
                 {localData.parking?.enabled && (
                   <>
                     <div>
@@ -308,18 +346,38 @@ export function ContentLocationAmenitiesStep({
                       </Label>
                       <div className="flex gap-2">
                         <Button
-                          variant={localData.parking?.type === 'free' ? 'default' : 'outline'}
+                          variant={
+                            localData.parking?.type === "free"
+                              ? "default"
+                              : "outline"
+                          }
                           size="sm"
                           className="flex-1"
-                          onClick={() => handleSaveParking({ ...localData.parking, enabled: true, type: 'free' })}
+                          onClick={() =>
+                            handleSaveParking({
+                              ...localData.parking,
+                              enabled: true,
+                              type: "free",
+                            })
+                          }
                         >
                           No local
                         </Button>
                         <Button
-                          variant={localData.parking?.type === 'paid' ? 'default' : 'outline'}
+                          variant={
+                            localData.parking?.type === "paid"
+                              ? "default"
+                              : "outline"
+                          }
                           size="sm"
                           className="flex-1"
-                          onClick={() => handleSaveParking({ ...localData.parking, enabled: true, type: 'paid' })}
+                          onClick={() =>
+                            handleSaveParking({
+                              ...localData.parking,
+                              enabled: true,
+                              type: "paid",
+                            })
+                          }
                         >
                           Em local próximo
                         </Button>
@@ -331,18 +389,10 @@ export function ContentLocationAmenitiesStep({
                         Reserva de estacionamento
                       </Label>
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                        >
+                        <Button variant="outline" size="sm" className="flex-1">
                           Não disponível
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                        >
+                        <Button variant="outline" size="sm" className="flex-1">
                           Necessária reserva
                         </Button>
                       </div>
@@ -353,8 +403,12 @@ export function ContentLocationAmenitiesStep({
                         Área de estacionamento
                       </Label>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1">Público</Button>
-                        <Button variant="outline" size="sm" className="flex-1">Particular</Button>
+                        <Button variant="outline" size="sm" className="flex-1">
+                          Público
+                        </Button>
+                        <Button variant="outline" size="sm" className="flex-1">
+                          Particular
+                        </Button>
                       </div>
                     </div>
 
@@ -364,18 +418,38 @@ export function ContentLocationAmenitiesStep({
                       </Label>
                       <div className="flex gap-2">
                         <Button
-                          variant={localData.parking?.rate === 'free' ? 'default' : 'outline'}
+                          variant={
+                            localData.parking?.rate === "free"
+                              ? "default"
+                              : "outline"
+                          }
                           size="sm"
                           className="flex-1"
-                          onClick={() => handleSaveParking({ ...localData.parking, enabled: true, rate: 'free' })}
+                          onClick={() =>
+                            handleSaveParking({
+                              ...localData.parking,
+                              enabled: true,
+                              rate: "free",
+                            })
+                          }
                         >
                           Grátis
                         </Button>
                         <Button
-                          variant={localData.parking?.rate === 'paid' ? 'default' : 'outline'}
+                          variant={
+                            localData.parking?.rate === "paid"
+                              ? "default"
+                              : "outline"
+                          }
                           size="sm"
                           className="flex-1"
-                          onClick={() => handleSaveParking({ ...localData.parking, enabled: true, rate: 'paid' })}
+                          onClick={() =>
+                            handleSaveParking({
+                              ...localData.parking,
+                              enabled: true,
+                              rate: "paid",
+                            })
+                          }
                         >
                           Custo Adicional
                         </Button>
@@ -395,9 +469,14 @@ export function ContentLocationAmenitiesStep({
               <div className="space-y-4">
                 <YesNoButtons
                   value={localData.cableInternet?.enabled}
-                  onChange={(enabled) => handleSaveCableInternet({ ...localData.cableInternet, enabled })}
+                  onChange={(enabled) =>
+                    handleSaveCableInternet({
+                      ...localData.cableInternet,
+                      enabled,
+                    })
+                  }
                 />
-                
+
                 {localData.cableInternet?.enabled && (
                   <>
                     <div>
@@ -405,19 +484,39 @@ export function ContentLocationAmenitiesStep({
                         Onde está disponível?
                       </Label>
                       <div className="space-y-2">
-                        <Button variant="outline" size="sm" className="w-full justify-start text-cyan-600 border-cyan-200 bg-cyan-50 hover:bg-cyan-100">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-cyan-600 border-cyan-200 bg-cyan-50 hover:bg-cyan-100"
+                        >
                           Em todo o estabelecimento
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full justify-start text-sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-sm"
+                        >
                           Apenas em áreas públicas
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full justify-start text-sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-sm"
+                        >
                           Todas as acomodações
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full justify-start text-sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-sm"
+                        >
                           Em algumas acomodações
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full justify-start text-sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-sm"
+                        >
                           Business center
                         </Button>
                       </div>
@@ -429,18 +528,39 @@ export function ContentLocationAmenitiesStep({
                       </Label>
                       <div className="space-y-2">
                         <Button
-                          variant={localData.cableInternet?.pricing === 'free' ? 'default' : 'outline'}
+                          variant={
+                            localData.cableInternet?.pricing === "free"
+                              ? "default"
+                              : "outline"
+                          }
                           size="sm"
                           className="w-full"
-                          onClick={() => handleSaveCableInternet({ ...localData.cableInternet, enabled: true, pricing: 'free' })}
+                          onClick={() =>
+                            handleSaveCableInternet({
+                              ...localData.cableInternet,
+                              enabled: true,
+                              pricing: "free",
+                            })
+                          }
                         >
                           Grátis
                         </Button>
                         <Button
-                          variant={localData.cableInternet?.pricing === 'additional-cost' ? 'default' : 'outline'}
+                          variant={
+                            localData.cableInternet?.pricing ===
+                            "additional-cost"
+                              ? "default"
+                              : "outline"
+                          }
                           size="sm"
                           className="w-full"
-                          onClick={() => handleSaveCableInternet({ ...localData.cableInternet, enabled: true, pricing: 'additional-cost' })}
+                          onClick={() =>
+                            handleSaveCableInternet({
+                              ...localData.cableInternet,
+                              enabled: true,
+                              pricing: "additional-cost",
+                            })
+                          }
                         >
                           Custo Adicional
                         </Button>
@@ -460,9 +580,14 @@ export function ContentLocationAmenitiesStep({
               <div className="space-y-4">
                 <YesNoButtons
                   value={localData.wifiInternet?.enabled}
-                  onChange={(enabled) => handleSaveWifiInternet({ ...localData.wifiInternet, enabled })}
+                  onChange={(enabled) =>
+                    handleSaveWifiInternet({
+                      ...localData.wifiInternet,
+                      enabled,
+                    })
+                  }
                 />
-                
+
                 {localData.wifiInternet?.enabled && (
                   <>
                     <div>
@@ -470,19 +595,39 @@ export function ContentLocationAmenitiesStep({
                         Onde está disponível?
                       </Label>
                       <div className="space-y-2">
-                        <Button variant="outline" size="sm" className="w-full justify-start text-cyan-600 border-cyan-200 bg-cyan-50 hover:bg-cyan-100">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-cyan-600 border-cyan-200 bg-cyan-50 hover:bg-cyan-100"
+                        >
                           Em todo o estabelecimento
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full justify-start text-sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-sm"
+                        >
                           Apenas em áreas públicas
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full justify-start text-sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-sm"
+                        >
                           Todas as acomodações
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full justify-start text-sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-sm"
+                        >
                           Em algumas acomodações
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full justify-start text-sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-sm"
+                        >
                           Business center
                         </Button>
                       </div>
@@ -494,18 +639,39 @@ export function ContentLocationAmenitiesStep({
                       </Label>
                       <div className="space-y-2">
                         <Button
-                          variant={localData.wifiInternet?.pricing === 'free' ? 'default' : 'outline'}
+                          variant={
+                            localData.wifiInternet?.pricing === "free"
+                              ? "default"
+                              : "outline"
+                          }
                           size="sm"
                           className="w-full"
-                          onClick={() => handleSaveWifiInternet({ ...localData.wifiInternet, enabled: true, pricing: 'free' })}
+                          onClick={() =>
+                            handleSaveWifiInternet({
+                              ...localData.wifiInternet,
+                              enabled: true,
+                              pricing: "free",
+                            })
+                          }
                         >
                           Grátis
                         </Button>
                         <Button
-                          variant={localData.wifiInternet?.pricing === 'additional-cost' ? 'default' : 'outline'}
+                          variant={
+                            localData.wifiInternet?.pricing ===
+                            "additional-cost"
+                              ? "default"
+                              : "outline"
+                          }
                           size="sm"
                           className="w-full"
-                          onClick={() => handleSaveWifiInternet({ ...localData.wifiInternet, enabled: true, pricing: 'additional-cost' })}
+                          onClick={() =>
+                            handleSaveWifiInternet({
+                              ...localData.wifiInternet,
+                              enabled: true,
+                              pricing: "additional-cost",
+                            })
+                          }
                         >
                           Custo Adicional
                         </Button>
@@ -517,32 +683,46 @@ export function ContentLocationAmenitiesStep({
             </AmenityCard>
 
             {/* ========== CARD 6: Recepção 24 horas ========== */}
-            <AmenityCard
-              icon={<Clock className="size-5" />}
-              title="Recepção 24 horas"
-              subtitle="Por favor, informe mais detalhes."
-            >
-              <div className="space-y-4">
-                <YesNoButtons
-                  value={localData.reception24h?.enabled}
-                  onChange={(enabled) => handleSaveReception({ ...localData.reception24h, enabled })}
-                />
-                
-                {localData.reception24h?.enabled && (
-                  <div>
-                    <Label className="text-sm mb-2 block">Instruções para Artista</Label>
-                    <Textarea
-                      placeholder="Sobreescrever as informações padrão do Artista? Se você fornecer instruções aqui, estas serão incluídas na informação que será disponibilizada ao artista."
-                      value={localData.reception24h?.instructions || ''}
-                      onChange={(e) => handleSaveReception({ enabled: true, instructions: e.target.value })}
-                      rows={4}
-                      className="text-sm"
-                    />
-                  </div>
-                )}
-              </div>
-            </AmenityCard>
+            {/* 🆕 Apenas para modalidade de temporada */}
+            {isShortTermRental && (
+              <AmenityCard
+                icon={<Clock className="size-5" />}
+                title="Recepção 24 horas"
+                subtitle="Por favor, informe mais detalhes."
+              >
+                <div className="space-y-4">
+                  <YesNoButtons
+                    value={localData.reception24h?.enabled}
+                    onChange={(enabled) =>
+                      handleSaveReception({
+                        ...localData.reception24h,
+                        enabled,
+                      })
+                    }
+                  />
 
+                  {localData.reception24h?.enabled && (
+                    <div>
+                      <Label className="text-sm mb-2 block">
+                        Instruções para Artista
+                      </Label>
+                      <Textarea
+                        placeholder="Sobreescrever as informações padrão do Artista? Se você fornecer instruções aqui, estas serão incluídas na informação que será disponibilizada ao artista."
+                        value={localData.reception24h?.instructions || ""}
+                        onChange={(e) =>
+                          handleSaveReception({
+                            enabled: true,
+                            instructions: e.target.value,
+                          })
+                        }
+                        rows={4}
+                        className="text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+              </AmenityCard>
+            )}
           </div>
         </ScrollArea>
       </div>
@@ -571,19 +751,23 @@ function AmenityCard({ icon, title, subtitle, children }: AmenityCardProps) {
             <div>
               <h3 className="font-semibold text-base leading-tight">{title}</h3>
               {subtitle && (
-                <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {subtitle}
+                </p>
               )}
             </div>
           </div>
-          <Button size="sm" variant="default" className="shrink-0 bg-cyan-500 hover:bg-cyan-600">
+          <Button
+            size="sm"
+            variant="default"
+            className="shrink-0 bg-cyan-500 hover:bg-cyan-600"
+          >
             Salvar
           </Button>
         </div>
       </CardHeader>
       <Separator />
-      <CardContent className="p-4">
-        {children}
-      </CardContent>
+      <CardContent className="p-4">{children}</CardContent>
     </Card>
   );
 }
@@ -597,17 +781,25 @@ function YesNoButtons({ value, onChange }: YesNoButtonsProps) {
   return (
     <div className="flex gap-2">
       <Button
-        variant={value === true ? 'default' : 'outline'}
+        variant={value === true ? "default" : "outline"}
         size="sm"
-        className={value === true ? 'flex-1 bg-cyan-500 hover:bg-cyan-600' : 'flex-1 bg-cyan-50 text-cyan-600 border-cyan-200 hover:bg-cyan-100'}
+        className={
+          value === true
+            ? "flex-1 bg-cyan-500 hover:bg-cyan-600"
+            : "flex-1 bg-cyan-50 text-cyan-600 border-cyan-200 hover:bg-cyan-100"
+        }
         onClick={() => onChange(true)}
       >
         Sim
       </Button>
       <Button
-        variant={value === false ? 'default' : 'outline'}
+        variant={value === false ? "default" : "outline"}
         size="sm"
-        className={value === false ? 'flex-1 bg-cyan-500 hover:bg-cyan-600' : 'flex-1 bg-cyan-50 text-cyan-600 border-cyan-200 hover:bg-cyan-100'}
+        className={
+          value === false
+            ? "flex-1 bg-cyan-500 hover:bg-cyan-600"
+            : "flex-1 bg-cyan-50 text-cyan-600 border-cyan-200 hover:bg-cyan-100"
+        }
         onClick={() => onChange(false)}
       >
         Não

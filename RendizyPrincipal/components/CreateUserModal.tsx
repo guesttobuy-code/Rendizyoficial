@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
-import { UserPlus, AlertCircle, Loader2, Building2 } from 'lucide-react';
+import { UserPlus, AlertCircle, Loader2, Building2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
@@ -28,6 +28,7 @@ export function CreateUserModal({ open, onClose, onSuccess, preselectedOrgId }: 
   const [loadingOrgs, setLoadingOrgs] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [showPassword, setShowPassword] = useState(false);
   
   const [formData, setFormData] = useState({
     organizationId: preselectedOrgId || '',
@@ -91,7 +92,7 @@ export function CreateUserModal({ open, onClose, onSuccess, preselectedOrgId }: 
       }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/rendizy-server/users`,
+        `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/users`,
         {
           method: 'POST',
           headers: {
@@ -291,14 +292,31 @@ export function CreateUserModal({ open, onClose, onSuccess, preselectedOrgId }: 
               <Label htmlFor="password">
                 Senha <span className="text-gray-400 text-xs">(opcional)</span>
               </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Deixe vazio para criar como convidado"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                disabled={loading}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Deixe vazio para criar como convidado"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  disabled={loading}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={loading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-gray-500" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-gray-500" />
+                  )}
+                </Button>
+              </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {formData.password 
                   ? '✅ Usuário será criado ATIVO e poderá fazer login imediatamente'

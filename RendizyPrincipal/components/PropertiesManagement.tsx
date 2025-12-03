@@ -1,34 +1,51 @@
 /**
  * RENDIZY - Properties Management
- * 
+ *
  * Tela base de gestão de imóveis, acomodações e locais
  * Com filtro lateral padrão e listagem de cards
- * 
+ *
  * @version 1.0.103
  * @date 2025-10-28
  */
 
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Building2, Home, MapPin, Edit, Eye, Trash2, Image as ImageIcon, Grid3x3, List, CheckCircle2, Wrench, DollarSign, Download } from 'lucide-react';
-import { Button } from './ui/button';
-import { Card, CardContent } from './ui/card';
-import { Badge } from './ui/badge';
-import { CreatePropertyTypeModal } from './CreatePropertyTypeModal';
-import { PropertiesFilterSidebar } from './PropertiesFilterSidebar';
-import { PropertyViewModal } from './PropertyViewModal';
-import { PropertyDeleteModal } from './PropertyDeleteModal';
-import { propertiesApi, locationsApi } from '../utils/api';
-import { toast } from 'sonner';
-import { exportPropertiesToExcel } from '../utils/excelExport';
-import { usePropertyActions } from '../hooks/usePropertyActions';
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Plus,
+  Building2,
+  Home,
+  MapPin,
+  Edit,
+  Eye,
+  Trash2,
+  Image as ImageIcon,
+  Grid3x3,
+  List,
+  CheckCircle2,
+  Wrench,
+  DollarSign,
+  Download,
+  FileText,
+} from "lucide-react";
+import { Button } from "./ui/button";
+import { Card, CardContent } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { Progress } from "./ui/progress";
+import { CreatePropertyTypeModal } from "./CreatePropertyTypeModal";
+import { PropertiesFilterSidebar } from "./PropertiesFilterSidebar";
+import { PropertyViewModal } from "./PropertyViewModal";
+import { PropertyDeleteModal } from "./PropertyDeleteModal";
+import { propertiesApi, locationsApi } from "../utils/api";
+import { toast } from "sonner";
+import { exportPropertiesToExcel } from "../utils/excelExport";
+import { usePropertyActions } from "../hooks/usePropertyActions";
 
 interface Property {
   id: string;
   internalName: string;
   publicName: string;
-  type: 'location' | 'accommodation';
-  structureType?: 'hotel' | 'house' | 'apartment' | 'condo';
+  type: "location" | "accommodation";
+  structureType?: "hotel" | "house" | "apartment" | "condo";
   address?: {
     street: string;
     number: string;
@@ -37,7 +54,7 @@ interface Property {
     country: string;
     zipCode: string;
   };
-  status: 'active' | 'inactive' | 'draft';
+  status: "active" | "inactive" | "draft";
   tags?: string[];
   photos?: string[];
   accommodationsCount?: number;
@@ -51,6 +68,10 @@ interface Property {
     bedrooms: number;
     bathrooms: number;
   };
+  // 🆕 SISTEMA DE RASCUNHO
+  completionPercentage?: number; // 0-100
+  completedSteps?: string[]; // Array de step IDs completados
+  wizardData?: any; // Dados completos do wizard
 }
 
 export const PropertiesManagement = () => {
@@ -58,16 +79,18 @@ export const PropertiesManagement = () => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
   // Estados para os novos modais
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(
+    null
+  );
+
   // Navigation
   const navigate = useNavigate();
-  
+
   // Hook de ações padronizadas
   const { deleteProperty } = usePropertyActions();
 
@@ -79,11 +102,62 @@ export const PropertiesManagement = () => {
   const loadProperties = async () => {
     setLoading(true);
     try {
-      // Carregar Locations e Properties em paralelo
+      // 🆕 Carregar Locations e Properties em paralelo
+      // IMPORTANTE: Não filtrar por status para incluir rascunhos (status='draft')
       const [locationsResponse, propertiesResponse] = await Promise.all([
         locationsApi.list(),
-        propertiesApi.list()
+        propertiesApi.list(), // Sem filtro de status = retorna todos (incluindo drafts)
       ]);
+
+      console.log("📊 [PropertiesManagement] RESPOSTA COMPLETA DA API:", {
+        success: propertiesResponse.success,
+        total: propertiesResponse.data?.length || 0,
+        rawData: propertiesResponse.data, // 🆕 Log completo da resposta
+        drafts:
+          propertiesResponse.data?.filter((p: any) => p.status === "draft")
+            .length || 0,
+        allStatuses: propertiesResponse.data?.map((p: any) => p.status) || [],
+        allNames:
+          propertiesResponse.data?.map((p: any) => ({
+            id: p.id,
+            name: p.name || p.internalName,
+            status: p.status,
+            locationId: p.locationId,
+          })) || [],
+      });
+
+      // 🆕 DEBUG: Log detalhado de rascunhos
+      const drafts =
+        propertiesResponse.data?.filter((p: any) => p.status === "draft") || [];
+      if (drafts.length > 0) {
+        console.log(
+          "📝 [PropertiesManagement] Rascunhos encontrados:",
+          drafts.map((d: any) => ({
+            id: d.id,
+            name: d.name || d.internalName,
+            status: d.status,
+            locationId: d.locationId,
+            completionPercentage:
+              d.completionPercentage || d.completion_percentage,
+          }))
+        );
+      } else {
+        console.warn(
+          "⚠️ [PropertiesManagement] NENHUM RASCUNHO ENCONTRADO NA RESPOSTA DA API"
+        );
+        console.warn(
+          "⚠️ [PropertiesManagement] Verificando se há properties com status diferente:",
+          {
+            allProperties:
+              propertiesResponse.data?.map((p: any) => ({
+                id: p.id,
+                name: p.name || p.internalName,
+                status: p.status,
+                statusType: typeof p.status,
+              })) || [],
+          }
+        );
+      }
 
       const allProperties: Property[] = [];
 
@@ -93,66 +167,242 @@ export const PropertiesManagement = () => {
           id: loc.id,
           internalName: loc.internalName,
           publicName: loc.publicName,
-          type: 'location' as const,
-          structureType: loc.structureType || 'hotel',
+          type: "location" as const,
+          structureType: loc.structureType || "hotel",
           address: loc.address,
-          status: loc.status || 'active',
+          status: loc.status || "active",
           tags: loc.tags || [],
           photos: loc.photos || [],
-          accommodationsCount: loc.accommodations?.length || 0
+          accommodationsCount: loc.accommodations?.length || 0,
         }));
         allProperties.push(...locations);
       }
 
       // Adicionar Properties (Accommodations individuais)
       if (propertiesResponse.success && propertiesResponse.data) {
+        // 🆕 INCLUIR RASCUNHOS: Não filtrar por status, incluir todos (incluindo drafts)
+        // IMPORTANTE: Incluir TODOS os properties individuais (sem locationId) + rascunhos
+        console.log(
+          "🔍 [PropertiesManagement] Filtrando properties antes de mapear:",
+          {
+            total: propertiesResponse.data.length,
+            withLocationId: propertiesResponse.data.filter(
+              (p: any) => p.locationId
+            ).length,
+            withoutLocationId: propertiesResponse.data.filter(
+              (p: any) => !p.locationId
+            ).length,
+            drafts: propertiesResponse.data.filter(
+              (p: any) => p.status === "draft"
+            ).length,
+            allStatuses: [
+              ...new Set(propertiesResponse.data.map((p: any) => p.status)),
+            ],
+          }
+        );
+
+        // 🆕 DEBUG: Log ANTES do filtro
+        console.log(
+          "🔍 [PropertiesManagement] ANTES DO FILTRO - Total de properties:",
+          propertiesResponse.data.length
+        );
+        console.log(
+          "🔍 [PropertiesManagement] Properties com status:",
+          propertiesResponse.data.map((p: any) => ({
+            id: p.id,
+            name: p.name || p.internalName,
+            status: p.status,
+            statusType: typeof p.status,
+            locationId: p.locationId,
+          }))
+        );
+
         const accommodations = propertiesResponse.data
-          .filter((prop: any) => !prop.locationId) // Apenas individuais (sem locationId)
-          .map((prop: any) => ({
-            id: prop.id,
-            // 🆕 v1.0.103.313 - Usar 'name' como fallback primário
-            internalName: prop.name || prop.internalName || 'Sem nome',
-            publicName: prop.name || prop.publicName || 'Sem nome',
-            type: 'accommodation' as const,
-            structureType: prop.type?.toLowerCase() || 'house',
-            address: prop.address,
-            status: prop.status || 'active',
-            tags: prop.tags || [],
-            // 🆕 v1.0.103.313 - Mapear fotos corretamente
-            photos: Array.isArray(prop.photos) 
-              ? prop.photos.map((p: any) => p.url || p)
-              : prop.coverPhoto 
-              ? [prop.coverPhoto]
-              : [],
-            pricing: prop.pricing,
-            capacity: {
-              guests: prop.maxGuests || 0,
-              bedrooms: prop.bedrooms || 0,
-              bathrooms: prop.bathrooms || 0
+          .filter((prop: any) => {
+            // Incluir se:
+            // 1. Não tem locationId (propriedade individual) OU
+            // 2. É rascunho (rascunhos podem não ter locationId ainda)
+            const isIndividual = !prop.locationId;
+            // 🆕 CORREÇÃO: Verificar status de forma mais flexível
+            const statusLower = String(prop.status || "").toLowerCase();
+            const isDraft = statusLower === "draft";
+            const shouldInclude = isIndividual || isDraft;
+
+            if (isDraft) {
+              console.log(
+                "✅ [PropertiesManagement] RASCUNHO INCLUÍDO NO FILTRO:",
+                {
+                  id: prop.id,
+                  name: prop.name || prop.internalName,
+                  status: prop.status,
+                  statusLower,
+                  locationId: prop.locationId,
+                  isIndividual,
+                  isDraft,
+                  shouldInclude,
+                }
+              );
             }
-          }));
+
+            return shouldInclude;
+          })
+          .map((prop: any) => {
+            // 🆕 DEBUG: Log durante mapeamento
+            const mappedStatus = prop.status || "active";
+            if (
+              mappedStatus === "draft" ||
+              String(mappedStatus).toLowerCase() === "draft"
+            ) {
+              console.log("📝 [PropertiesManagement] MAPEANDO RASCUNHO:", {
+                id: prop.id,
+                name: prop.name || prop.internalName,
+                statusOriginal: prop.status,
+                statusMapped: mappedStatus,
+              });
+            }
+
+            return {
+              id: prop.id,
+              // 🆕 v1.0.103.313 - Usar 'name' como fallback primário
+              internalName: prop.name || prop.internalName || "Sem nome",
+              publicName: prop.name || prop.publicName || "Sem nome",
+              type: "accommodation" as const,
+              structureType: prop.type?.toLowerCase() || "house",
+              address: prop.address,
+              status: mappedStatus, // 🆕 IMPORTANTE: Manter status do backend (incluindo 'draft')
+              tags: prop.tags || [],
+              // 🆕 v1.0.103.313 - Mapear fotos corretamente
+              photos: Array.isArray(prop.photos)
+                ? prop.photos.map((p: any) => p.url || p)
+                : prop.coverPhoto
+                ? [prop.coverPhoto]
+                : [],
+              pricing: prop.pricing,
+              capacity: {
+                guests: prop.maxGuests || 0,
+                bedrooms: prop.bedrooms || 0,
+                bathrooms: prop.bathrooms || 0,
+              },
+              // 🆕 SISTEMA DE RASCUNHO - Mapear dados de progresso
+              completionPercentage:
+                prop.completionPercentage ||
+                prop.completion_percentage ||
+                (prop.status === "draft" ? 0 : 100),
+              completedSteps: prop.completedSteps || prop.completed_steps || [],
+              wizardData: prop.wizardData || prop.wizard_data,
+            };
+          });
+
+        // 🆕 DEBUG: Log DEPOIS do mapeamento
+        console.log(
+          "✅ [PropertiesManagement] DEPOIS DO MAPEAMENTO - Accommodations:",
+          accommodations.length
+        );
+        console.log(
+          "✅ [PropertiesManagement] Accommodations com status draft:",
+          accommodations.filter(
+            (a: any) =>
+              a.status === "draft" || String(a.status).toLowerCase() === "draft"
+          ).length
+        );
+
         allProperties.push(...accommodations);
       }
 
-      console.log('✅ Propriedades carregadas:', allProperties);
+      console.log("✅ Propriedades carregadas:", {
+        total: allProperties.length,
+        locations: allProperties.filter((p) => p.type === "location").length,
+        accommodations: allProperties.filter((p) => p.type === "accommodation")
+          .length,
+        drafts: allProperties.filter((p) => p.status === "draft").length,
+        allProperties: allProperties.map((p) => ({
+          id: p.id,
+          name: p.internalName,
+          type: p.type,
+          status: p.status,
+          isDraft: p.status === "draft",
+        })),
+      });
+
+      // 🆕 DEBUG: Log específico de rascunhos
+      const draftProperties = allProperties.filter((p) => p.status === "draft");
+      if (draftProperties.length > 0) {
+        console.log(
+          "📝 [PropertiesManagement] RASCUNHOS QUE SERÃO EXIBIDOS:",
+          draftProperties.map((p) => ({
+            id: p.id,
+            name: p.internalName,
+            status: p.status,
+            completionPercentage: p.completionPercentage,
+            type: p.type,
+          }))
+        );
+      } else {
+        console.warn(
+          "⚠️ [PropertiesManagement] NENHUM RASCUNHO ENCONTRADO PARA EXIBIR"
+        );
+      }
+
+      // 🆕 DEBUG: Log FINAL antes de setar no state
+      console.log(
+        "🎯 [PropertiesManagement] PROPRIEDADES FINAIS QUE SERÃO EXIBIDAS:",
+        {
+          // 🆕 JORNADA DO DADO: Log completo para rastreamento
+          journey: {
+            step1_apiResponse: {
+              success: propertiesResponse.success,
+              total: propertiesResponse.data?.length || 0,
+              rawData: propertiesResponse.data,
+            },
+            step2_afterFilter: {
+              total: accommodations.length,
+              drafts: accommodations.filter((a: any) => a.status === "draft")
+                .length,
+            },
+            step3_finalState: {
+              total: allProperties.length,
+              drafts: allProperties.filter((p) => p.status === "draft").length,
+            },
+          },
+          total: allProperties.length,
+          drafts: allProperties.filter(
+            (p) =>
+              p.status === "draft" || String(p.status).toLowerCase() === "draft"
+          ).length,
+          allStatuses: [...new Set(allProperties.map((p) => p.status))],
+          draftDetails: allProperties
+            .filter(
+              (p) =>
+                p.status === "draft" ||
+                String(p.status).toLowerCase() === "draft"
+            )
+            .map((p) => ({
+              id: p.id,
+              name: p.internalName,
+              status: p.status,
+              completionPercentage: p.completionPercentage,
+            })),
+        }
+      );
+
       setProperties(allProperties);
-      setSelectedProperties(allProperties.map(p => p.id));
+      setSelectedProperties(allProperties.map((p) => p.id));
     } catch (error) {
-      console.error('❌ Erro ao carregar propriedades:', error);
-      toast.error('Erro ao carregar propriedades');
+      console.error("❌ Erro ao carregar propriedades:", error);
+      toast.error("Erro ao carregar propriedades");
     } finally {
       setLoading(false);
     }
   };
 
   const handleToggleProperty = (id: string) => {
-    setSelectedProperties(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    setSelectedProperties((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
   };
 
   const handleSelectAll = () => {
-    setSelectedProperties(properties.map(p => p.id));
+    setSelectedProperties(properties.map((p) => p.id));
   };
 
   const handleDeselectAll = () => {
@@ -160,7 +410,12 @@ export const PropertiesManagement = () => {
   };
 
   const handleEdit = (property: Property) => {
-    navigate(`/properties/${property.id}/edit`);
+    // 🆕 SISTEMA DE RASCUNHO: Se for rascunho, continuar de onde parou
+    if (property.status === "draft") {
+      navigate(`/properties/${property.id}/edit`);
+    } else {
+      navigate(`/properties/${property.id}/edit`);
+    }
   };
 
   const handleView = (property: Property) => {
@@ -174,8 +429,8 @@ export const PropertiesManagement = () => {
   };
 
   const handleSaveProperty = async (data: any) => {
-    console.log('💾 Salvando propriedade:', data);
-    toast.success('Propriedade salva com sucesso!');
+    console.log("💾 Salvando propriedade:", data);
+    toast.success("Propriedade salva com sucesso!");
     // TODO: Integrar com backend quando necessário
     // await propertiesApi.update(data.id, data);
     // loadProperties();
@@ -183,100 +438,130 @@ export const PropertiesManagement = () => {
 
   const handleConfirmDelete = async (softDelete: boolean) => {
     if (!selectedProperty) {
-      toast.error('Erro: Nenhum imóvel selecionado');
+      toast.error("Erro: Nenhum imóvel selecionado");
       return;
     }
 
     try {
-      console.log('🗑️ [PROPERTIES] Iniciando exclusão de imóvel...');
-      console.log('📊 [PROPERTIES] softDelete:', softDelete);
-      
+      console.log("🗑️ [PROPERTIES] Iniciando exclusão de imóvel...");
+      console.log("📊 [PROPERTIES] softDelete:", softDelete);
+
       // ⚡ IMPORTANTE: NÃO fechar o modal aqui
       // O PropertyDeleteModal gerencia o fechamento internamente
       // Especialmente quando há transferência de reservas
-      
+
       // Usar hook padronizado de ações
       await deleteProperty(selectedProperty, softDelete, {
-        reloadPage: false,     // NÃO recarrega página (evita tela branca)
+        reloadPage: false, // NÃO recarrega página (evita tela branca)
         redirectToList: false, // NÃO redireciona (já estamos na lista)
         onSuccess: () => {
-          console.log('✅ [PROPERTIES] Exclusão concluída com sucesso');
-          
+          console.log("✅ [PROPERTIES] Exclusão concluída com sucesso");
+
           // Fechar modal APÓS sucesso
           setDeleteModalOpen(false);
           setSelectedProperty(null);
-          
+
           // Atualizar lista localmente (SEM reload de página)
-          console.log('🔄 [PROPERTIES] Atualizando lista localmente...');
+          console.log("🔄 [PROPERTIES] Atualizando lista localmente...");
           loadProperties();
         },
         onError: (error) => {
-          console.error('❌ [PROPERTIES] Erro na exclusão:', error);
-          
+          console.error("❌ [PROPERTIES] Erro na exclusão:", error);
+
           // Fechar modal mesmo com erro
           setDeleteModalOpen(false);
           setSelectedProperty(null);
-        }
+        },
       });
     } catch (error) {
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.error('❌ [PROPERTIES] ERRO AO EXCLUIR:', error);
-      console.error('📊 [PROPERTIES] Tipo do erro:', typeof error);
-      console.error('📊 [PROPERTIES] Error message:', error instanceof Error ? error.message : 'não é Error');
-      console.error('📊 [PROPERTIES] Error stack:', error instanceof Error ? error.stack : 'sem stack');
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
+      console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.error("❌ [PROPERTIES] ERRO AO EXCLUIR:", error);
+      console.error("📊 [PROPERTIES] Tipo do erro:", typeof error);
+      console.error(
+        "📊 [PROPERTIES] Error message:",
+        error instanceof Error ? error.message : "não é Error"
+      );
+      console.error(
+        "📊 [PROPERTIES] Error stack:",
+        error instanceof Error ? error.stack : "sem stack"
+      );
+      console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
       // ⚡ IMPORTANTE: Garantir que modal feche mesmo com erro
       try {
-        console.log('🔄 [PROPERTIES] Tentando fechar modal após erro...');
+        console.log("🔄 [PROPERTIES] Tentando fechar modal após erro...");
         setDeleteModalOpen(false);
         setSelectedProperty(null);
-        console.log('✅ [PROPERTIES] Modal fechado após erro');
+        console.log("✅ [PROPERTIES] Modal fechado após erro");
       } catch (closeErr) {
-        console.error('❌ [PROPERTIES] Erro ao fechar modal:', closeErr);
+        console.error("❌ [PROPERTIES] Erro ao fechar modal:", closeErr);
       }
     }
   };
 
   // Filtrar apenas propriedades selecionadas
-  const displayedProperties = properties.filter(p => selectedProperties.includes(p.id));
+  const displayedProperties = properties.filter((p) =>
+    selectedProperties.includes(p.id)
+  );
+
+  // 🆕 DEBUG: Log de rascunhos (apenas quando properties carrega, não em loop)
+  // Removido useEffect que causava loop - logs agora são feitos diretamente em loadProperties
 
   // Função para exportar para Excel
   const handleExportExcel = () => {
     try {
       if (displayedProperties.length === 0) {
-        toast.error('Nenhum imóvel para exportar');
+        toast.error("Nenhum imóvel para exportar");
         return;
       }
 
-      const fileName = exportPropertiesToExcel(displayedProperties, 'imoveis_rendizy');
+      const fileName = exportPropertiesToExcel(
+        displayedProperties,
+        "imoveis_rendizy"
+      );
       toast.success(`Arquivo exportado: ${fileName}`);
-      console.log('✅ Exportação Excel concluída:', fileName);
+      console.log("✅ Exportação Excel concluída:", fileName);
     } catch (error) {
-      console.error('❌ Erro ao exportar para Excel:', error);
-      toast.error('Erro ao exportar arquivo Excel');
+      console.error("❌ Erro ao exportar para Excel:", error);
+      toast.error("Erro ao exportar arquivo Excel");
     }
   };
 
   // Calcular KPIs
   const kpis = useMemo(() => {
     const total = displayedProperties.length;
-    const available = displayedProperties.filter(p => p.status === 'active').length;
+    const available = displayedProperties.filter(
+      (p) => p.status === "active"
+    ).length;
     const occupied = 0; // TODO: Conectar com reservas
-    const maintenance = displayedProperties.filter(p => p.status === 'inactive').length;
-    
+    const maintenance = displayedProperties.filter(
+      (p) => p.status === "inactive"
+    ).length;
+    const drafts = displayedProperties.filter(
+      (p) => p.status === "draft"
+    ).length; // 🆕 Rascunhos
+
     // Calcular diária média
-    const propertiesWithPrice = displayedProperties.filter(p => p.pricing?.basePrice);
-    const averagePrice = propertiesWithPrice.length > 0
-      ? propertiesWithPrice.reduce((sum, p) => sum + (p.pricing?.basePrice || 0), 0) / propertiesWithPrice.length / 100
-      : 0;
+    const propertiesWithPrice = displayedProperties.filter(
+      (p) => p.pricing?.basePrice
+    );
+    const averagePrice =
+      propertiesWithPrice.length > 0
+        ? propertiesWithPrice.reduce(
+            (sum, p) => sum + (p.pricing?.basePrice || 0),
+            0
+          ) /
+          propertiesWithPrice.length /
+          100
+        : 0;
 
     return {
       total,
       available,
       occupied,
       maintenance,
-      averagePrice
+      drafts, // 🆕 Rascunhos
+      averagePrice,
     };
   }, [displayedProperties]);
 
@@ -297,14 +582,12 @@ export const PropertiesManagement = () => {
         <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-8 py-4 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-gray-900 dark:text-gray-100">
-                Locais
-              </h1>
+              <h1 className="text-gray-900 dark:text-gray-100">Locais</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Gerencie suas propriedades e unidades
               </p>
             </div>
-            
+
             {/* Botões de Ação */}
             <div className="flex items-center gap-3">
               {/* Botão de Exportar Excel */}
@@ -320,7 +603,7 @@ export const PropertiesManagement = () => {
 
               {/* Botão de Criar */}
               <Button
-                onClick={() => navigate('/properties/new')}
+                onClick={() => navigate("/properties/new")}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -332,14 +615,18 @@ export const PropertiesManagement = () => {
 
         {/* KPIs Cards */}
         <div className="bg-gray-50 dark:bg-gray-900 px-8 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div className="grid grid-cols-5 gap-4">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
             {/* Total */}
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total</p>
-                    <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{kpis.total}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Total
+                    </p>
+                    <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                      {kpis.total}
+                    </p>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                     <Building2 className="w-6 h-6 text-gray-600 dark:text-gray-400" />
@@ -353,8 +640,12 @@ export const PropertiesManagement = () => {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Disponíveis</p>
-                    <p className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">{kpis.available}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Disponíveis
+                    </p>
+                    <p className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                      {kpis.available}
+                    </p>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
                     <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
@@ -368,8 +659,12 @@ export const PropertiesManagement = () => {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Ocupadas</p>
-                    <p className="text-2xl font-semibold text-blue-600 dark:text-blue-400">{kpis.occupied}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Ocupadas
+                    </p>
+                    <p className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
+                      {kpis.occupied}
+                    </p>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                     <Home className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -383,11 +678,34 @@ export const PropertiesManagement = () => {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Manutenção</p>
-                    <p className="text-2xl font-semibold text-yellow-600 dark:text-yellow-400">{kpis.maintenance}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Manutenção
+                    </p>
+                    <p className="text-2xl font-semibold text-yellow-600 dark:text-yellow-400">
+                      {kpis.maintenance}
+                    </p>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
                     <Wrench className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Rascunhos */}
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Rascunhos
+                    </p>
+                    <p className="text-2xl font-semibold text-amber-600 dark:text-amber-400">
+                      {kpis.drafts}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                   </div>
                 </div>
               </CardContent>
@@ -398,9 +716,11 @@ export const PropertiesManagement = () => {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Diária Média</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Diária Média
+                    </p>
                     <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                      R$ {kpis.averagePrice.toFixed(2).replace('.', ',')}
+                      R$ {kpis.averagePrice.toFixed(2).replace(".", ",")}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
@@ -418,24 +738,26 @@ export const PropertiesManagement = () => {
             {/* Toggle Grade/Lista */}
             <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
               <Button
-                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                variant={viewMode === "grid" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setViewMode('grid')}
-                className={viewMode === 'grid' 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                  : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                onClick={() => setViewMode("grid")}
+                className={
+                  viewMode === "grid"
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "hover:bg-gray-200 dark:hover:bg-gray-600"
                 }
               >
                 <Grid3x3 className="w-4 h-4 mr-1" />
                 Grade
               </Button>
               <Button
-                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                variant={viewMode === "list" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setViewMode('list')}
-                className={viewMode === 'list' 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                  : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                onClick={() => setViewMode("list")}
+                className={
+                  viewMode === "list"
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "hover:bg-gray-200 dark:hover:bg-gray-600"
                 }
               >
                 <List className="w-4 h-4 mr-1" />
@@ -447,12 +769,72 @@ export const PropertiesManagement = () => {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+          {/* 🆕 SEÇÃO PRIMITIVA DE RASCUNHOS - FORMA MAIS SIMPLES POSSÍVEL */}
+          {!loading &&
+            (() => {
+              const allDrafts = properties.filter(
+                (p) =>
+                  p.status === "draft" ||
+                  String(p.status).toLowerCase() === "draft"
+              );
+
+              if (allDrafts.length > 0) {
+                console.log(
+                  "🎯 [PropertiesManagement] EXIBINDO RASCUNHOS PRIMITIVOS:",
+                  allDrafts.map((p) => ({
+                    id: p.id,
+                    name: p.internalName || p.publicName,
+                    status: p.status,
+                  }))
+                );
+
+                return (
+                  <div className="p-4 border-b-4 border-red-500 bg-yellow-50 dark:bg-yellow-900/20">
+                    <h2 className="text-lg font-bold mb-2 text-red-600 dark:text-red-400">
+                      🧪 RASCUNHOS PRIMITIVOS (TESTE) - {allDrafts.length}{" "}
+                      encontrado(s)
+                    </h2>
+                    <div className="space-y-2">
+                      {allDrafts.map((draft) => (
+                        <div
+                          key={draft.id}
+                          className="p-3 bg-white dark:bg-gray-800 border-2 border-red-500 rounded"
+                          onClick={() => handleEdit(draft)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          <div className="font-mono text-xs text-gray-500">
+                            ID: {draft.id}
+                          </div>
+                          <div className="font-bold text-lg">
+                            {draft.internalName ||
+                              draft.publicName ||
+                              "Sem nome"}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            Status: {draft.status}
+                          </div>
+                          {draft.completionPercentage !== undefined && (
+                            <div className="text-sm text-gray-600">
+                              Progresso: {draft.completionPercentage}%
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
           {loading ? (
             // Loading State
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-                <p className="text-gray-500 dark:text-gray-400">Carregando imóveis...</p>
+                <p className="text-gray-500 dark:text-gray-400">
+                  Carregando imóveis...
+                </p>
               </div>
             </div>
           ) : displayedProperties.length === 0 ? (
@@ -471,20 +853,22 @@ export const PropertiesManagement = () => {
 
                 {/* Título */}
                 <h2 className="text-gray-900 dark:text-gray-100 mb-2">
-                  {properties.length === 0 ? 'Comece criando seu primeiro anúncio' : 'Nenhum imóvel selecionado'}
+                  {properties.length === 0
+                    ? "Comece criando seu primeiro anúncio"
+                    : "Nenhum imóvel selecionado"}
                 </h2>
 
                 {/* Descrição */}
                 <p className="text-gray-500 dark:text-gray-400 mb-6">
-                  {properties.length === 0 
-                    ? 'Crie locais com múltiplas unidades (hotéis, pousadas) ou anúncios individuais (casas, apartamentos) para aluguel ou venda.'
-                    : 'Use os filtros na barra lateral para encontrar imóveis.'}
+                  {properties.length === 0
+                    ? "Crie locais com múltiplas unidades (hotéis, pousadas) ou anúncios individuais (casas, apartamentos) para aluguel ou venda."
+                    : "Use os filtros na barra lateral para encontrar imóveis."}
                 </p>
 
                 {/* Botão CTA */}
                 {properties.length === 0 && (
                   <Button
-                    onClick={() => navigate('/properties/new')}
+                    onClick={() => navigate("/properties/new")}
                     size="lg"
                     className="bg-emerald-600 hover:bg-emerald-700 text-white"
                   >
@@ -525,25 +909,33 @@ export const PropertiesManagement = () => {
                 )}
               </div>
             </div>
-          ) : viewMode === 'grid' ? (
+          ) : viewMode === "grid" ? (
             // VISUALIZAÇÃO EM GRADE (máx 3 colunas)
             <div className="p-8">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {displayedProperties.map((property) => (
-                  <Card key={property.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                  <Card
+                    key={property.id}
+                    className="overflow-hidden hover:shadow-lg transition-shadow"
+                  >
                     {/* Imagem */}
                     <div className="relative aspect-video bg-gray-200 dark:bg-gray-700">
                       {property.photos && property.photos.length > 0 ? (
                         <img
                           src={property.photos[0]}
-                          alt={property.internalName || property.publicName || 'Imóvel'}
+                          alt={
+                            property.internalName ||
+                            property.publicName ||
+                            "Imóvel"
+                          }
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             // Se falhar carregar, mostrar placeholder
-                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.style.display = "none";
                             const parent = e.currentTarget.parentElement;
                             if (parent) {
-                              parent.innerHTML = '<div class="w-full h-full flex items-center justify-center"><svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>';
+                              parent.innerHTML =
+                                '<div class="w-full h-full flex items-center justify-center"><svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>';
                             }
                           }}
                         />
@@ -552,11 +944,17 @@ export const PropertiesManagement = () => {
                           <ImageIcon className="w-12 h-12 text-gray-400" />
                         </div>
                       )}
-                      
+
                       {/* Badge de Tipo */}
                       <div className="absolute top-2 left-2">
-                        <Badge className={property.type === 'location' ? 'bg-blue-600' : 'bg-emerald-600'}>
-                          {property.type === 'location' ? (
+                        <Badge
+                          className={
+                            property.type === "location"
+                              ? "bg-blue-600"
+                              : "bg-emerald-600"
+                          }
+                        >
+                          {property.type === "location" ? (
                             <>
                               <Building2 className="w-3 h-3 mr-1" />
                               Local
@@ -572,31 +970,59 @@ export const PropertiesManagement = () => {
 
                       {/* Status Badge */}
                       <div className="absolute top-2 right-2">
-                        <Badge 
-                          variant={property.status === 'active' ? 'default' : 'secondary'}
+                        <Badge
+                          variant={
+                            property.status === "active"
+                              ? "default"
+                              : "secondary"
+                          }
                           className={
-                            property.status === 'active' ? 'bg-green-600' :
-                            property.status === 'draft' ? 'bg-yellow-600' :
-                            'bg-gray-600'
+                            property.status === "active"
+                              ? "bg-green-600"
+                              : property.status === "draft"
+                              ? "bg-amber-600"
+                              : "bg-gray-600"
                           }
                         >
-                          {property.status === 'active' ? 'Ativo' :
-                           property.status === 'draft' ? 'Rascunho' :
-                           'Inativo'}
+                          {property.status === "active"
+                            ? "Ativo"
+                            : property.status === "draft"
+                            ? "Rascunho"
+                            : "Inativo"}
                         </Badge>
                       </div>
+
+                      {/* 🆕 Progress Bar para Rascunhos */}
+                      {property.status === "draft" &&
+                        property.completionPercentage !== undefined && (
+                          <div className="absolute bottom-2 left-2 right-2">
+                            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-lg p-2 border border-gray-200 dark:border-gray-700">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                  {property.completionPercentage}% completo
+                                </span>
+                              </div>
+                              <Progress
+                                value={property.completionPercentage}
+                                className="h-1.5"
+                              />
+                            </div>
+                          </div>
+                        )}
                     </div>
 
                     {/* Conteúdo */}
                     <CardContent className="p-4">
                       {/* Nome Clicável */}
-                      <h3 
+                      <h3
                         className="group text-black dark:text-white mb-1 cursor-pointer transition-all flex items-center gap-1.5 hover:gap-2"
                         onClick={() => handleEdit(property)}
                         title="Clique para editar"
                       >
                         <span className="truncate underline decoration-gray-300 dark:decoration-gray-600 underline-offset-2 group-hover:decoration-blue-600 dark:group-hover:decoration-blue-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-all">
-                          {property.internalName || property.publicName || 'Sem nome'}
+                          {property.internalName ||
+                            property.publicName ||
+                            "Sem nome"}
                         </span>
                         <Edit className="h-3.5 w-3.5 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0" />
                       </h3>
@@ -617,14 +1043,15 @@ export const PropertiesManagement = () => {
                       )}
 
                       {/* Info específica */}
-                      {property.type === 'location' ? (
+                      {property.type === "location" ? (
                         <p className="text-sm text-blue-600 dark:text-blue-400">
                           {property.accommodationsCount || 0} acomodações
                         </p>
                       ) : (
                         property.capacity && (
                           <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {property.capacity.guests} hóspedes · {property.capacity.bedrooms} quartos
+                            {property.capacity.guests} hóspedes ·{" "}
+                            {property.capacity.bedrooms} quartos
                           </p>
                         )
                       )}
@@ -632,8 +1059,12 @@ export const PropertiesManagement = () => {
                       {/* Tags */}
                       {property.tags && property.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
-                          {property.tags.slice(0, 3).map(tag => (
-                            <Badge key={tag} variant="outline" className="text-xs">
+                          {property.tags.slice(0, 3).map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant="outline"
+                              className="text-xs"
+                            >
                               {tag}
                             </Badge>
                           ))}
@@ -685,7 +1116,10 @@ export const PropertiesManagement = () => {
             <div className="p-8">
               <div className="space-y-4">
                 {displayedProperties.map((property) => (
-                  <Card key={property.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                  <Card
+                    key={property.id}
+                    className="overflow-hidden hover:shadow-md transition-shadow"
+                  >
                     <CardContent className="p-0">
                       <div className="flex items-center gap-4">
                         {/* Imagem */}
@@ -701,22 +1135,48 @@ export const PropertiesManagement = () => {
                               <ImageIcon className="w-8 h-8 text-gray-400" />
                             </div>
                           )}
-                          
+
                           {/* Badge de Status */}
                           <div className="absolute top-2 right-2">
-                            <Badge 
-                              variant={property.status === 'active' ? 'default' : 'secondary'}
+                            <Badge
+                              variant={
+                                property.status === "active"
+                                  ? "default"
+                                  : "secondary"
+                              }
                               className={
-                                property.status === 'active' ? 'bg-emerald-600' :
-                                property.status === 'draft' ? 'bg-yellow-600' :
-                                'bg-gray-600'
+                                property.status === "active"
+                                  ? "bg-emerald-600"
+                                  : property.status === "draft"
+                                  ? "bg-amber-600"
+                                  : "bg-gray-600"
                               }
                             >
-                              {property.status === 'active' ? 'Disponível' :
-                               property.status === 'draft' ? 'Rascunho' :
-                               'Inativo'}
+                              {property.status === "active"
+                                ? "Disponível"
+                                : property.status === "draft"
+                                ? "Rascunho"
+                                : "Inativo"}
                             </Badge>
                           </div>
+
+                          {/* 🆕 Progress Bar para Rascunhos (modo lista) */}
+                          {property.status === "draft" &&
+                            property.completionPercentage !== undefined && (
+                              <div className="absolute bottom-2 left-2 right-2">
+                                <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-lg p-2 border border-gray-200 dark:border-gray-700">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                      {property.completionPercentage}% completo
+                                    </span>
+                                  </div>
+                                  <Progress
+                                    value={property.completionPercentage}
+                                    className="h-1.5"
+                                  />
+                                </div>
+                              </div>
+                            )}
                         </div>
 
                         {/* Conteúdo */}
@@ -725,7 +1185,7 @@ export const PropertiesManagement = () => {
                           <div className="mb-2">
                             <div className="flex items-center justify-between mb-1">
                               {/* Nome Clicável */}
-                              <h3 
+                              <h3
                                 className="group text-black dark:text-white cursor-pointer transition-all flex items-center gap-1.5 hover:gap-2"
                                 onClick={() => handleEdit(property)}
                                 title="Clique para editar"
@@ -735,7 +1195,7 @@ export const PropertiesManagement = () => {
                                 </span>
                                 <Edit className="h-3.5 w-3.5 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0" />
                               </h3>
-                              
+
                               {/* Botões de Ação */}
                               <div className="flex items-center gap-1">
                                 <Button
@@ -767,23 +1227,29 @@ export const PropertiesManagement = () => {
                                 </Button>
                               </div>
                             </div>
-                            
+
                             {/* Tipo e ID */}
                             <div className="flex items-center gap-2">
-                              <Badge className={property.type === 'location' ? 'bg-blue-600' : 'bg-emerald-600'}>
-                                {property.type === 'location' ? (
+                              <Badge
+                                className={
+                                  property.type === "location"
+                                    ? "bg-blue-600"
+                                    : "bg-emerald-600"
+                                }
+                              >
+                                {property.type === "location" ? (
                                   <>
                                     <Building2 className="w-3 h-3 mr-1" />
-                                    {property.structureType || 'Local'}
+                                    {property.structureType || "Local"}
                                   </>
                                 ) : (
                                   <>
                                     <Home className="w-3 h-3 mr-1" />
-                                    {property.structureType || 'Acomodação'}
+                                    {property.structureType || "Acomodação"}
                                   </>
                                 )}
                               </Badge>
-                              
+
                               {/* ID do Imóvel - Copiável */}
                               <span className="text-xs text-gray-500 dark:text-gray-400 select-all font-mono bg-gray-50 dark:bg-gray-800/50 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700">
                                 ID: {property.id}
@@ -797,19 +1263,22 @@ export const PropertiesManagement = () => {
                             {property.address && (
                               <div className="flex items-center gap-1">
                                 <MapPin className="h-3 w-3" />
-                                {property.address.city}, {property.address.state}
+                                {property.address.city},{" "}
+                                {property.address.state}
                               </div>
                             )}
 
                             {/* Info específica */}
-                            {property.type === 'location' ? (
+                            {property.type === "location" ? (
                               <div className="text-blue-600 dark:text-blue-400">
                                 {property.accommodationsCount || 0} acomodações
                               </div>
                             ) : (
                               property.capacity && (
                                 <div>
-                                  {property.capacity.guests} hóspedes · {property.capacity.bedrooms} quartos · {property.capacity.bathrooms} banheiros
+                                  {property.capacity.guests} hóspedes ·{" "}
+                                  {property.capacity.bedrooms} quartos ·{" "}
+                                  {property.capacity.bathrooms} banheiros
                                 </div>
                               )
                             )}
@@ -817,7 +1286,11 @@ export const PropertiesManagement = () => {
                             {/* Preço */}
                             {property.pricing && (
                               <div className="ml-auto font-semibold text-gray-900 dark:text-gray-100">
-                                R$ {(property.pricing.basePrice / 100).toFixed(2).replace('.', ',')} / noite
+                                R${" "}
+                                {(property.pricing.basePrice / 100)
+                                  .toFixed(2)
+                                  .replace(".", ",")}{" "}
+                                / noite
                               </div>
                             )}
                           </div>
@@ -825,8 +1298,12 @@ export const PropertiesManagement = () => {
                           {/* Tags */}
                           {property.tags && property.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
-                              {property.tags.slice(0, 5).map(tag => (
-                                <Badge key={tag} variant="outline" className="text-xs">
+                              {property.tags.slice(0, 5).map((tag) => (
+                                <Badge
+                                  key={tag}
+                                  variant="outline"
+                                  className="text-xs"
+                                >
                                   {tag}
                                 </Badge>
                               ))}

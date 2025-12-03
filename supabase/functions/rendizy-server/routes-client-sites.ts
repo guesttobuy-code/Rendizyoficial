@@ -2479,10 +2479,11 @@ app.get("/api/:subdomain/properties", async (c) => {
     );
 
     // Buscar imóveis da organização no SQL
+    // Usar campos corretos da tabela properties
     const { data: properties, error } = await supabase
       .from("properties")
       .select(
-        "id, name, code, type, status, address_city, address_state, address_street, address_number, address_zip, price, currency, bedrooms, bathrooms, area, description, photos, created_at, updated_at"
+        "id, name, code, type, status, address_city, address_state, address_street, address_number, address_zip_code, address_neighborhood, address_country, address_latitude, address_longitude, pricing_base_price, pricing_currency, bedrooms, bathrooms, max_guests, area, description, short_description, photos, cover_photo, tags, amenities, created_at, updated_at"
       )
       .eq("organization_id", organizationId)
       .eq("status", "active") // Apenas imóveis ativos
@@ -2491,17 +2492,24 @@ app.get("/api/:subdomain/properties", async (c) => {
 
     if (error) {
       console.error(`[CLIENT-SITES] Erro ao buscar imóveis:`, error);
+      console.error(
+        `[CLIENT-SITES] Detalhes do erro:`,
+        JSON.stringify(error, null, 2)
+      );
       return c.json(
         {
           success: false,
           error: "Erro ao buscar imóveis",
+          details: error.message,
         },
         500
       );
     }
 
     console.log(
-      `[CLIENT-SITES] ✅ ${properties?.length || 0} imóveis encontrados`
+      `[CLIENT-SITES] ✅ ${
+        properties?.length || 0
+      } imóveis encontrados para organização ${organizationId}`
     );
 
     // Formatar resposta para o site
@@ -2512,19 +2520,34 @@ app.get("/api/:subdomain/properties", async (c) => {
       type: p.type,
       status: p.status,
       address: {
-        city: p.address_city,
-        state: p.address_state,
-        street: p.address_street,
-        number: p.address_number,
-        zip: p.address_zip,
+        city: p.address_city || null,
+        state: p.address_state || null,
+        street: p.address_street || null,
+        number: p.address_number || null,
+        neighborhood: p.address_neighborhood || null,
+        zipCode: p.address_zip_code || null,
+        country: p.address_country || "BR",
+        latitude: p.address_latitude || null,
+        longitude: p.address_longitude || null,
       },
-      price: p.price,
-      currency: p.currency || "BRL",
-      bedrooms: p.bedrooms,
-      bathrooms: p.bathrooms,
-      area: p.area,
-      description: p.description,
-      photos: p.photos || [],
+      pricing: {
+        basePrice: p.pricing_base_price || 0,
+        currency: p.pricing_currency || "BRL",
+      },
+      capacity: {
+        bedrooms: p.bedrooms || 0,
+        bathrooms: p.bathrooms || 0,
+        maxGuests: p.max_guests || 0,
+        area: p.area || null,
+      },
+      description: p.description || p.short_description || "",
+      shortDescription: p.short_description || null,
+      photos: Array.isArray(p.photos) ? p.photos : p.photos ? [p.photos] : [],
+      coverPhoto:
+        p.cover_photo ||
+        (Array.isArray(p.photos) && p.photos.length > 0 ? p.photos[0] : null),
+      tags: Array.isArray(p.tags) ? p.tags : [],
+      amenities: Array.isArray(p.amenities) ? p.amenities : [],
       createdAt: p.created_at,
       updatedAt: p.updated_at,
     }));

@@ -1,93 +1,103 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Lock, User, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
-import { Alert, AlertDescription } from './ui/alert';
-import { toast } from 'sonner';
-import { useAuth } from '../contexts/AuthContext';
-import { Logo } from './Logo';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Lock, User, AlertCircle, Loader2, Eye, EyeOff } from "lucide-react";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
+import { Alert, AlertDescription } from "./ui/alert";
+import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
+import { Logo } from "./Logo";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
+  const [error, setError] = useState("");
+
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   // Se já está autenticado, redirecionar
   useEffect(() => {
     if (isAuthenticated) {
-      console.log('✅ [LoginPage] Usuário já autenticado - redirecionando para dashboard');
-      navigate('/dashboard');
+      console.log(
+        "✅ [LoginPage] Usuário já autenticado - redirecionando para dashboard"
+      );
+      navigate("/dashboard");
     }
   }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
-      console.log('🔐 Tentando login:', { username });
-      
+      console.log("🔐 Tentando login:", { username });
+
       const result = await login(username, password);
-      
-      console.log('🔐 [LoginPage] Resultado do login recebido:', result);
-      console.log('🔐 [LoginPage] Tipo do resultado:', typeof result);
-      console.log('🔐 [LoginPage] Result.success:', result?.success);
-      console.log('🔐 [LoginPage] Result.user:', result?.user);
-      
+
+      console.log("🔐 [LoginPage] Resultado do login recebido:", result);
+      console.log("🔐 [LoginPage] Tipo do resultado:", typeof result);
+      console.log("🔐 [LoginPage] Result.success:", result?.success);
+      console.log("🔐 [LoginPage] Result.user:", result?.user);
+
       // ✅ CORREÇÃO: Verificar se result existe e tem success
-      if (!result || typeof result !== 'object') {
-        console.error('❌ Login retornou resposta inválida:', result);
-        console.error('❌ Tipo recebido:', typeof result);
-        throw new Error('Resposta inválida do servidor');
+      if (!result || typeof result !== "object") {
+        console.error("❌ Login retornou resposta inválida:", result);
+        console.error("❌ Tipo recebido:", typeof result);
+        throw new Error("Resposta inválida do servidor");
       }
-      
+
       if (result.success && result.user) {
-        console.log('✅ Login bem-sucedido:', result.user);
-        toast.success('✅ Login realizado com sucesso!', {
-          description: `Bem-vindo, ${result.user.name || username}!`
+        console.log("✅ Login bem-sucedido:", result.user);
+        toast.success("✅ Login realizado com sucesso!", {
+          description: `Bem-vindo, ${result.user.name || username}!`,
         });
-        
+
         // ✅ CORREÇÃO: Aguardar mais tempo para garantir que:
         // 1. Token foi salvo no localStorage
         // 2. AuthContext atualizou o estado (user e isAuthenticated)
         // 3. Sessão foi validada no backend
         // 4. ProtectedRoute reconhece o usuário como autenticado
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
         // ✅ Verificar se isAuthenticated foi atualizado antes de redirecionar
         // Se ainda não estiver autenticado, aguardar mais um pouco
         let attempts = 0;
         while (!isAuthenticated && attempts < 10) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
           attempts++;
         }
-        
+
         // Redirecionar para dashboard inicial (todos os usuários)
-        console.log('🚀 [LoginPage] Redirecionando para /dashboard...');
-        navigate('/dashboard');
+        console.log("🚀 [LoginPage] Redirecionando para /dashboard...");
+        navigate("/dashboard");
       } else {
         // ✅ CORREÇÃO: Mostrar erro específico se houver
-        const errorMsg = result.error || 'Erro ao fazer login';
-        console.error('❌ Login falhou:', errorMsg);
+        const errorMsg = result.error || "Erro ao fazer login";
+        console.error("❌ Login falhou:", errorMsg);
         throw new Error(errorMsg);
       }
     } catch (err) {
-      console.error('❌ Erro no login:', err);
-      
-      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao fazer login';
+      console.error("❌ Erro no login:", err);
+
+      const errorMessage =
+        err instanceof Error ? err.message : "Erro desconhecido ao fazer login";
       setError(errorMessage);
-      
-      toast.error('❌ Erro ao fazer login', {
-        description: errorMessage
+
+      toast.error("❌ Erro ao fazer login", {
+        description: errorMessage,
       });
     } finally {
       setLoading(false);
@@ -120,14 +130,12 @@ export default function LoginPage() {
               Digite suas credenciais para acessar
             </CardDescription>
           </CardHeader>
-          
+
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Campo Usuário */}
               <div className="space-y-2">
-                <Label htmlFor="username">
-                  Usuário
-                </Label>
+                <Label htmlFor="username">Usuário</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
@@ -146,14 +154,12 @@ export default function LoginPage() {
 
               {/* Campo Senha */}
               <div className="space-y-2">
-                <Label htmlFor="password">
-                  Senha
-                </Label>
+                <Label htmlFor="password">Senha</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
                     id="password"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     placeholder="Digite sua senha"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -189,19 +195,19 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full text-white transition-all"
-                style={{ 
-                  backgroundColor: '#363E46',
-                  borderColor: '#363E46'
+                style={{
+                  backgroundColor: "#363E46",
+                  borderColor: "#363E46",
                 }}
                 disabled={loading}
                 onMouseEnter={(e) => {
                   if (!loading) {
-                    e.currentTarget.style.backgroundColor = '#2d3438';
+                    e.currentTarget.style.backgroundColor = "#2d3438";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!loading) {
-                    e.currentTarget.style.backgroundColor = '#363E46';
+                    e.currentTarget.style.backgroundColor = "#363E46";
                   }
                 }}
               >
@@ -211,7 +217,7 @@ export default function LoginPage() {
                     Entrando...
                   </>
                 ) : (
-                  'Entrar'
+                  "Entrar"
                 )}
               </Button>
             </form>
@@ -228,18 +234,7 @@ export default function LoginPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => handleQuickLogin('rppt', 'root')}
-                  disabled={loading}
-                  className="text-xs"
-                >
-                  <User className="mr-2 h-3 w-3" />
-                  rppt / root
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickLogin('admin', 'root')}
+                  onClick={() => handleQuickLogin("admin", "root")}
                   disabled={loading}
                   className="text-xs"
                 >
