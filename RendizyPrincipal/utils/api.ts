@@ -353,6 +353,7 @@ export async function apiRequest<T>(
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${publicAnonKey}`, // Necessário para Supabase Edge Functions
+      apikey: publicAnonKey, // ✅ CORREÇÃO CODEX: Obrigatório para Supabase Edge Functions
       ...((options.headers as Record<string, string>) || {}),
     };
 

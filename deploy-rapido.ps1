@@ -32,8 +32,37 @@ $deploy = Read-Host
 
 if ($deploy -eq "y" -or $deploy -eq "Y") {
     Write-Host "Fazendo deploy..." -ForegroundColor Yellow
-    supabase functions deploy rendizy-server
-    Write-Host "Deploy concluido!" -ForegroundColor Green
+    Write-Host ""
+    
+    # Verificar se Supabase CLI está instalado
+    $supabaseInstalled = Get-Command supabase -ErrorAction SilentlyContinue
+    $npxInstalled = Get-Command npx -ErrorAction SilentlyContinue
+    
+    if ($supabaseInstalled) {
+        # CLI instalado - usar diretamente
+        Write-Host "Usando Supabase CLI instalado..." -ForegroundColor Cyan
+        supabase functions deploy rendizy-server
+    } elseif ($npxInstalled) {
+        # Usar npx (não precisa instalar CLI)
+        Write-Host "Usando npx (nao precisa instalar CLI)..." -ForegroundColor Cyan
+        npx supabase functions deploy rendizy-server
+    } else {
+        # Nenhum método disponível
+        Write-Host "ERRO: Supabase CLI nao encontrado!" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Opcoes:" -ForegroundColor Yellow
+        Write-Host "  1. Instalar CLI: npm install -g supabase" -ForegroundColor White
+        Write-Host "  2. Fazer deploy via Dashboard:" -ForegroundColor White
+        Write-Host "     https://supabase.com/dashboard/project/odcgnzfremrqnvtitpcc/functions" -ForegroundColor Cyan
+        Write-Host "  3. Instalar Node.js para usar npx" -ForegroundColor White
+        Write-Host ""
+    }
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Deploy concluido!" -ForegroundColor Green
+    } else {
+        Write-Host "Deploy falhou. Verifique os erros acima." -ForegroundColor Red
+    }
 }
 
 Write-Host ""
