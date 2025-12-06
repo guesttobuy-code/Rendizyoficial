@@ -66,6 +66,8 @@ interface FormData {
     // Compra e Venda
     salePrice?: number;
   };
+  // 🆕 v1.0.103.313 - Nome Interno (Identificação)
+  internalName?: string;
 }
 
 interface ContentTypeStepProps {
@@ -90,6 +92,7 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
     registrationNumber: data?.registrationNumber || "",
     propertyType: data?.propertyType || "individual",
     financialData: data?.financialData,
+    internalName: data?.internalName || "",
   };
 
   console.log("✅ [ContentTypeStep] Safe data:", safeData);
@@ -612,6 +615,26 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
         <DeployBackendBanner />
       )}
 
+      {/* NOME INTERNO */}
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold">Identificação Interna</h3>
+          <p className="text-sm text-muted-foreground">
+            Nome para identificar este imóvel no painel administrativo (visível
+            apenas para equipe).
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="internalName">Nome Interno</Label>
+          <Input
+            id="internalName"
+            placeholder="Ex: Apt Copacabana 202 - Prop. João"
+            value={currentData.internalName || ""}
+            onChange={(e) => handleChange("internalName", e.target.value)}
+          />
+        </div>
+      </div>
+
       {/* TIPO */}
       <div className="space-y-4">
         <div className="space-y-1">
@@ -632,7 +655,7 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
               value={currentData.propertyTypeId || ""}
               onChange={(e) => handleChange("propertyTypeId", e.target.value)}
               disabled={loading}
-              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">
                 {loading ? "Carregando..." : "Selecione"}
@@ -657,7 +680,7 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
                 handleChange("accommodationTypeId", e.target.value)
               }
               disabled={loading}
-              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">
                 {loading ? "Carregando..." : "Selecione"}
@@ -684,12 +707,12 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
         <select
           value={currentData.subtipo || ""}
           onChange={(e) => handleChange("subtipo", e.target.value)}
-          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <option value="">Selecione o subtipo</option>
-          <option value="entire_place">Imóvel inteiro</option>
-          <option value="private_room">Quarto privativo</option>
-          <option value="shared_room">Quarto compartilhado</option>
+          <option value="entire_place">Imóvel Inteiro</option>
+          <option value="private_room">Quarto Privativo</option>
+          <option value="shared_room">Quarto Compartilhado</option>
         </select>
       </div>
 
@@ -870,21 +893,21 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
             currentData.financialData?.iptu ||
             currentData.financialData?.condo ||
             currentData.financialData?.fees) && (
-            <div className="pt-4 border-t border-purple-200">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">Total Mensal:</span>
-                <span className="text-lg font-bold text-purple-600">
-                  R${" "}
-                  {(
-                    (currentData.financialData?.monthlyRent || 0) +
-                    (currentData.financialData?.iptu || 0) +
-                    (currentData.financialData?.condo || 0) +
-                    (currentData.financialData?.fees || 0)
-                  ).toFixed(2)}
-                </span>
+              <div className="pt-4 border-t border-purple-200">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Total Mensal:</span>
+                  <span className="text-lg font-bold text-purple-600">
+                    R${" "}
+                    {(
+                      (currentData.financialData?.monthlyRent || 0) +
+                      (currentData.financialData?.iptu || 0) +
+                      (currentData.financialData?.condo || 0) +
+                      (currentData.financialData?.fees || 0)
+                    ).toFixed(2)}
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
       )}
 
@@ -902,11 +925,10 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
         <div className="grid grid-cols-2 gap-4">
           {/* Individual */}
           <Card
-            className={`cursor-pointer transition-all hover:border-primary ${
-              currentData.propertyType === "individual"
-                ? "border-2 border-primary bg-primary/5"
-                : "border-2 border-transparent"
-            }`}
+            className={`cursor-pointer transition-all hover:border-primary ${currentData.propertyType === "individual"
+              ? "border-2 border-primary bg-primary/5"
+              : "border-2 border-transparent"
+              }`}
             onClick={() => handleChange("propertyType", "individual")}
           >
             <CardContent className="pt-6">
@@ -932,11 +954,10 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
 
           {/* Location-linked */}
           <Card
-            className={`cursor-pointer transition-all hover:border-primary ${
-              currentData.propertyType === "location-linked"
-                ? "border-2 border-primary bg-primary/5"
-                : "border-2 border-transparent"
-            }`}
+            className={`cursor-pointer transition-all hover:border-primary ${currentData.propertyType === "location-linked"
+              ? "border-2 border-primary bg-primary/5"
+              : "border-2 border-transparent"
+              }`}
             onClick={() => handleChange("propertyType", "location-linked")}
           >
             <CardContent className="pt-6">
@@ -1000,8 +1021,8 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
                       {currentData.subtipo === "entire_place"
                         ? "Imóvel inteiro"
                         : currentData.subtipo === "private_room"
-                        ? "Quarto privativo"
-                        : "Quarto compartilhado"}
+                          ? "Quarto privativo"
+                          : "Quarto compartilhado"}
                     </span>
                   </div>
                 )}
@@ -1014,8 +1035,8 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
                           m === "short_term_rental"
                             ? "Aluguel por temporada"
                             : m === "buy_sell"
-                            ? "Compra e venda"
-                            : "Locação residencial"
+                              ? "Compra e venda"
+                              : "Locação residencial"
                         )
                         .join(", ")}
                     </span>

@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Users, Loader2, UserPlus, Mail, Calendar, Shield } from 'lucide-react';
+import { Users, Loader2, UserPlus, Mail, Calendar, Shield, Edit, MoreVertical } from 'lucide-react';
+import { EditUserModal } from './EditUserModal';
 import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
@@ -27,15 +28,17 @@ interface ViewUsersModalProps {
   onAddUser?: () => void;
 }
 
-export function ViewUsersModal({ 
-  open, 
-  onClose, 
-  organizationId, 
+export function ViewUsersModal({
+  open,
+  onClose,
+  organizationId,
   organizationName,
-  onAddUser 
+  onAddUser
 }: ViewUsersModalProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   useEffect(() => {
     if (open && organizationId) {
@@ -81,7 +84,7 @@ export function ViewUsersModal({
       staff: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
       readonly: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
     };
-    
+
     return (
       <Badge className={colors[role] || colors.staff} variant="secondary">
         {role.charAt(0).toUpperCase() + role.slice(1)}
@@ -95,7 +98,7 @@ export function ViewUsersModal({
       invited: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
       suspended: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
     };
-    
+
     return (
       <Badge className={colors[status] || colors.active} variant="secondary">
         {status === 'invited' ? 'Convidado' : status === 'active' ? 'Ativo' : 'Suspenso'}
@@ -158,6 +161,7 @@ export function ViewUsersModal({
                     <TableHead>Função</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Criado em</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -195,6 +199,19 @@ export function ViewUsersModal({
                           {new Date(user.createdAt).toLocaleDateString('pt-BR')}
                         </div>
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowEditModal(true);
+                          }}
+                          title="Editar Usuário"
+                        >
+                          <Edit className="h-4 w-4 text-gray-500 hover:text-blue-600" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -214,6 +231,18 @@ export function ViewUsersModal({
             </div>
           )}
         </div>
+
+        {selectedUser && (
+          <EditUserModal
+            open={showEditModal}
+            onClose={() => {
+              setShowEditModal(false);
+              setSelectedUser(null);
+            }}
+            onSuccess={loadUsers}
+            user={selectedUser}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

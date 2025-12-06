@@ -1,13 +1,14 @@
 import { Context } from "npm:hono";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SUPABASE_PROJECT_REF } from './utils-env.ts';
 
 const BUCKET_NAME = 'make-67caf26a-property-photos';
 
 // Initialize Supabase client
 const getSupabaseClient = () => {
   return createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    SUPABASE_URL ?? '',
+    SUPABASE_SERVICE_ROLE_KEY ?? ''
   );
 };
 

@@ -5,10 +5,10 @@
  * Intercepta requisições 401 e tenta refresh automático do token
  */
 
-import { projectId } from './supabase/info';
 import { refreshToken } from '../services/authService';
+import { API_BASE_URL } from './apiBase';
 
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/rendizy-server`;
+const API_BASE = API_BASE_URL;
 
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean; // Pular autenticação para rotas públicas

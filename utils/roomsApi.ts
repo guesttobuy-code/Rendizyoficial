@@ -6,9 +6,10 @@
  * @date 2025-10-29
  */
 
-import { projectId, publicAnonKey } from './supabase/info';
+import { publicAnonKey } from './supabase/info';
+import { API_BASE_URL } from './apiBase';
 
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1/rendizy-server`;
+const BASE_URL = API_BASE_URL;
 
 // ============================================================================
 // TYPES

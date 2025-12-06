@@ -20,36 +20,35 @@ interface DatabaseProperty {
   bathrooms: number;
   max_guests: number;
   area: number;
-  street: string;
-  number: string;
-  complement?: string;
-  neighborhood?: string;
-  city: string;
-  state: string;
-  zip_code: string;
-  country?: string;
-  coordinates?: { lat: number; lng: number };
+  address_street: string;
+  address_number: string;
+  address_complement?: string;
+  address_neighborhood?: string;
+  address_city: string;
+  address_state: string;
+  address_zip_code: string;
+  address_country?: string;
   amenities: string[];
   photos: string[];
   cover_photo?: string;
-  daily_rate?: number;
-  weekly_rate?: number;
-  monthly_rate?: number;
-  base_price?: number;
-  currency?: string;
-  sale_price?: number;
-  weekly_discount?: number;
-  monthly_discount?: number;
-  min_nights?: number;
-  max_nights?: number;
-  advance_booking?: number;
-  short_term: boolean;
-  long_term: boolean;
-  sale?: boolean;
+  pricing_base_price?: number;
+  pricing_currency?: string; // Backend usually stores as string 'BRL' but interface can be string
+  pricing_weekly_discount?: number;
+  pricing_monthly_discount?: number;
+  restrictions_min_nights?: number;
+  restrictions_max_nights?: number;
+  restrictions_advance_booking?: number;
+
+  // Flattened features
+  short_description?: string;
+
   location_id?: string;
   organization_id?: string;
   created_at?: string;
   updated_at?: string;
+
+  // Additional fields for compatibility
+  pricing_daily_rate?: number; // Check if this exists, logically mapped to base_price usually
 }
 
 function transformDatabaseProperty(dbProperty: DatabaseProperty): Property {
@@ -65,38 +64,37 @@ function transformDatabaseProperty(dbProperty: DatabaseProperty): Property {
     maxGuests: dbProperty.max_guests,
     area: dbProperty.area,
     address: {
-      street: dbProperty.street,
-      number: dbProperty.number,
-      complement: dbProperty.complement,
-      neighborhood: dbProperty.neighborhood || '',
-      city: dbProperty.city,
-      state: dbProperty.state,
-      zipCode: dbProperty.zip_code,
-      country: dbProperty.country || 'Brasil',
-      coordinates: dbProperty.coordinates
+      street: dbProperty.address_street,
+      number: dbProperty.address_number,
+      complement: dbProperty.address_complement,
+      neighborhood: dbProperty.address_neighborhood || '',
+      city: dbProperty.address_city,
+      state: dbProperty.address_state,
+      zipCode: dbProperty.address_zip_code,
+      country: dbProperty.address_country || 'Brasil'
     },
-    amenities: dbProperty.amenities,
-    photos: dbProperty.photos,
-    coverPhoto: dbProperty.cover_photo || dbProperty.photos[0],
+    amenities: dbProperty.amenities || [],
+    photos: dbProperty.photos || [],
+    coverPhoto: dbProperty.cover_photo || (dbProperty.photos && dbProperty.photos[0]),
     pricing: {
-      basePrice: dbProperty.base_price,
-      currency: dbProperty.currency || 'BRL',
-      dailyRate: dbProperty.daily_rate,
-      weeklyRate: dbProperty.weekly_rate,
-      monthlyRate: dbProperty.monthly_rate,
-      salePrice: dbProperty.sale_price,
-      weeklyDiscount: dbProperty.weekly_discount,
-      monthlyDiscount: dbProperty.monthly_discount
+      basePrice: dbProperty.pricing_base_price,
+      currency: 'BRL',
+      dailyRate: dbProperty.pricing_base_price, // Assuming daily rate equals base price
+      weeklyRate: undefined,
+      monthlyRate: undefined,
+      salePrice: undefined,
+      weeklyDiscount: dbProperty.pricing_weekly_discount,
+      monthlyDiscount: dbProperty.pricing_monthly_discount
     },
     restrictions: {
-      minNights: dbProperty.min_nights,
-      maxNights: dbProperty.max_nights,
-      advanceBooking: dbProperty.advance_booking
+      minNights: dbProperty.restrictions_min_nights,
+      maxNights: dbProperty.restrictions_max_nights,
+      advanceBooking: dbProperty.restrictions_advance_booking
     },
     features: {
-      shortTerm: dbProperty.short_term,
-      longTerm: dbProperty.long_term,
-      sale: dbProperty.sale || false
+      shortTerm: true, // Defaults based on typical usage as columns missing
+      longTerm: true,
+      sale: false
     },
     locationId: dbProperty.location_id,
     organizationId: dbProperty.organization_id || API_CONFIG.organizationId,
@@ -132,7 +130,7 @@ export const propertyService = {
         }
 
         const data = await response.json();
-        return data;
+        return data.data || data;
       } else {
         const { data, error } = await supabase
           .from('properties')
@@ -161,7 +159,8 @@ export const propertyService = {
           throw new Error('Failed to fetch property from RENDIZY');
         }
 
-        return await response.json();
+        const data = await response.json();
+        return data.data || data;
       } else {
         const { data, error } = await supabase
           .from('properties')
@@ -255,19 +254,76 @@ export const propertyService = {
 
         return await response.json();
       } else {
+        // 1. Create or Get Guest (Simple version: always try to create, if fail by unique email, search)
+        // Note: For public sites, we might not have permission to search by email due to RLS.
+        // We will try to INSERT directly. If email exists, we catch error (if unique constraint) 
+        // OR we just rely on the fact that guest table allows inserts.
+
+        const guestId = crypto.randomUUID();
+        const [firstName, ...lastNameParts] = reservation.guestName.split(' ');
+        const lastName = lastNameParts.join(' ') || 'Guest';
+
+        // Try to create guest
+        const { error: guestError } = await supabase
+          .from('guests')
+          .insert([{
+            id: guestId,
+            organization_id: API_CONFIG.organizationId,
+            first_name: firstName,
+            last_name: lastName,
+            full_name: reservation.guestName,
+            email: reservation.guestEmail,
+            phone: reservation.guestPhone,
+            source: 'website',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }]);
+
+        let finalGuestId = guestId;
+
+        if (guestError) {
+          console.warn('Guest creation failed (likely exists), trying to find by email if possible or proceed with existing...', guestError);
+          // If RLS allows reading own guest, we might find it. 
+          // If not, we are stuck unless we use a backend function. 
+          // For now, assuming "public insert" is allowed or we fail.
+          // RETRY: Check if allow select
+          const { data: existingGuest } = await supabase
+            .from('guests')
+            .select('id')
+            .eq('email', reservation.guestEmail)
+            .maybeSingle();
+
+          if (existingGuest) {
+            finalGuestId = existingGuest.id;
+          } else {
+            // If we can't create AND can't find, we can't book.
+            // EXCEPT if the error was something else.
+            console.error('CRITICAL: Could not create or find guest.');
+            throw new Error('Could not process guest information.');
+          }
+        }
+
+        // 2. Create Reservation
         const { data, error } = await supabase
           .from('reservations')
           .insert([
             {
               property_id: reservation.propertyId,
-              guest_name: reservation.guestName,
-              guest_email: reservation.guestEmail,
-              guest_phone: reservation.guestPhone,
+              organization_id: API_CONFIG.organizationId,
+              guest_id: finalGuestId,
               check_in: reservation.checkIn,
               check_out: reservation.checkOut,
-              guests: reservation.guests,
-              total_price: reservation.totalPrice,
-              status: 'pending'
+              guests_total: reservation.guests,
+              guests_adults: reservation.guests, // Defaulting adults to total
+              pricing_total: reservation.totalPrice * 100, // Convert to cents if backend expects integer? 
+              // Wait, backend utils-reservation-mapper says `pricing_total: row.pricing_total || 0`.
+              // SQL usually stores money as integer (cents) OR numeric. 
+              // `routes-reservations.ts` line 664: `price: r.pricing.total / 100`. So it IS integer/cents.
+              // `api.ts` `totalPrice` usually comes as float from UI? 
+              // Let's assume UI sends Reais (float). Convert to cents.
+              status: 'pending',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
             }
           ])
           .select()

@@ -13,7 +13,7 @@
  * - Cada step só salva no backend quando usuário clicar em "Salvar e Avançar"
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Home,
   MapPin,
@@ -136,9 +136,16 @@ const WIZARD_STRUCTURE: WizardBlock[] = [
       },
       {
         id: "content-rooms",
-        title: "Cômodos e Distribuição",
-        description: "Como é a distribuição de cômodos?",
+        title: "Cômodos e Fotos",
+        description: "Defina cômodos e adicione fotos",
         icon: DoorOpen,
+        validation: "recommended",
+      },
+      {
+        id: "content-photos",
+        title: "Tour Visual",
+        description: "Visualize o tour da propriedade",
+        icon: ImageIcon,
         validation: "recommended",
       },
       {
@@ -153,13 +160,6 @@ const WIZARD_STRUCTURE: WizardBlock[] = [
         title: "Amenidades da Acomodação",
         description: "Comodidades específicas desta unidade",
         icon: Sparkles,
-        validation: "recommended",
-      },
-      {
-        id: "content-photos",
-        title: "Fotos e Mídia",
-        description: "Mostre sua propriedade em fotos",
-        icon: ImageIcon,
         validation: "recommended",
       },
       {
@@ -476,6 +476,8 @@ export function PropertyEditWizard({
   const [draftPropertyId, setDraftPropertyId] = useState<string | null>(
     property?.id || null
   );
+  const isInitialRenderRef = useRef(true);
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 🆕 SISTEMA DE RASCUNHO - Atualizar draftPropertyId quando property mudar
   useEffect(() => {
@@ -504,6 +506,7 @@ export function PropertyEditWizard({
       modalidades: [],
       registrationNumber: "",
       propertyType: "individual",
+      internalName: "",
     },
     // Step 2: Localização
     contentLocation: {
@@ -565,61 +568,67 @@ export function PropertyEditWizard({
   const [formData, setFormData] = useState<any>(() => {
     // Modo EDIÇÃO: usar dados da propriedade existente
     if (property?.id) {
+      // ✅ FIX: Preferir dados do wizardData (fonte da verdade do form), fallback para dados flat
+      const wd = property.wizardData || {};
+      const ct = wd.contentType || {};
+
       return {
         id: property.id,
         contentType: {
-          propertyTypeId: property.propertyTypeId || undefined,
-          accommodationTypeId: property.accommodationTypeId || undefined,
-          subtipo: property.subtipo || undefined,
-          modalidades: property.modalidades || [],
-          registrationNumber: property.registrationNumber || "",
-          propertyType: property.propertyType || "individual",
+          propertyTypeId: ct.propertyTypeId || property.propertyTypeId || undefined,
+          accommodationTypeId: ct.accommodationTypeId || property.accommodationTypeId || undefined,
+          subtipo: ct.subtipo || property.subtipo || undefined,
+          modalidades: ct.modalidades || property.modalidades || [],
+          registrationNumber: ct.registrationNumber || property.registrationNumber || "",
+          propertyType: ct.propertyType || property.propertyType || "individual",
+          // ✅ FIX: Usar internalName do wizard, ou property.name como fallback robusto
+          internalName: ct.internalName || property.internalName || property.name || "",
         },
         contentLocation: {
           mode: "new" as "new" | "existing",
-          selectedLocationId: property.locationId || undefined,
-          locationName: property.locationName || undefined,
-          locationAmenities: property.locationAmenities || [],
+          selectedLocationId: wd.contentLocation?.selectedLocationId || property.locationId || undefined,
+          locationName: wd.contentLocation?.locationName || property.locationName || undefined,
+          locationAmenities: wd.contentLocation?.locationAmenities || property.locationAmenities || [],
           address: {
-            country: property.address?.country || "BR",
-            state: property.address?.state || "",
-            stateCode: property.address?.stateCode || "",
-            zipCode: property.address?.zipCode || "",
-            city: property.address?.city || "",
-            neighborhood: property.address?.neighborhood || "",
-            street: property.address?.street || "",
-            number: property.address?.number || "",
-            complement: property.address?.complement || "",
-            latitude: property.address?.latitude || undefined,
-            longitude: property.address?.longitude || undefined,
+            country: wd.contentLocation?.address?.country || property.address?.country || "BR",
+            state: wd.contentLocation?.address?.state || property.address?.state || "",
+            stateCode: wd.contentLocation?.address?.stateCode || property.address?.stateCode || "",
+            zipCode: wd.contentLocation?.address?.zipCode || property.address?.zipCode || "",
+            city: wd.contentLocation?.address?.city || property.address?.city || "",
+            neighborhood: wd.contentLocation?.address?.neighborhood || property.address?.neighborhood || "",
+            street: wd.contentLocation?.address?.street || property.address?.street || "",
+            number: wd.contentLocation?.address?.number || property.address?.number || "",
+            complement: wd.contentLocation?.address?.complement || property.address?.complement || "",
+            latitude: wd.contentLocation?.address?.latitude || property.address?.latitude || undefined,
+            longitude: wd.contentLocation?.address?.longitude || property.address?.longitude || undefined,
           },
-          showBuildingNumber: "global" as "global" | "individual",
-          photos: property.locationPhotos || [],
-          hasExpressCheckInOut: property.hasExpressCheckInOut || false,
-          hasParking: property.hasParking || false,
-          hasCableInternet: property.hasCableInternet || false,
-          hasWiFi: property.hasWiFi || false,
-          has24hReception: property.has24hReception || false,
+          showBuildingNumber: wd.contentLocation?.showBuildingNumber || "global",
+          photos: wd.contentLocation?.photos || property.locationPhotos || [],
+          hasExpressCheckInOut: wd.contentLocation?.hasExpressCheckInOut || property.hasExpressCheckInOut || false,
+          hasParking: wd.contentLocation?.hasParking || property.hasParking || false,
+          hasCableInternet: wd.contentLocation?.hasCableInternet || property.hasCableInternet || false,
+          hasWiFi: wd.contentLocation?.hasWiFi || property.hasWiFi || false,
+          has24hReception: wd.contentLocation?.has24hReception || property.has24hReception || false,
         },
         contentRooms: {
-          rooms: property.rooms || [],
+          rooms: wd.contentRooms?.rooms || property.rooms || [],
         },
         contentAmenities: {
           propertyAmenities:
-            property.amenities || property.propertyAmenities || [],
-          inheritLocationAmenities: property.inheritLocationAmenities !== false,
+            wd.contentAmenities?.propertyAmenities || property.amenities || property.propertyAmenities || [],
+          inheritLocationAmenities: wd.contentAmenities?.inheritLocationAmenities ?? (property.inheritLocationAmenities !== false),
         },
         contentDescription: {
-          fixedFields: property.descriptionFields || {},
-          customFieldsValues: property.customDescriptionFieldsValues || {},
-          autoTranslate: false,
+          fixedFields: wd.contentDescription?.fixedFields || property.descriptionFields || {},
+          customFieldsValues: wd.contentDescription?.customFieldsValues || property.customDescriptionFieldsValues || {},
+          autoTranslate: wd.contentDescription?.autoTranslate || false,
         },
-        financialResidentialPricing: property.financialResidentialPricing || {},
-        financialContract: property.financialContract || {},
-        financialSeasonalPricing: property.financialSeasonalPricing || {},
-        financialIndividualPricing: property.financialIndividualPricing || {},
-        financialDerivedPricing: property.financialDerivedPricing || {},
-        settingsRules: property.settingsRules || {},
+        financialResidentialPricing: wd.financialResidentialPricing || property.financialResidentialPricing || {},
+        financialContract: wd.financialContract || property.financialContract || {},
+        financialSeasonalPricing: wd.financialSeasonalPricing || property.financialSeasonalPricing || {},
+        financialIndividualPricing: wd.financialIndividualPricing || property.financialIndividualPricing || {},
+        financialDerivedPricing: wd.financialDerivedPricing || property.financialDerivedPricing || {},
+        settingsRules: wd.settingsRules || property.settingsRules || {},
       };
     }
 
@@ -1035,6 +1044,49 @@ export function PropertyEditWizard({
     }
   }, [formData, draftPropertyId, property?.id]);
 
+  // Auto-save de rascunho (modo criação) com debounce suave
+  useEffect(() => {
+    // Se já tem ID (modo edição), não precisa auto-save local
+    if (property?.id) {
+      return;
+    }
+
+    // Ignorar primeiro render para evitar salvar imediatamente ao montar
+    if (isInitialRenderRef.current) {
+      isInitialRenderRef.current = false;
+      return;
+    }
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        const newId = await saveDraftToBackend();
+        if (!draftPropertyId && newId) {
+          setDraftPropertyId(newId);
+        }
+        await saveDraft();
+      } catch (error) {
+        console.warn("⚠️ [Wizard] Auto-save de rascunho falhou:", error);
+      }
+    }, 1200);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [
+    property?.id,
+    draftPropertyId,
+    saveDraftToBackend,
+    saveDraft,
+    formData,
+    completedSteps,
+  ]);
+
   // Hook para limpar draft
   const clearDraft = useClearDraft();
 
@@ -1263,7 +1315,7 @@ export function PropertyEditWizard({
 
         await updateProperty(propertyId, dataWithProgress, {
           redirectToList: false, // ✅ NÃO redirecionar ao salvar step intermediário
-          customSuccessMessage: `Step ${getCurrentStepNumber()} salvo com sucesso! (${percentage}% completo)`,
+          customSuccessMessage: `Step ${getCurrentStepNumber()} salvo com sucesso!`,
           onSuccess: () => {
             console.log(
               "✅ [Wizard] Rascunho atualizado com sucesso no backend"
@@ -1385,8 +1437,7 @@ export function PropertyEditWizard({
             // Último fallback: salvar no localStorage
             saveDraft();
             toast.error(
-              `Erro ao salvar rascunho: ${
-                error?.message || retryError?.message || "Erro desconhecido"
+              `Erro ao salvar rascunho: ${error?.message || retryError?.message || "Erro desconhecido"
               }. Verifique sua conexão.`
             );
           }
@@ -1700,9 +1751,8 @@ export function PropertyEditWizard({
         // Por que: Já tem property.id, pode atualizar diretamente
         await updateProperty(property.id, formData, {
           redirectToList: true, // ✅ REDIRECIONAR ao finalizar todos os steps
-          customSuccessMessage: `${
-            formData.contentType?.internalName || "Imóvel"
-          } finalizado com sucesso!`,
+          customSuccessMessage: `${formData.contentType?.internalName || "Imóvel"
+            } finalizado com sucesso!`,
           onSuccess: () => {
             clearDraft(); // Limpar rascunho do localStorage
           },
@@ -1732,9 +1782,8 @@ export function PropertyEditWizard({
 
           await updateProperty(draftPropertyId, finalData, {
             redirectToList: true, // ✅ REDIRECIONAR ao finalizar
-            customSuccessMessage: `${
-              formData.contentType?.internalName || "Imóvel"
-            } finalizado com sucesso!`,
+            customSuccessMessage: `${formData.contentType?.internalName || "Imóvel"
+              } finalizado com sucesso!`,
             onSuccess: () => {
               clearDraft(); // Limpar rascunho do localStorage
             },
@@ -1901,25 +1950,41 @@ export function PropertyEditWizard({
 
       // Step 2: Localização (content-location)
       if (step.id === "content-location") {
-        // 🆕 Passar modalidades para filtrar campos específicos
+        // 🆕 Passar modalidades para filtrar campos
         const modalidades = (formData?.contentType?.modalidades ||
           formData?.contentType?.categoria ||
           []) as string[];
+
         return (
           <ContentLocationStep
-            data={formData.contentLocation}
-            modalidades={modalidades}
+            data={
+              formData.contentLocation || {
+                mode: "new",
+                address: {
+                  country: "BR",
+                  state: "",
+                  stateCode: "",
+                  city: "",
+                  neighborhood: "",
+                  street: "",
+                  number: "",
+                  zipCode: "",
+                },
+                showBuildingNumber: "global",
+                photos: [],
+              }
+            }
             onChange={(data) => {
               setFormData({
                 ...formData,
                 contentLocation: data,
               });
             }}
+            modalidades={modalidades}
+            propertyId={property?.id}
           />
         );
       }
-
-      // Step 3: Cômodos (content-rooms)
       if (step.id === "content-rooms") {
         return (
           <ContentRoomsStep
@@ -1974,15 +2039,26 @@ export function PropertyEditWizard({
         );
       }
 
-      // Step 6: Fotos e Mídia (content-photos)
+      // Step 6: Fotos e Mídia (content-photos) -> Agora é "Tour Visual" (Step 4)
       if (step.id === "content-photos") {
         return (
           <ContentPhotosStep
             data={formData.contentPhotos || { photos: [] }}
+            rooms={formData.contentRooms?.rooms || []}
             onChange={(data) => {
               setFormData({
                 ...formData,
                 contentPhotos: data,
+              });
+            }}
+            // 🆕 v1.0.104.1 - Permitir exclusão de fotos (atualiza rooms)
+            onRoomsUpdate={(updatedRooms) => {
+              setFormData({
+                ...formData,
+                contentRooms: {
+                  ...(formData.contentRooms || {}),
+                  rooms: updatedRooms
+                }
               });
             }}
             propertyId={property?.id}
@@ -2393,11 +2469,10 @@ export function PropertyEditWizard({
                               className={`
                               w-full text-left px-3 py-2 rounded-lg transition-colors
                               flex items-start gap-3 group
-                              ${
-                                isActive
+                              ${isActive
                                   ? "bg-primary text-primary-foreground"
                                   : "hover:bg-muted"
-                              }
+                                }
                             `}
                             >
                               <div className="flex-shrink-0 mt-0.5">
@@ -2405,11 +2480,10 @@ export function PropertyEditWizard({
                                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                                 ) : (
                                   <Icon
-                                    className={`h-4 w-4 ${
-                                      isActive
-                                        ? "text-primary-foreground"
-                                        : "text-muted-foreground"
-                                    }`}
+                                    className={`h-4 w-4 ${isActive
+                                      ? "text-primary-foreground"
+                                      : "text-muted-foreground"
+                                      }`}
                                   />
                                 )}
                               </div>
@@ -2420,11 +2494,10 @@ export function PropertyEditWizard({
                                   </span>
                                 </div>
                                 <p
-                                  className={`text-xs truncate ${
-                                    isActive
-                                      ? "text-primary-foreground/80"
-                                      : "text-muted-foreground"
-                                  }`}
+                                  className={`text-xs truncate ${isActive
+                                    ? "text-primary-foreground/80"
+                                    : "text-muted-foreground"
+                                    }`}
                                 >
                                   {step.description}
                                 </p>

@@ -45,7 +45,7 @@ interface RendizyContextData {
   siteConfig: any;
   properties: Property[];
   loading: boolean;
-  
+
   // Funções
   searchProperties: (filters: any) => Promise<Property[]>;
   getProperty: (id: string) => Promise<Property | null>;
@@ -87,11 +87,11 @@ const RendizyContext = createContext<RendizyContextData | null>(null);
  */
 export function useRendizyData() {
   const context = useContext(RendizyContext);
-  
+
   if (!context) {
     throw new Error('useRendizyData deve ser usado dentro de ClientSiteWrapper');
   }
-  
+
   return context;
 }
 
@@ -118,7 +118,7 @@ export function useRendizyData() {
  */
 export function useRendizyBooking() {
   const { calculatePrice, createReservation, checkAvailability } = useRendizyData();
-  
+
   return {
     calculatePrice,
     createReservation,
@@ -143,20 +143,6 @@ interface ClientSiteWrapperProps {
  * - Busca imóveis do organizationId
  * - Provê funções de reserva, cálculo de preço, etc
  * - Permite que qualquer site importado use dados reais do RENDIZY
- * 
- * @example
- * ```tsx
- * // No roteador principal
- * function App() {
- *   const orgId = detectOrganizationId(); // Detecta por domínio
- *   
- *   return (
- *     <ClientSiteWrapper organizationId={orgId}>
- *       <ImportedSite /> {/* Site criado em v0.dev, Bolt, etc */}
- *     </ClientSiteWrapper>
- *   );
- * }
- * ```
  */
 export function ClientSiteWrapper({ organizationId, children }: ClientSiteWrapperProps) {
   const [siteConfig, setSiteConfig] = useState<any>(null);
@@ -184,7 +170,7 @@ export function ClientSiteWrapper({ organizationId, children }: ClientSiteWrappe
       );
 
       const configData = await configResponse.json();
-      
+
       if (configData.success) {
         setSiteConfig(configData.data);
 
@@ -220,7 +206,7 @@ export function ClientSiteWrapper({ organizationId, children }: ClientSiteWrappe
       );
 
       const data = await response.json();
-      
+
       if (data.success) {
         setProperties(data.data || []);
       }
@@ -325,7 +311,7 @@ export function ClientSiteWrapper({ organizationId, children }: ClientSiteWrappe
       );
 
       const data = await response.json();
-      
+
       if (data.success) {
         return data.data;
       }
@@ -374,7 +360,7 @@ export function ClientSiteWrapper({ organizationId, children }: ClientSiteWrappe
       );
 
       const data = await response.json();
-      
+
       if (data.success) {
         return {
           success: true,
@@ -493,7 +479,7 @@ export async function detectOrganizationIdByDomain(): Promise<string | null> {
     );
 
     const data = await response.json();
-    
+
     if (data.success) {
       return data.data.organizationId;
     }

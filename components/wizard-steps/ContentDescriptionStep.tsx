@@ -79,6 +79,7 @@ interface CustomFieldValue {
 
 interface ContentDescriptionStepProps {
   value: {
+    title?: string; // 🆕 Título do anúncio (máximo 50 caracteres)
     fixedFields?: {
       [key: string]: {
         pt: string;
@@ -213,11 +214,11 @@ function removeEmojis(text: string): string {
 
 async function autoTranslate(text: string, from: Language, to: Language): Promise<string> {
   if (!text.trim()) return '';
-  
+
   toast.info('Tradução automática disponível em breve!', {
     description: 'Integração com Google Translate será implementada.'
   });
-  
+
   return `[${to.toUpperCase()}] ${text}`;
 }
 
@@ -233,11 +234,14 @@ export default function ContentDescriptionStep({
   const [currentLanguage, setCurrentLanguage] = useState<Language>('pt');
   const [autoTranslate, setAutoTranslate] = useState(value.autoTranslate || false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['fixed']));
-  
+
+  // 🆕 Título do anúncio
+  const [title, setTitle] = useState<string>(value.title || "");
+
   const [fixedFields, setFixedFields] = useState<{
     [key: string]: { pt: string; en: string; es: string };
   }>(value.fixedFields || {});
-  
+
   const [customFieldsValues, setCustomFieldsValues] = useState<{
     [fieldId: string]: CustomFieldValue;
   }>(value.customFieldsValues || {});
@@ -248,11 +252,12 @@ export default function ContentDescriptionStep({
 
   useEffect(() => {
     onChange({
+      title, // 🆕 Incluir título
       fixedFields,
       customFieldsValues,
       autoTranslate
     });
-  }, [fixedFields, customFieldsValues, autoTranslate]);
+  }, [title, fixedFields, customFieldsValues, autoTranslate]);
 
   // ============================================================================
   // HANDLERS
@@ -260,7 +265,7 @@ export default function ContentDescriptionStep({
 
   const handleFixedFieldChange = (fieldId: string, lang: Language, newValue: string) => {
     const sanitizedValue = removeEmojis(newValue);
-    
+
     if (sanitizedValue !== newValue) {
       toast.warning('Emojis não são permitidos', {
         description: 'Campos fixos não podem conter emojis (política do Airbnb)'
@@ -354,6 +359,48 @@ export default function ContentDescriptionStep({
           Descreva sua propriedade em 3 idiomas
         </p>
       </div>
+
+      {/* 🆕 CAMPO: TÍTULO DO ANÚNCIO */}
+      <Card className="border-2">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Título do Anúncio</span>
+            <Badge variant={title.length > 50 ? "destructive" : "secondary"}>
+              {title.length}/50
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            Título que aparecerá nos anúncios.{" "}
+            <strong>Airbnb limita a 50 caracteres</strong> - o que passar será
+            cortado.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Textarea
+            placeholder="Ex: Apartamento aconchegante no centro da cidade"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={70} // Permitir digitar um pouco mais para mostrar o aviso
+            className={
+              title.length > 50 ? "border-red-500 focus:border-red-500 resize-none" : "resize-none"
+            }
+            rows={2}
+          />
+          {title.length > 50 && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Atenção:</strong> O título ultrapassou 50 caracteres. No Airbnb, apenas os primeiros 50 caracteres serão exibidos.
+              </AlertDescription>
+            </Alert>
+          )}
+          {title.length > 0 && title.length <= 50 && (
+            <p className="text-xs text-muted-foreground">
+              ✓ Título dentro do limite do Airbnb ({title.length}/50 caracteres)
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-3 gap-4">
         <Card>

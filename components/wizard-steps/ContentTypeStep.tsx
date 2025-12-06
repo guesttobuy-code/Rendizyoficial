@@ -66,6 +66,7 @@ interface FormData {
     // Compra e Venda
     salePrice?: number;
   };
+  internalName?: string; // 🆕 v1.0.103.300 - Nome interno para identificação
 }
 
 interface ContentTypeStepProps {
@@ -93,7 +94,7 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
         setLoading(true);
         const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/property-types`;
         console.log('📡 [ContentTypeStep] Fazendo request para:', url);
-        
+
         const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${publicAnonKey}`,
@@ -117,7 +118,7 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
         const locations = activeTypes
           .filter((t) => t.category === 'location')
           .sort((a, b) => a.name.localeCompare(b.name));
-        
+
         const accommodations = activeTypes
           .filter((t) => t.category === 'accommodation')
           .sort((a, b) => a.name.localeCompare(b.name));
@@ -132,7 +133,7 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
         console.warn('⚠️ [ContentTypeStep] Erro ao buscar tipos do backend:', error);
         console.info('ℹ️ [ContentTypeStep] Usando dados mockados temporariamente.');
         console.info('📘 [ContentTypeStep] Para habilitar 50+ tipos reais, execute: ./DEPLOY_BACKEND_NOW.sh');
-        
+
         // 🔥 MOCK COMPLETO: Todos os 30 tipos de LOCAL disponíveis no backend
         const mockLocationTypes: PropertyType[] = [
           { id: 'loc_acomodacao_movel', name: 'Acomodação Móvel', category: 'location', platforms: {}, isActive: true },
@@ -166,7 +167,7 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
           { id: 'loc_treehouse', name: 'Treehouse (Casa na Árvore)', category: 'location', platforms: {}, isActive: true },
           { id: 'loc_villa', name: 'Villa/Casa', category: 'location', platforms: {}, isActive: true },
         ].sort((a, b) => a.name.localeCompare(b.name));
-        
+
         // 🔥 MOCK COMPLETO: Todos os 23 tipos de ACOMODAÇÃO disponíveis no backend
         const mockAccommodationTypes: PropertyType[] = [
           { id: 'acc_apartamento', name: 'Apartamento', category: 'accommodation', platforms: {}, isActive: true },
@@ -193,7 +194,7 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
           { id: 'acc_treehouse', name: 'Treehouse', category: 'accommodation', platforms: {}, isActive: true },
           { id: 'acc_villa', name: 'Villa/Casa', category: 'accommodation', platforms: {}, isActive: true },
         ].sort((a, b) => a.name.localeCompare(b.name));
-        
+
         setLocationTypes(mockLocationTypes || []);
         setAccommodationTypes(mockAccommodationTypes || []);
       } finally {
@@ -213,14 +214,14 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
   const handleChange = (field: keyof FormData, value: any) => {
     console.log('🔄 [ContentTypeStep] Campo alterado:', field, '→', value);
     console.log('📊 [ContentTypeStep] Dados atuais:', data);
-    
+
     const newData = {
       ...data,
       [field]: value,
     };
-    
+
     console.log('📦 [ContentTypeStep] Novos dados:', newData);
-    
+
     // ✅ FIX v1.0.103.290: Usando <select> nativo em vez de shadcn Select
     // Sem Portal = sem race condition = sem NotFoundError!
     onChange(newData);
@@ -245,7 +246,26 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
       {loading === false && locationTypes.length <= 10 && (
         <DeployBackendBanner />
       )}
-      
+
+      {/* 🆕 NOME INTERNO (v1.0.103.300) */}
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold">Identificação Interna</h3>
+          <p className="text-sm text-muted-foreground">
+            Nome para identificar este imóvel no painel administrativo (visível apenas para equipe).
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="internalName">Nome Interno</Label>
+          <Input
+            id="internalName"
+            placeholder="Ex: Apt Copacabana 202 - Prop. João"
+            value={data.internalName || ''}
+            onChange={(e) => handleChange('internalName', e.target.value)}
+          />
+        </div>
+      </div>
+
       {/* TIPO */}
       <div className="space-y-4">
         <div className="space-y-1">
@@ -478,21 +498,21 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
             data.financialData?.iptu ||
             data.financialData?.condo ||
             data.financialData?.fees) && (
-            <div className="pt-4 border-t border-purple-200">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">Total Mensal:</span>
-                <span className="text-lg font-bold text-purple-600">
-                  R${' '}
-                  {(
-                    (data.financialData?.monthlyRent || 0) +
-                    (data.financialData?.iptu || 0) +
-                    (data.financialData?.condo || 0) +
-                    (data.financialData?.fees || 0)
-                  ).toFixed(2)}
-                </span>
+              <div className="pt-4 border-t border-purple-200">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Total Mensal:</span>
+                  <span className="text-lg font-bold text-purple-600">
+                    R${' '}
+                    {(
+                      (data.financialData?.monthlyRent || 0) +
+                      (data.financialData?.iptu || 0) +
+                      (data.financialData?.condo || 0) +
+                      (data.financialData?.fees || 0)
+                    ).toFixed(2)}
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
       )}
 
@@ -583,11 +603,10 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
         <div className="grid grid-cols-2 gap-4">
           {/* Individual */}
           <Card
-            className={`cursor-pointer transition-all hover:border-primary ${
-              data.propertyType === 'individual'
+            className={`cursor-pointer transition-all hover:border-primary ${data.propertyType === 'individual'
                 ? 'border-2 border-primary bg-primary/5'
                 : 'border-2 border-transparent'
-            }`}
+              }`}
             onClick={() => handleChange('propertyType', 'individual')}
           >
             <CardContent className="pt-6">
@@ -609,11 +628,10 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
 
           {/* Location-linked */}
           <Card
-            className={`cursor-pointer transition-all hover:border-primary ${
-              data.propertyType === 'location-linked'
+            className={`cursor-pointer transition-all hover:border-primary ${data.propertyType === 'location-linked'
                 ? 'border-2 border-primary bg-primary/5'
                 : 'border-2 border-transparent'
-            }`}
+              }`}
             onClick={() => handleChange('propertyType', 'location-linked')}
           >
             <CardContent className="pt-6">
@@ -665,8 +683,8 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
                       {data.subtipo === 'entire_place'
                         ? 'Imóvel inteiro'
                         : data.subtipo === 'private_room'
-                        ? 'Quarto privativo'
-                        : 'Quarto compartilhado'}
+                          ? 'Quarto privativo'
+                          : 'Quarto compartilhado'}
                     </span>
                   </div>
                 )}
@@ -678,8 +696,8 @@ export function ContentTypeStep({ data, onChange }: ContentTypeStepProps) {
                         m === 'short_term_rental'
                           ? 'Aluguel por temporada'
                           : m === 'buy_sell'
-                          ? 'Compra e venda'
-                          : 'Locação residencial'
+                            ? 'Compra e venda'
+                            : 'Locação residencial'
                       ).join(', ')}
                     </span>
                   </div>

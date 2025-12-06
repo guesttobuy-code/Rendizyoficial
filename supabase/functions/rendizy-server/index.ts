@@ -72,20 +72,27 @@ const app = new Hono();
 // ✅ SOLUÇÃO SIMPLES: origin: '*' SEM credentials: true
 // Seguindo regra: "Se funciona, não mudar"
 // Tokens em localStorage + header Authorization funcionam perfeitamente
-// ✅ USANDO MIDDLEWARE CORS DO HONO (testado e funcionando anteriormente)
+// ✅ SOLUÇÃO SIMPLES: origin: '*' SEM credentials: true
+// Seguindo regra: "Se funciona, não mudar"
+// Tokens em localStorage + header Authorization funcionam perfeitamente
 app.use(
   "/*",
-  cors({
-    origin: "*",
-    allowHeaders: [
-      "Content-Type",
-      "Authorization",
-      "X-Requested-With",
-      "apikey",
-      "X-Auth-Token",
-    ],
-    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
-  })
+  async (c, next) => {
+    // Handle preflight OPTIONS requests
+    if (c.req.method === 'OPTIONS') {
+      c.header('Access-Control-Allow-Origin', '*');
+      c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+      c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, apikey, X-Auth-Token');
+      // ✅ NÃO incluir Access-Control-Allow-Credentials (não usa cookies)
+      return c.body(null, 204);
+    }
+    await next();
+    // Add CORS headers to all responses
+    c.header('Access-Control-Allow-Origin', '*');
+    c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, apikey, X-Auth-Token');
+    // ✅ NÃO incluir Access-Control-Allow-Credentials (não usa cookies)
+  }
 );
 
 // Enable logger (DEPOIS do CORS)
@@ -329,6 +336,33 @@ async function handleAuthMe(c: Context) {
     apikey: c.req.header("apikey") ? "present" : "missing",
   });
 
+  // Atalho para ambiente local: devolve usuário fixo e evita dependência de banco
+  const isLocal = Deno.env.get("LOCAL_MODE") === "true";
+  if (isLocal) {
+    console.log("🔓 [auth/me] LOCAL_MODE=true - retornando usuário fake (admin)");
+    return c.json({
+      success: true,
+      user: {
+        id: "local-admin",
+        username: "admin",
+        name: "Administrador Local",
+        email: "admin@local.test",
+        type: "superadmin",
+        status: "active",
+        organizationId: "local-org",
+        organization: {
+          id: "local-org",
+          name: "Local Org",
+          slug: "local-org",
+        },
+      },
+      session: {
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
+        lastActivity: new Date().toISOString(),
+      },
+    });
+  }
   // Importar função diretamente para evitar problemas de roteamento
   const { getSessionFromToken } = await import("./utils-session.ts");
   const { getSupabaseClient } = await import("./kv_store.tsx");
@@ -1954,3 +1988,4 @@ Deno.serve((req) => {
 
   return app.fetch(req);
 });
+

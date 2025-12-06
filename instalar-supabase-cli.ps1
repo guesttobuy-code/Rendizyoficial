@@ -16,11 +16,7 @@ try {
 
 # Instalar Supabase CLI globalmente
 Write-Host "📦 Instalando Supabase CLI via npm..." -ForegroundColor Cyan
-<<<<<<< HEAD
 c
-=======
-npm install -g supabase
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "✅ Supabase CLI instalado com sucesso!" -ForegroundColor Green

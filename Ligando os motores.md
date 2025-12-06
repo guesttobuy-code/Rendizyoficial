@@ -77,6 +77,15 @@ headers: {
 - ❌ Adicionar `credentials: 'include'` (quebra CORS)
 - ❌ Mudar para sistema mais "seguro" se o atual funciona
 
+##### **2.1 LOCAL_MODE (DESENVOLVIMENTO OFFLINE)**
+- ✅ Quando `LOCAL_MODE=true` no `.env` da função, o backend ignora o banco e autentica sempre como admin local.
+- ✅ Útil para testar login rápido mesmo sem Supabase/PostgREST.
+- ✅ Resposta fixa: `user.id = "local-admin"`, token aleatório em memória (não persiste).
+- ✅ **Smoke test rápido (function servindo local):**
+  - `curl -X POST http://127.0.0.1:54321/functions/v1/rendizy-server/auth/login -H "Content-Type: application/json" -d "{"username":"admin","password":"admin"}"`
+  - `curl http://127.0.0.1:54321/functions/v1/rendizy-server/auth/me -H "Authorization: Bearer <token-retornado>"`
+- ✅ Somente para desenvolvimento local. Em produção, desligar `LOCAL_MODE`.
+
 #### **3. SESSÕES - SQL DIRETO (FUNCIONA)**
 ```typescript
 // ✅ ESTÁ ASSIM E FUNCIONA - NÃO MUDAR
@@ -418,7 +427,6 @@ Login não persistia ao navegar diretamente via URL, trocar de aba ou janela, ou
 
 ---
 
-<<<<<<< HEAD
 ## 4.5. Arquitetura de Cápsulas de Módulos (⚠️ REGRA DE OURO - OBRIGATÓRIO)
 
 ### 🚨 **REGRA DE OURO ABSOLUTA:**
@@ -517,9 +525,6 @@ export function PricingModule() {
 ---
 
 ## 4.6. Arquitetura do Sistema (⚠️ NÃO VIOLAR)
-=======
-## 4.5. Arquitetura do Sistema (⚠️ NÃO VIOLAR)
->>>>>>> c4731a74413e3c6ac95533edb8b5c5ea1726e941
 
 ### 🏗️ **PRINCÍPIOS ARQUITETURAIS FUNDAMENTAIS:**
 
@@ -1651,3 +1656,31 @@ Pronto! Agora é só seguir o checklist e começar a sessão. 💪
 
 **Lembre-se:** A Orientação Mestra (seção 2) é sua bússola. Use-a sempre!
 
+## 🚦 Checklist Antirregressão e Cápsulas (obrigatório)
+
+- `rg "^<<<<<<<"` no workspace: nenhum marcador de merge permitido.
+- `.\verificar-antes-de-deploy.ps1`: usa o diretório atual e bloqueia se encontrar marcadores.
+- `.\validar-regras.ps1`: sempre antes de commit/PR.
+- Se tocar em rotas/contratos críticos (WhatsApp, CRM, Reservas, Financeiro), consultar `FUNCIONALIDADES_CRITICAS.md` e rodar o check de rotas/contratos (ex.: `npm run check:critical-routes`, se existir).
+- CORS/Login: não alterar enquanto estiver funcionando (origin "*", sem credentials, token no header/localStorage).
+- Persistência: não reintroduzir KV para dados permanentes; seguir migrations oficiais com RLS.
+
+### Padrão de cápsulas
+- `App.tsx` só conhece o shell/rota raiz de cada módulo; sub-rotas e modais ficam dentro da cápsula.
+- Módulos grandes e cápsulas em `React.lazy` + `Suspense` para reduzir acoplamento e bundle inicial.
+- Modais/telas auxiliares pertencem ao módulo (ex.: calendário/reservas), não ao App global.
+
+### Documentar entrelaçamentos
+- Se um módulo depende de outro (ex.: CRM → WhatsApp; Reservas → Properties), anotar no cadeado/contrato e validar (teste ou script).
+- Nunca remover/alterar rota de contrato sem versão alternativa ou migração guiada.
+
+### Guardrails de segurança
+- Não alterar CORS/Login enquanto estável.
+- Não usar KV Store para persistência.
+- Antes de remover código “aparentemente morto”, buscar dependências (`rg "rota"`, `rg "função"`), atualizar cadeados e validar em dev.
+
+---
+
+## 🔐 SEGURANÇA E AUTENTICAÇÃO (Stability Guard)
+Documentação oficial sobre a estabilidade do Login, regras de isolamento e o script "Guardian".
+🔗 **[Acessar Documento de Arquitetura e Estabilidade de Login](file:///c:/Users/rafae/.gemini/antigravity/brain/c6323aed-7fdd-4f9f-8f46-3b7d088e87fa/auth_architecture_and_stability.md)**

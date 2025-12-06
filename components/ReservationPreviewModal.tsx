@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Reservation } from '../App';
 import { Calendar, User, DollarSign, Users, Moon, Building2, Mail, X } from 'lucide-react';
 import { Button } from './ui/button';
+import { useNavigate } from 'react-router-dom';
 
 interface ReservationPreviewModalProps {
   open: boolean;
@@ -17,13 +18,15 @@ export function ReservationPreviewModal({
   reservation,
   onOpenDetails
 }: ReservationPreviewModalProps) {
+  const navigate = useNavigate();
+
   if (!reservation) return null;
 
   const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('pt-BR', { 
-      day: '2-digit', 
-      month: 'short', 
-      year: 'numeric' 
+    return new Date(date).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
     });
   };
 
@@ -153,8 +156,11 @@ export function ReservationPreviewModal({
 
           {/* Action Button */}
           <div className="pt-4 border-t border-gray-200">
-            <Button 
-              onClick={onOpenDetails}
+            <Button
+              onClick={() => {
+                navigate('/reservations', { state: { action: 'viewDetails', reservation } });
+                onOpenDetails();
+              }}
               className="w-full"
             >
               Abrir Reserva

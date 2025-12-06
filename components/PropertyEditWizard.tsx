@@ -275,12 +275,12 @@ function getStepValidation(
   if (modalidades?.includes('short_term_rental')) {
     const contentBlock = WIZARD_STRUCTURE.find(b => b.id === 'content');
     const isContentStep = contentBlock?.steps.some(s => s.id === step.id);
-    
+
     if (isContentStep) {
       return 'required'; // Todos os 7 passos são obrigatórios
     }
   }
-  
+
   // Caso contrário, mantém a validação original
   return step.validation;
 }
@@ -314,13 +314,13 @@ export function PropertyEditWizard({
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   const [locationData, setLocationData] = useState<any>(null);
-  
+
   // 🆕 v1.0.103.292 - Estado de salvamento interno
   const [isSavingInternal, setIsSavingInternal] = useState<boolean>(false);
-  
+
   // Hook de ações padronizadas
   const { updateProperty, cancelEditing } = usePropertyActions();
-  
+
   // Form data for all steps
   const [formData, setFormData] = useState<any>({
     id: property?.id || undefined,
@@ -381,7 +381,7 @@ export function PropertyEditWizard({
   // ============================================================================
   // 🆕 v1.0.103.122 - AUTO-SAVE AUTOMÁTICO
   // ============================================================================
-  
+
   // ❌ AUTO-SAVE COMPLETAMENTE DESABILITADO v1.0.103.292
   // Problema: useAutoSave estava chamando onSave toda hora!
   // Solução: Botão "Salvar e Avançar" manual em cada step
@@ -445,13 +445,28 @@ export function PropertyEditWizard({
     const step = getCurrentStep();
 
     console.log('💾 [Wizard] Salvando E avançando...');
-    
+
     try {
       setIsSavingInternal(true);
-      
-      // 1. Salvar no backend SEM redirecionar
+
+      // 1. Calcular progresso atualizado (incluindo o passo atual)
+      const nextCompletedSteps = new Set(completedSteps);
+      nextCompletedSteps.add(step.id);
+
+      const currentProgress = Math.round((nextCompletedSteps.size / getTotalSteps()) * 100);
+      const completedStepsArray = Array.from(nextCompletedSteps);
+
+      // 2. Preparar dados para salvar
+      const dataToSave = {
+        ...formData,
+        completionPercentage: currentProgress,
+        completedSteps: completedStepsArray,
+        wizardData: formData // Garantir persistência completa
+      };
+
+      // 3. Salvar no backend SEM redirecionar
       if (property?.id) {
-        await updateProperty(property.id, formData, {
+        await updateProperty(property.id, dataToSave, {
           redirectToList: false, // ✅ NÃO redirecionar ao salvar step intermediário
           customSuccessMessage: `Step ${getCurrentStepNumber()} salvo com sucesso!`,
           onSuccess: () => {
@@ -460,9 +475,9 @@ export function PropertyEditWizard({
         });
       } else {
         // Modo criação - chamar onSave do parent
-        await onSave(formData);
+        await onSave(dataToSave);
       }
-      
+
       // 2. Marcar step atual como completo
       setCompletedSteps((prev) => new Set(prev).add(step.id));
 
@@ -520,7 +535,7 @@ export function PropertyEditWizard({
   const handlePrevious = () => {
     // ✅ NÃO salvar no backend - apenas voltar!
     // Auto-save salva localmente (rascunho)
-    
+
     if (currentStepIndex > 0) {
       setCurrentStepIndex(currentStepIndex - 1);
     } else {
@@ -537,7 +552,7 @@ export function PropertyEditWizard({
   const handleStepClick = (blockId: string, stepIndex: number) => {
     // ✅ NÃO salvar no backend - apenas mudar de step!
     // Auto-save salva localmente (rascunho)
-    
+
     setCurrentBlock(blockId);
     setCurrentStepIndex(stepIndex);
   };
@@ -546,7 +561,7 @@ export function PropertyEditWizard({
     try {
       // Validar dados antes de salvar
       // TODO: Adicionar validações específicas
-      
+
       // Usar hook padronizado para atualizar
       if (property?.id) {
         await updateProperty(property.id, formData, {
@@ -577,16 +592,28 @@ export function PropertyEditWizard({
     // Marcar último step como completo
     const step = getCurrentStep();
     setCompletedSteps((prev) => new Set(prev).add(step.id));
-    
+
     try {
       setIsSavingInternal(true);
-      
+
       // Aguardar um momento antes de salvar (evita conflito DOM)
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
+      // Calcular progresso final (100% ou real)
+      const nextCompletedSteps = new Set(completedSteps);
+      nextCompletedSteps.add(step.id);
+      const currentProgress = Math.round((nextCompletedSteps.size / getTotalSteps()) * 100);
+      const completedStepsArray = Array.from(nextCompletedSteps);
+
+      const dataToSave = {
+        ...formData,
+        completionPercentage: currentProgress,
+        completedSteps: completedStepsArray
+      };
+
       // Validar e salvar COM redirecionamento (último step!)
       if (property?.id) {
-        await updateProperty(property.id, formData, {
+        await updateProperty(property.id, dataToSave, {
           redirectToList: true, // ✅ REDIRECIONAR ao finalizar todos os steps
           customSuccessMessage: `${formData.contentType?.internalName || 'Imóvel'} finalizado com sucesso!`,
           onSuccess: () => {
@@ -610,7 +637,7 @@ export function PropertyEditWizard({
 
   const getValidationBadge = (validation?: string) => {
     if (!validation) return null;
-    
+
     switch (validation) {
       case 'required':
         return (
@@ -641,7 +668,7 @@ export function PropertyEditWizard({
 
   const renderStepContent = () => {
     const step = getCurrentStep();
-    
+
     if (!step || !step.id) {
       return (
         <div className="flex items-center justify-center h-full">
@@ -775,7 +802,7 @@ export function PropertyEditWizard({
     if (step.id === 'content-description') {
       // TODO: Buscar configuredCustomFields das settings (kv_store ou API)
       const configuredCustomFields = []; // Virá das configurações globais
-      
+
       return (
         <ContentDescriptionStep
           value={formData.contentDescription}
@@ -1037,7 +1064,7 @@ export function PropertyEditWizard({
                         currentBlock === block.id && currentStepIndex === index;
                       const isCompleted = completedSteps.has(step.id);
                       const Icon = step.icon;
-                      
+
                       // 🆕 v1.0.103.109 - Obrigatoriedade dinâmica baseada na categoria
                       const dynamicValidation = getStepValidation(step, formData.contentType?.categoria);
 
@@ -1048,10 +1075,9 @@ export function PropertyEditWizard({
                           className={`
                             w-full text-left px-3 py-2 rounded-lg transition-colors
                             flex items-start gap-3 group
-                            ${
-                              isActive
-                                ? 'bg-primary text-primary-foreground'
-                                : 'hover:bg-muted'
+                            ${isActive
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-muted'
                             }
                           `}
                         >
@@ -1060,9 +1086,8 @@ export function PropertyEditWizard({
                               <CheckCircle2 className="h-4 w-4 text-green-500" />
                             ) : (
                               <Icon
-                                className={`h-4 w-4 ${
-                                  isActive ? 'text-primary-foreground' : 'text-muted-foreground'
-                                }`}
+                                className={`h-4 w-4 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'
+                                  }`}
                               />
                             )}
                           </div>
@@ -1073,11 +1098,10 @@ export function PropertyEditWizard({
                               </span>
                             </div>
                             <p
-                              className={`text-xs truncate ${
-                                isActive
-                                  ? 'text-primary-foreground/80'
-                                  : 'text-muted-foreground'
-                              }`}
+                              className={`text-xs truncate ${isActive
+                                ? 'text-primary-foreground/80'
+                                : 'text-muted-foreground'
+                                }`}
                             >
                               {step.description}
                             </p>

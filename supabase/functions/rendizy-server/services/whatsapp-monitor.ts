@@ -9,6 +9,7 @@
  */
 
 import { getSupabaseClient } from '../kv_store.tsx';
+import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SUPABASE_PROJECT_REF } from '../utils-env.ts';
 
 /**
  * Normaliza base URL removendo barras finais
@@ -162,7 +163,7 @@ async function updateConnectionStatusInDB(organizationId: string, connected: boo
  */
 export async function setupWebhooks(config: MonitorConfig): Promise<boolean> {
   try {
-    const projectRef = Deno.env.get('SUPABASE_PROJECT_REF') || 'odcgnzfremrqnvtitpcc';
+    const projectRef = SUPABASE_PROJECT_REF || 'odcgnzfremrqnvtitpcc';
     const webhookUrl = `https://${projectRef}.supabase.co/functions/v1/rendizy-server/whatsapp/webhook`;
     
     console.log(`[WhatsApp Monitor] 🔗 Configurando webhooks para: ${webhookUrl}`);

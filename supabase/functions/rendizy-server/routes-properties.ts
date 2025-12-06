@@ -112,7 +112,6 @@ export async function listProperties(c: Context) {
 
     // ✅ REGRA MESTRE: Filtrar por organization_id (superadmin = Rendizy master, outros = sua organização)
     const organizationId = await getOrganizationIdForRequest(c);
-    const tenant = getTenant(c);
 
     // 🆕 CORREÇÃO: Para superadmin, incluir também rascunhos com organization_id = NULL
     // (rascunhos criados via SQL primitivo podem ter organization_id = NULL)
@@ -322,26 +321,36 @@ async function createDraftPropertyMinimal(c: Context, body: any) {
     if (tenant.type !== "superadmin") {
       organizationId = await getOrganizationIdOrThrow(c);
     } else {
-      organizationId = null; // Superadmin pode ter organization_id null
+      // ✅ CORREÇÃO v1.0.103.805 - Evitar NULL em organization_id
+      // Superadmin cria rascunhos na organização mestre por padrão
+      organizationId = RENDIZY_MASTER_ORG_ID;
     }
 
     // ✅ RASCUNHO SIMPLIFICADO: Aceitar QUALQUER dado, sem validações
     // Princípio: Rascunho = qualquer dado salvo, não importa o tamanho
     // Usar valores padrão APENAS para constraints do banco (NOT NULL)
 
+    // ✅ v1.0.103.1100 - Normalizar dados para extrair campos (bedrooms, name, etc) mesmo no rascunho
+    const normalized = normalizeWizardData(body.wizardData || body);
+
     // Extrair dados do body (aceitar qualquer campo preenchido)
+    // 🆕 PRIORIDADE: Nome Interno > Título Público > Nome Genérico
     const name =
+      normalized.name || // Usar nome normalizado
+      body.internalName ||
       body.name ||
       body.contentDescription?.title ||
       body.contentDescription?.fixedFields?.title ||
       "Rascunho de Propriedade";
     const code =
+      normalized.code || // Usar código normalizado
       body.code ||
       body.contentType?.code ||
       `DRAFT-${Date.now().toString(36).toUpperCase()}`;
     // 🆕 CORREÇÃO: type deve ser um dos valores aceitos pela constraint CHECK
     // Valores válidos: 'apartment', 'house', 'studio', 'loft', 'condo', 'villa', 'other'
     const typeRaw =
+      normalized.type || // Usar tipo normalizado
       body.type ||
       body.contentType?.propertyTypeId ||
       body.contentType?.accommodationTypeId ||
@@ -377,12 +386,15 @@ async function createDraftPropertyMinimal(c: Context, body: any) {
     })();
 
     // Endereço: usar o que vier, ou padrão mínimo para constraints do banco
-    const address = body.address || body.contentLocation?.address || {};
+    const address = normalized.address || body.address || body.contentLocation?.address || {};
 
     // ✅ RASCUNHO: Aceitar qualquer valor, usar padrões apenas para constraints do banco
     // 🆕 CRÍTICO: Incluir apenas colunas que SEMPRE existem (campos básicos)
     const minimalDraft: any = {
       organization_id: organizationId,
+      // ✅ CORREÇÃO v1.0.103.900 - Evitar NULL em owner_id
+      // Usar o ID do tenant (usuário logado) ou o ID da organização como fallback
+      owner_id: tenant.id || organizationId || RENDIZY_MASTER_ORG_ID,
       status: "draft",
       // Aceitar qualquer nome/código/tipo que vier, ou usar padrão
       name: name,
@@ -398,10 +410,13 @@ async function createDraftPropertyMinimal(c: Context, body: any) {
       address_neighborhood: address.neighborhood || null,
       address_zip_code: address.zipCode || null,
       // Capacidade: aceitar o que vier, ou padrão mínimo
-      max_guests: body.maxGuests || 1,
-      bedrooms: body.bedrooms || null,
-      beds: body.beds || null,
-      bathrooms: body.bathrooms || null,
+      max_guests: normalized.maxGuests || body.maxGuests || 0,
+      bedrooms: normalized.bedrooms || body.bedrooms || 0,
+      beds: normalized.beds || body.beds || 0,
+      bathrooms: normalized.bathrooms || body.bathrooms || 0,
+      // Fotos e Amenidades
+      photos: normalized.photos || [],
+      amenities: normalized.amenities || [],
       // Preço: aceitar QUALQUER valor (0, negativo, null, etc) - rascunho não valida
       pricing_base_price: body.basePrice !== undefined ? body.basePrice : 0,
       pricing_currency: body.currency || "BRL",
@@ -413,6 +428,7 @@ async function createDraftPropertyMinimal(c: Context, body: any) {
     if (body.wizardData || body) {
       minimalDraft.wizard_data = body.wizardData || body;
     }
+
     if (body.completionPercentage !== undefined) {
       minimalDraft.completion_percentage = body.completionPercentage || 0;
     }
@@ -561,9 +577,8 @@ export async function createProperty(c: Context) {
         isDraft,
         hasId,
         willCreateMinimal,
-        statusComparison: `"${statusValue}" === "draft" = ${
-          statusValue === "draft"
-        }`,
+        statusComparison: `"${statusValue}" === "draft" = ${statusValue === "draft"
+          }`,
         statusType: typeof body.status,
         bodyKeys: Object.keys(body),
       }
@@ -602,8 +617,8 @@ export async function createProperty(c: Context) {
           reason: !isDraft
             ? `status não é 'draft' (é: '${statusValue}')`
             : hasId
-            ? "tem ID"
-            : "desconhecido",
+              ? "tem ID"
+              : "desconhecido",
         }
       );
       // ✅ CRÍTICO: Se não entrou em createDraftPropertyMinimal, continuar com validações normais
@@ -642,6 +657,9 @@ export async function createProperty(c: Context) {
         ...sqlToProperty(existingRow),
         ...normalized,
         id, // Manter ID original
+        // 🆕 FIX: Garantir que wizardData seja atualizado com o corpo da requisição
+        // Se não houver wizardData explícito, usar o próprio corpo (rascunho)
+        wizardData: body.wizardData || body,
       };
 
       // Obter organization_id
@@ -701,7 +719,7 @@ export async function createProperty(c: Context) {
     // ✅ BOAS PRÁTICAS v1.0.103.1000 - NORMALIZAR ANTES DE VALIDAR
     // Normalizar dados do wizard (converte estrutura aninhada para plana)
     // (Apenas para propriedades normais, não rascunhos)
-    const normalized = normalizeWizardData(body);
+    const normalized = normalizeWizardData(body.wizardData || body);
 
     // Usar dados normalizados para validações e criação
     const dataToValidate = {
@@ -1070,11 +1088,11 @@ export async function createProperty(c: Context) {
         basePrice:
           body.basePrice ||
           (body.modalities?.includes("buy_sell") &&
-          body.financialInfo?.salePrice
+            body.financialInfo?.salePrice
             ? body.financialInfo.salePrice
             : undefined) ||
           (body.modalities?.includes("residential_rental") &&
-          body.financialInfo?.monthlyRent
+            body.financialInfo?.monthlyRent
             ? body.financialInfo.monthlyRent
             : undefined) ||
           100, // Fallback padrão
@@ -1271,7 +1289,9 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
   console.log("📊 [NORMALIZAÇÃO] Dados brutos:", wizardData);
 
   // Extrair campos do wizard (estrutura aninhada)
+  // 🆕 PRIORIDADE: Nome Interno > Nome Público > Título
   let name =
+    wizardData.internalName || // Campo raiz 
     wizardData.contentType?.internalName ||
     wizardData.name ||
     existing?.name ||
@@ -1322,22 +1342,26 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
     const timestamp = Date.now().toString(36).slice(-6).toUpperCase();
     const typePrefix = type
       ? type
-          .replace("loc_", "")
-          .replace("acc_", "")
-          .substring(0, 3)
-          .toUpperCase()
+        .replace("loc_", "")
+        .replace("acc_", "")
+        .substring(0, 3)
+        .toUpperCase()
       : "PRP";
     code = `${typePrefix}${timestamp}`;
     console.log("✅ [NORMALIZAÇÃO] Código gerado automaticamente:", code);
   }
 
   // Fotos: converter de contentPhotos.photos para photos (raiz)
+  // Fotos: converter de contentPhotos.photos para photos (raiz)
+  // 🆕 v1.0.103.1100 - Extrair fotos de MÚLTIPLAS FONTES (conteúdo + cômodos)
   let photos = wizardData.photos || existing?.photos || [];
+
+  // 1. Extrair de contentPhotos (se houver) e MERGE
   if (
     wizardData.contentPhotos?.photos &&
     Array.isArray(wizardData.contentPhotos.photos)
   ) {
-    photos = wizardData.contentPhotos.photos.map((p: any) => {
+    const contentPhotos = wizardData.contentPhotos.photos.map((p: any) => {
       // Se for objeto com url, manter estrutura
       if (typeof p === "object" && p.url) {
         return {
@@ -1350,16 +1374,85 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
       // Se for string, converter para objeto
       return { url: p, isCover: false, category: "other", order: 0 };
     });
+
+    // Merge evitando duplicatas por URL
+    const existingUrls = new Set(photos.map((p: any) => p.url));
+    contentPhotos.forEach((p: any) => {
+      if (!existingUrls.has(p.url)) {
+        photos.push(p);
+        existingUrls.add(p.url);
+      }
+    });
   }
 
-  // Foto de capa: primeira foto marcada como isCover
+  // 2. 🆕 Extrair fotos dos CÔMODOS (contentRooms) e MERGE
+  // As fotos podem estar vinculadas diretamente aos cômodos
+  if (
+    wizardData.contentRooms?.rooms &&
+    Array.isArray(wizardData.contentRooms.rooms)
+  ) {
+    const roomPhotos: any[] = [];
+    wizardData.contentRooms.rooms.forEach((room: any) => {
+      if (room.photos && Array.isArray(room.photos)) {
+        room.photos.forEach((p: any) => {
+          // Normalizar objeto foto
+          const photoObj = typeof p === "string"
+            ? { url: p, isCover: false, category: "room", order: 0 }
+            : {
+              url: p.url,
+              isCover: p.isCover || false,
+              category: p.category || "room",
+              order: p.order || 0,
+              // Adicionar metadados do cômodo
+              roomId: room.id,
+              roomType: room.type
+            };
+          roomPhotos.push(photoObj);
+        });
+      }
+    });
+
+    if (roomPhotos.length > 0) {
+      console.log(`✅ [NORMALIZAÇÃO] Encontradas ${roomPhotos.length} fotos nos cômodos`);
+      // Merge evitando duplicatas
+      const existingUrls = new Set(photos.map((p: any) => p.url));
+      roomPhotos.forEach((p: any) => {
+        if (!existingUrls.has(p.url)) {
+          photos.push(p);
+          existingUrls.add(p.url);
+        }
+      });
+    }
+  }
+
+  // Foto de capa: Prioridade para ID explícito do Wizard > primeira foto isCover > primeira foto
   let coverPhoto = existing?.coverPhoto || null;
+
+  // 🆕 v1.0.104.0 - Suporte ao novo passo "Tour Visual" que define ID da capa
+  const explicitCoverId = wizardData.contentPhotos?.coverPhotoId;
+
   if (photos.length > 0) {
+    // Se temos um ID explícito, marcar a foto correspondente como capa
+    if (explicitCoverId) {
+      photos.forEach((p: any) => {
+        if (p.id === explicitCoverId) {
+          p.isCover = true;
+          coverPhoto = p.url;
+        } else {
+          p.isCover = false;
+        }
+      });
+    }
+
+    // Fallback: buscar marcada como isCover
     const cover = photos.find((p: any) => p.isCover);
     if (cover) {
       coverPhoto = typeof cover === "string" ? cover : cover.url;
-    } else if (photos[0]) {
+    } else if (photos[0] && !coverPhoto) {
+      // Se ainda não temos capa, usar a primeira
       coverPhoto = typeof photos[0] === "string" ? photos[0] : photos[0].url;
+      // Marcar primeira como capa no array para consistência
+      if (typeof photos[0] === "object") photos[0].isCover = true;
     }
   }
 
@@ -1376,12 +1469,65 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
     existing?.listingAmenities ||
     [];
 
+
   // Combinar todas amenidades para campo legado
   const allAmenities = [
     ...new Set([...locationAmenities, ...listingAmenities]),
   ];
 
-  // Endereço: extrair de contentLocation
+  // Cômodos: extrair de contentRooms
+  let rooms = wizardData.rooms || existing?.rooms || [];
+  if (wizardData.contentRooms?.rooms) {
+    rooms = wizardData.contentRooms.rooms;
+  }
+
+  // ✅ v1.0.103.1800 - Calcular estatísticas de capacidade (Fan-out)
+  let bedrooms = wizardData.bedrooms || existing?.bedrooms || 0;
+  let bathrooms = wizardData.bathrooms || existing?.bathrooms || 0;
+  let beds = wizardData.beds || existing?.beds || 0;
+  let maxGuests = wizardData.maxGuests || existing?.maxGuests || 0;
+
+  if (wizardData.contentRooms?.rooms && Array.isArray(wizardData.contentRooms.rooms)) {
+    const roomStats = wizardData.contentRooms.rooms.reduce((acc: any, room: any) => {
+      // Contar quartos (tudo que não for sala/cozinha/banheiro/externo)
+      // 🆕 v1.0.104.2 - Ajuste para IDs em PT-BR usados no frontend
+      const nonBedroomTypes = [
+        'sala-comum', 'area-comum', // Living
+        'banheiro', 'meio-banheiro', // Bathroom
+        'balcao', 'espaco-externo', // Outdoor
+        'cozinha', 'lavanderia', 'area-servico', // Service
+        'corredor', 'hall', 'garagem', 'estacionamento' // Other
+      ];
+      // Se não estiver na lista de exclusão, é quarto (suite, quarto-duplo, estudio, etc)
+      const isBedroom = !nonBedroomTypes.includes(room.type);
+
+      if (isBedroom) acc.bedrooms++;
+
+      // Contar banheiros
+      if (['banheiro', 'meio-banheiro', 'lavabo'].includes(room.type)) acc.bathrooms++;
+
+      // Contar camas (se houver array de camas)
+      if (room.beds && typeof room.beds === 'object') {
+        // Somar quantidade de cada tipo de cama
+        Object.values(room.beds).forEach((qtd: any) => {
+          acc.beds += Number(qtd) || 0;
+        });
+      }
+
+      return acc;
+    }, { bedrooms: 0, bathrooms: 0, beds: 0 });
+
+    // Atualizar se calculado (prioridade para o cálculo fresco do wizard)
+    bedrooms = roomStats.bedrooms;
+    bathrooms = roomStats.bathrooms;
+    beds = roomStats.beds;
+
+    // Max Guests - Estimativa baseada em camas (2 por casal, 1 por solteiro)
+    // Mas geralmente vem do input direto do usuário
+    if (!wizardData.maxGuests) {
+      maxGuests = beds * 2; // Estimativa grosseira se não fornecido
+    }
+  }
   let address = wizardData.address || existing?.address || {};
   if (wizardData.contentLocation?.address) {
     address = {
@@ -1394,12 +1540,6 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
   let description = wizardData.description || existing?.description || null;
   if (wizardData.contentDescription?.fixedFields?.description) {
     description = wizardData.contentDescription.fixedFields.description;
-  }
-
-  // Cômodos: extrair de contentRooms
-  let rooms = wizardData.rooms || existing?.rooms || [];
-  if (wizardData.contentRooms?.rooms) {
-    rooms = wizardData.contentRooms.rooms;
   }
 
   // Dados financeiros: extrair de contentType.financialData
@@ -1420,6 +1560,7 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
 
   // Retornar objeto normalizado
   return {
+
     // ✅ CAMPOS RAIZ (para leitura simples nos cards)
     name,
     code,
@@ -1433,6 +1574,10 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
     description,
     rooms,
     financialInfo,
+    bedrooms,
+    bathrooms,
+    beds,
+    maxGuests,
 
     // ✅ MANTER ESTRUTURA WIZARD (para edição futura)
     contentType: wizardData.contentType,
@@ -1451,6 +1596,7 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
     ...wizardData,
   };
 }
+
 
 // ============================================================================
 // ATUALIZAR PROPRIEDADE
@@ -1498,7 +1644,7 @@ export async function updateProperty(c: Context) {
     const existing = sqlToProperty(existingRow);
 
     // 🆕 v1.0.103.315 - NORMALIZAR DADOS DO WIZARD
-    const normalized = normalizeWizardData(body, existing);
+    const normalized = normalizeWizardData(body.wizardData || body, existing);
 
     console.log("📝 [UPDATE] Dados normalizados prontos para salvar:", {
       id,
@@ -1536,8 +1682,7 @@ export async function updateProperty(c: Context) {
     }
 
     logInfo(
-      `🔍 Extracted data - Name: ${extractedName}, Code: ${extractedCode}, Photos: ${
-        extractedPhotos?.length || 0
+      `🔍 Extracted data - Name: ${extractedName}, Code: ${extractedCode}, Photos: ${extractedPhotos?.length || 0
       }`
     );
 
@@ -1651,6 +1796,13 @@ export async function updateProperty(c: Context) {
       }),
       ...(normalized.completedSteps && {
         completedSteps: normalized.completedSteps,
+      }),
+      // 🆕 SISTEMA DE RASCUNHO: Persistir wizardData e porcentagem
+      ...(normalized.completionPercentage !== undefined && {
+        completionPercentage: normalized.completionPercentage,
+      }),
+      ...(normalized.wizardData && {
+        wizardData: normalized.wizardData,
       }),
 
       // 🆕 v1.0.103.262 - Novos campos de Step 1

@@ -6,10 +6,4 @@ declare namespace Deno {
   }
 }
 
-// Permite imports npm: no TypeScript
-declare module "npm:*" {
-  const content: any;
-  export default content;
-  export * from "npm:*";
-}
-
+// Nota: removido o declare module "npm:*" para evitar resolução de pacote "*"

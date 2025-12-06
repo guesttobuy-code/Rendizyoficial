@@ -1,6 +1,16 @@
 -- Migration: Dashboard do Prestador - Estrutura de Analytics
 -- Data: 2025-11-29
 
+-- Garantir tabelas base usadas nas FKs (evita erro em ambientes limpos)
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+);
+
+CREATE TABLE IF NOT EXISTS service_listings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    provider_id UUID REFERENCES profiles(id)
+);
+
 -- Tabela de Analytics do Prestador
 CREATE TABLE IF NOT EXISTS provider_analytics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

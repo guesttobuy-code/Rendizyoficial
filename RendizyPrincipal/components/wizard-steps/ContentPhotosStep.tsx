@@ -1,56 +1,50 @@
 /**
- * RENDIZY - Content Photos Step
- * 
- * Step 6 do wizard de conteúdo: Fotos e Mídia
- * 
+ * RENDIZY - Content Photos Step (Visual Tour)
+ *
+ * Step 04 do wizard de conteúdo (Antigo Step 06)
+ *
  * FUNCIONALIDADES:
- * - Upload de múltiplas fotos
- * - Drag and drop
- * - Reordenação de fotos
- * - Definir foto de capa
- * - Preview de imagens
- * - Descrição por foto (multilíngue)
- * - Categorização de fotos (Quarto, Banheiro, Área Externa, etc)
- * - Compressão automática (REAL - v1.0.103.307)
- * 
- * @version 1.0.103.307
- * @date 2025-11-05
- * 
- * 🆕 v1.0.103.307:
- * - Compressão automática REAL implementada
- * - Integração com /utils/imageCompression.ts
- * - Fotos > 2MB comprimidas para ~1.9MB
- * - Feedback visual durante compressão
- * - Logs detalhados no console
- * - Toast com estatísticas de compressão
+ * - Visualização "Tour" (somente leitura) das fotos organizadas por cômodo
+ * - Definir foto de capa (Global)
+ * - Trava: Capa deve ser horizontal
+ * - Excluir fotos (remove do cômodo)
+ * - Ajuste UX: Grid flexível para exibir fotos horizontais/verticais corretamente
+ * - 🆕 DESTAQUE DE CAPA: Foto de capa sai do grid e vai para o topo
+ * - 🆕 CONFIRMAÇÃO: Diálogo para confirmar troca de capa
+ *
+ * @version 1.0.104.3
+ * @date 2025-12-05
  */
 
-import { useState, useRef } from 'react';
+import { useState } from "react";
 import {
-  Upload,
   Image as ImageIcon,
-  X,
   Star,
-  GripVertical,
   Eye,
-  Trash2,
-  Plus,
-  AlertCircle,
   Info,
-  Check,
-  Loader2,
-} from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Label } from '../ui/label';
-import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
-import { Alert, AlertDescription } from '../ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { toast } from 'sonner';
-import { compressImage, validateImageFile, formatFileSize } from '../../utils/imageCompression';
+  MapPin,
+  Camera,
+  Trash2,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react"; // Import CheckCircle2 here
+import { Card, CardContent } from "../ui/card";
+import { Button } from "../ui/button";
+import { Badge } from "../ui/badge";
+import { Dialog, DialogContent, DialogTrigger } from "../ui/dialog";
+import { ScrollArea } from "../ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../ui/alert-dialog";
 
 // ============================================================================
 // TYPES
@@ -59,48 +53,54 @@ import { compressImage, validateImageFile, formatFileSize } from '../../utils/im
 interface Photo {
   id: string;
   url: string;
-  file?: File;
-  category: string;
-  isCover: boolean;
-  order: number;
-  descriptions: {
-    pt?: string;
-    en?: string;
-    es?: string;
-  };
+  tags?: string[];
+  order?: number;
+  description?: string;
+  width?: number; // Optional metadata if available
+  height?: number;
+}
+
+interface Room {
+  id: string;
+  type: string;
+  typeName: string;
+  customName?: string;
+  isShared: boolean;
+  photos: Photo[];
 }
 
 interface ContentPhotosData {
-  photos: Photo[];
+  coverPhotoId?: string;
+  // Mantemos photos array por compatibilidade
+  photos?: Photo[];
 }
 
 interface ContentPhotosStepProps {
   data: ContentPhotosData;
+  rooms: Room[]; // Recebe os cômodos com suas fotos
   onChange: (data: ContentPhotosData) => void;
+  // 🆕 Callback para atualizar cômodos (exclusão de fotos)
+  onRoomsUpdate?: (rooms: Room[]) => void;
   propertyId?: string;
 }
 
 // ============================================================================
-// CONSTANTES
+// HELPER: VALIDATE IMAGE DIMENSIONS
 // ============================================================================
 
-const PHOTO_CATEGORIES = [
-  { value: 'exterior', label: 'Fachada/Exterior' },
-  { value: 'living', label: 'Sala de Estar' },
-  { value: 'bedroom', label: 'Quarto' },
-  { value: 'bathroom', label: 'Banheiro' },
-  { value: 'kitchen', label: 'Cozinha' },
-  { value: 'dining', label: 'Sala de Jantar' },
-  { value: 'outdoor', label: 'Área Externa' },
-  { value: 'pool', label: 'Piscina' },
-  { value: 'gym', label: 'Academia' },
-  { value: 'amenities', label: 'Comodidades' },
-  { value: 'view', label: 'Vista' },
-  { value: 'other', label: 'Outros' },
-];
-
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB (será comprimido automaticamente)
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const isHorizontal = (url: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      // Considera horizontal se width >= height (paisagem ou quadrado)
+      resolve(img.width > img.height);
+    };
+    img.onerror = () => {
+      resolve(true); // Fallback: permite se não conseguir carregar
+    };
+    img.src = url;
+  });
+};
 
 // ============================================================================
 // MAIN COMPONENT
@@ -108,559 +108,293 @@ const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/web
 
 export function ContentPhotosStep({
   data,
+  rooms,
   onChange,
-  propertyId,
+  onRoomsUpdate,
 }: ContentPhotosStepProps) {
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-  const [isCompressing, setIsCompressing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [validatingCover, setValidatingCover] = useState<string | null>(null);
+  const [pendingCoverPhoto, setPendingCoverPhoto] = useState<Photo | null>(null);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 
-  // ============================================================================
-  // HANDLERS
-  // ============================================================================
+  // Calcular todas as fotos
+  const allPhotos = rooms.flatMap((r) => r.photos);
 
-  const handleFileSelect = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
+  // Capa atual (não fallback automático visualmente, apenas se definido)
+  // SE não tiver coverPhotoId definido, não mostramos nada no topo?
+  // O usuário disse: "assim que definirmos qual a fotos de capa... ele se mova".
+  // Vamos assumir que data.coverPhotoId é a fonte da verdade.
+  const currentCoverId = data.coverPhotoId;
+  const currentCoverPhoto = allPhotos.find(p => p.id === currentCoverId);
 
-    setIsCompressing(true);
-    const newPhotos: Photo[] = [];
-    let compressedCount = 0;
+  // 🆕 INITIATE SET COVER (Opens confirmation)
+  const handleInitiateSetCover = async (photo: Photo) => {
+    setValidatingCover(photo.id);
+    const isLandscape = await isHorizontal(photo.url);
+    setValidatingCover(null);
 
-    try {
-      toast.info(`Processando ${files.length} arquivo(s)...`, {
-        duration: 2000,
+    if (!isLandscape) {
+      toast.error("Foto de capa inválida", {
+        description: "A foto de capa deve ser horizontal (paisagem).",
       });
+      return;
+    }
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+    setPendingCoverPhoto(photo);
+    setIsConfirmDialogOpen(true);
+  };
 
-        // Validar arquivo
-        const validation = validateImageFile(file);
-        if (!validation.valid) {
-          toast.error(`${file.name}: ${validation.error}`);
-          continue;
-        }
-
-        const originalSize = file.size;
-        const originalSizeMB = originalSize / 1024 / 1024;
-
-        // Aplicar compressão se necessário (arquivo > 2MB)
-        let processedFile = file;
-        if (originalSize > 2 * 1024 * 1024) {
-          try {
-            console.log(`🗜️ Comprimindo ${file.name}...`);
-            
-            processedFile = await compressImage(file, {
-              maxWidth: 1920,
-              maxHeight: 1920,
-              quality: 0.85,
-              maxSizeMB: 2,
-            });
-
-            const compressedSizeMB = processedFile.size / 1024 / 1024;
-            const reductionPercent = ((1 - processedFile.size / originalSize) * 100).toFixed(0);
-            
-            compressedCount++;
-            console.log(`✅ ${file.name}: ${originalSizeMB.toFixed(1)}MB → ${compressedSizeMB.toFixed(1)}MB (-${reductionPercent}%)`);
-            
-          } catch (error) {
-            console.error('Erro ao comprimir:', error);
-            toast.error(`Erro ao comprimir ${file.name}`);
-            continue;
-          }
-        }
-
-        // Criar preview com arquivo processado
-        const url = URL.createObjectURL(processedFile);
-
-        const photo: Photo = {
-          id: `photo_${Date.now()}_${i}`,
-          url,
-          file: processedFile,
-          category: 'other',
-          isCover: data.photos.length === 0 && i === 0, // Primeira foto é capa
-          order: data.photos.length + i,
-          descriptions: {},
-        };
-
-        newPhotos.push(photo);
-      }
-
-      if (newPhotos.length > 0) {
-        onChange({
-          ...data,
-          photos: [...data.photos, ...newPhotos],
-        });
-
-        // Mensagem de sucesso com informação sobre compressão
-        if (compressedCount > 0) {
-          toast.success(
-            `${newPhotos.length} foto(s) adicionada(s) • ${compressedCount} comprimida(s)`,
-            { duration: 4000 }
-          );
-        } else {
-          toast.success(`${newPhotos.length} foto(s) adicionada(s)`);
-        }
-      }
-
-    } catch (error) {
-      console.error('Erro ao processar arquivos:', error);
-      toast.error('Erro ao processar arquivos');
-    } finally {
-      setIsCompressing(false);
+  // 🆕 CONFIRM SET COVER
+  const handleConfirmSetCover = () => {
+    if (pendingCoverPhoto) {
+      onChange({
+        ...data,
+        coverPhotoId: pendingCoverPhoto.id,
+      });
+      toast.success("Foto de capa definida!");
+      setIsConfirmDialogOpen(false);
+      setPendingCoverPhoto(null);
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    handleFileSelect(e.dataTransfer.files);
-  };
+  // 🆕 DELETE PHOTO
+  const handleDeletePhoto = (roomId: string, photoId: string) => {
+    if (!onRoomsUpdate) return;
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
+    const newRooms = rooms.map(room => {
+      if (room.id !== roomId) return room;
+      return {
+        ...room,
+        photos: room.photos.filter(p => p.id !== photoId)
+      };
+    });
 
-  const removePhoto = (id: string) => {
-    const updated = data.photos.filter((p) => p.id !== id);
-    
-    // Se removeu a foto de capa, definir a primeira como capa
-    if (data.photos.find((p) => p.id === id)?.isCover && updated.length > 0) {
-      updated[0].isCover = true;
+    onRoomsUpdate(newRooms);
+
+    // Se a foto deletada era a capa, limpar capa
+    if (photoId === currentCoverId) {
+      onChange({
+        ...data,
+        coverPhotoId: undefined
+      });
     }
-
-    onChange({
-      ...data,
-      photos: updated,
-    });
-
-    toast.success('Foto removida');
   };
 
-  const setCover = (id: string) => {
-    const updated = data.photos.map((p) => ({
-      ...p,
-      isCover: p.id === id,
-    }));
 
-    onChange({
-      ...data,
-      photos: updated,
-    });
-
-    toast.success('Foto de capa atualizada');
-  };
-
-  const updatePhotoCategory = (id: string, category: string) => {
-    const updated = data.photos.map((p) =>
-      p.id === id ? { ...p, category } : p
-    );
-
-    onChange({
-      ...data,
-      photos: updated,
-    });
-  };
-
-  const updatePhotoDescription = (id: string, lang: string, description: string) => {
-    const updated = data.photos.map((p) =>
-      p.id === id
-        ? { ...p, descriptions: { ...p.descriptions, [lang]: description } }
-        : p
-    );
-
-    onChange({
-      ...data,
-      photos: updated,
-    });
-  };
-
-  const movePhoto = (fromIndex: number, toIndex: number) => {
-    const updated = [...data.photos];
-    const [moved] = updated.splice(fromIndex, 1);
-    updated.splice(toIndex, 0, moved);
-
-    // Atualizar ordem
-    updated.forEach((p, index) => {
-      p.order = index;
-    });
-
-    onChange({
-      ...data,
-      photos: updated,
-    });
-  };
-
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
-
-  const handleDragEnter = (index: number) => {
-    if (draggedIndex === null) return;
-    if (draggedIndex === index) return;
-
-    movePhoto(draggedIndex, index);
-    setDraggedIndex(index);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-  };
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
-
-  return (
-    <div className="space-y-6">
-      {/* Header Info */}
-      <Alert>
-        <ImageIcon className="h-4 w-4" />
-        <AlertDescription className="text-sm">
-          Adicione fotos profissionais da propriedade. A primeira foto será usada como capa
-          nos anúncios. Reordene arrastando as fotos.
+  // Se não houver quartos ou fotos
+  if (rooms.length === 0) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Nenhum cômodo definido</AlertTitle>
+        <AlertDescription>
+          Você precisa definir os cômodos e adicionar fotos no passo anterior
+          ("Cômodos e Fotos") para visualizar o tour aqui.
         </AlertDescription>
       </Alert>
+    );
+  }
 
-      {/* Upload Area */}
-      <Card className={`border-2 border-dashed ${isCompressing ? 'border-primary bg-primary/5' : 'border-muted'}`}>
-        <CardContent
-          className="p-8"
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-        >
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="p-4 rounded-full bg-primary/10">
-              {isCompressing ? (
-                <Loader2 className="h-8 w-8 text-primary animate-spin" />
-              ) : (
-                <Upload className="h-8 w-8 text-primary" />
-              )}
+  const hasAnyPhoto = rooms.some((r) => r.photos.length > 0);
+
+  if (!hasAnyPhoto) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center space-y-4 border-2 border-dashed rounded-lg bg-muted/20">
+        <div className="p-4 bg-muted rounded-full">
+          <Camera className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="font-semibold text-lg">Sem fotos ainda</h3>
+          <p className="text-muted-foreground max-w-sm">
+            Volte para o passo "Cômodos e Fotos" para fazer upload das imagens
+            de cada ambiente.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* CONFIRMATION DIALOG */}
+      <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Definir Foto de Capa</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja definir esta foto como capa do imóvel?
+              Ela será movida para o destaque no topo da página.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {pendingCoverPhoto && (
+            <div className="my-4 aspect-video relative rounded-md overflow-hidden bg-black/10 border">
+              <img
+                src={pendingCoverPhoto.url}
+                alt="Preview"
+                className="w-full h-full object-contain"
+              />
             </div>
-            <div className="text-center space-y-2">
-              <h3 className="font-semibold">
-                {isCompressing 
-                  ? 'Comprimindo imagens...' 
-                  : 'Arraste fotos para cá ou clique para selecionar'
-                }
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Aceito: JPG, PNG, WebP até 20MB • Compressão automática aplicada
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isCompressing}
-            >
-              {isCompressing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Comprimindo...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Selecionar Arquivos
-                </>
-              )}
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => handleFileSelect(e.target.files)}
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingCoverPhoto(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmSetCover}>Sim, definir capa</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <ImageIcon className="h-5 w-5" />
+            Tour Visual da Propriedade
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Confira como as fotos serão exibidas para os hóspedes.
+          </p>
+        </div>
+      </div>
+
+      {/* 🆕 COVER PHOTO HERO SECTION */}
+      {currentCoverPhoto && (
+        <div className="bg-muted/30 p-6 rounded-xl border border-yellow-500/30 ring-1 ring-yellow-500/10">
+          <div className="flex items-center gap-2 mb-4 text-yellow-600 dark:text-yellow-500 font-semibold">
+            <Star className="h-5 w-5 fill-current" />
+            <h3>Foto de Capa do Anúncio</h3>
+          </div>
+
+          <div className="relative aspect-video w-full max-w-3xl mx-auto bg-black/5 rounded-lg overflow-hidden border shadow-sm group">
+            <img
+              src={currentCoverPhoto.url}
+              alt="Cover View"
+              className="w-full h-full object-contain"
             />
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Stats */}
-      {data.photos.length > 0 && (
-        <div className="flex items-center gap-4 text-sm">
-          <Badge variant="outline">
-            {data.photos.length} foto(s) adicionada(s)
-          </Badge>
-          <Badge variant="secondary">
-            <Star className="h-3 w-3 mr-1" />
-            {data.photos.filter((p) => p.isCover).length} foto de capa
-          </Badge>
+            {/* Overlay Actions for Cover */}
+            <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all flex items-center justify-center opacity-0 hover:opacity-100">
+              <Badge className="bg-black/70 text-white hover:bg-black/80 cursor-default">
+                Foto de Capa Ativa
+              </Badge>
+            </div>
+          </div>
+          <p className="text-center text-xs text-muted-foreground mt-2">
+            Esta imagem será o destaque principal do seu anúncio nas listagens.
+          </p>
         </div>
       )}
 
-      {/* Photos Grid */}
-      {data.photos.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Fotos Carregadas</h3>
-            <p className="text-xs text-muted-foreground">
-              Arraste para reordenar
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {data.photos.map((photo, index) => (
-              <div
-                key={photo.id}
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragEnter={() => handleDragEnter(index)}
-                onDragEnd={handleDragEnd}
-                className={`
-                  relative group rounded-lg overflow-hidden border-2 transition-all
-                  ${photo.isCover ? 'border-yellow-500' : 'border-border'}
-                  ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}
-                  hover:border-primary cursor-move
-                `}
-              >
-                {/* Drag Handle */}
-                <div className="absolute top-2 left-2 z-10 p-1 bg-black/50 rounded cursor-move">
-                  <GripVertical className="h-4 w-4 text-white" />
-                </div>
-
-                {/* Cover Badge */}
-                {photo.isCover && (
-                  <div className="absolute top-2 right-2 z-10">
-                    <Badge className="bg-yellow-500 text-black">
-                      <Star className="h-3 w-3 mr-1" />
-                      Capa
-                    </Badge>
-                  </div>
-                )}
-
-                {/* Image */}
-                <div className="aspect-square relative">
-                  <img
-                    src={photo.url}
-                    alt={`Foto ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-
-                  {/* Overlay Actions */}
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setSelectedPhoto(photo)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    {!photo.isCover && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setCover(photo.id)}
-                      >
-                        <Star className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => removePhoto(photo.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Category */}
-                <div className="p-2 bg-muted">
-                  <Select
-                    value={photo.category}
-                    onValueChange={(value) => updatePhotoCategory(photo.id, value)}
-                  >
-                    <SelectTrigger className="h-7 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PHOTO_CATEGORIES.map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value} className="text-xs">
-                          {cat.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Photo Details Modal */}
-      {selectedPhoto && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Detalhes da Foto</CardTitle>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setSelectedPhoto(null)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Preview */}
-              <div className="aspect-video relative rounded-lg overflow-hidden border">
-                <img
-                  src={selectedPhoto.url}
-                  alt="Preview"
-                  className="w-full h-full object-contain bg-muted"
-                />
-              </div>
-
-              {/* Category */}
-              <div className="space-y-2">
-                <Label>Categoria</Label>
-                <Select
-                  value={selectedPhoto.category}
-                  onValueChange={(value) =>
-                    updatePhotoCategory(selectedPhoto.id, value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PHOTO_CATEGORIES.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Cover */}
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="space-y-1">
-                  <Label>Foto de Capa</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Esta foto será destacada nos anúncios
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant={selectedPhoto.isCover ? 'default' : 'outline'}
-                  onClick={() => setCover(selectedPhoto.id)}
-                >
-                  {selectedPhoto.isCover ? (
-                    <>
-                      <Check className="h-4 w-4 mr-2" />
-                      É Capa
-                    </>
-                  ) : (
-                    <>
-                      <Star className="h-4 w-4 mr-2" />
-                      Definir como Capa
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              {/* Descriptions */}
-              <div className="space-y-2">
-                <Label>Descrição (Opcional)</Label>
-                <Tabs defaultValue="pt">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="pt">🇧🇷 PT</TabsTrigger>
-                    <TabsTrigger value="en">🇺🇸 EN</TabsTrigger>
-                    <TabsTrigger value="es">🇪🇸 ES</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="pt" className="space-y-2">
-                    <Textarea
-                      placeholder="Descrição em português..."
-                      value={selectedPhoto.descriptions.pt || ''}
-                      onChange={(e) =>
-                        updatePhotoDescription(selectedPhoto.id, 'pt', e.target.value)
-                      }
-                      rows={3}
-                    />
-                  </TabsContent>
-                  <TabsContent value="en" className="space-y-2">
-                    <Textarea
-                      placeholder="Description in English..."
-                      value={selectedPhoto.descriptions.en || ''}
-                      onChange={(e) =>
-                        updatePhotoDescription(selectedPhoto.id, 'en', e.target.value)
-                      }
-                      rows={3}
-                    />
-                  </TabsContent>
-                  <TabsContent value="es" className="space-y-2">
-                    <Textarea
-                      placeholder="Descripción en español..."
-                      value={selectedPhoto.descriptions.es || ''}
-                      onChange={(e) =>
-                        updatePhotoDescription(selectedPhoto.id, 'es', e.target.value)
-                      }
-                      rows={3}
-                    />
-                  </TabsContent>
-                </Tabs>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2 pt-4 border-t">
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    removePhoto(selectedPhoto.id);
-                    setSelectedPhoto(null);
-                  }}
-                  className="flex-1"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Remover Foto
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedPhoto(null)}
-                  className="flex-1"
-                >
-                  Fechar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {data.photos.length === 0 && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="text-sm">
-            <strong>Dica:</strong> Adicione pelo menos 5 fotos de qualidade para melhorar
-            a conversão dos seus anúncios. Fotos claras e bem iluminadas atraem mais
-            hóspedes.
+      {!currentCoverPhoto && (
+        <Alert variant="default" className="border-yellow-500/50 bg-yellow-500/5 text-yellow-900 dark:text-yellow-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Nenhuma capa definida!</AlertTitle>
+          <AlertDescription>
+            Selecione uma foto abaixo para ser a capa do seu anúncio.
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Help */}
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription className="text-xs">
-          <strong>Dicas de fotografia:</strong>
-          <ul className="list-disc list-inside mt-2 space-y-1">
-            <li>Use luz natural sempre que possível</li>
-            <li>Tire fotos em alta resolução (mínimo 1920x1080)</li>
-            <li>Mostre todos os cômodos principais</li>
-            <li>Inclua fotos da vista e áreas externas</li>
-            <li>Evite fotos com pessoas ou objetos pessoais</li>
-          </ul>
-        </AlertDescription>
-      </Alert>
-    </div>
+
+      {/* ROOMS LIST */}
+      <div className="space-y-12">
+        {rooms.map((room) => {
+          // Filter out the current cover photo from the grid
+          const photosToShow = room.photos.filter(p => p.id !== currentCoverId);
+
+          if (photosToShow.length === 0) return null;
+
+          return (
+            <div key={room.id} className="space-y-4">
+              {/* Room Header */}
+              <div className="flex items-center gap-2 border-b pb-2 sticky top-0 bg-background/95 backdrop-blur z-10 py-2">
+                <MapPin className="h-4 w-4 text-primary" />
+                <h3 className="font-medium text-lg">
+                  {room.customName || room.typeName}
+                </h3>
+                <Badge variant="secondary" className="text-xs">
+                  {photosToShow.length} fotos
+                </Badge>
+              </div>
+
+              {/* Photos Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {photosToShow.map((photo) => {
+                  const isValidating = validatingCover === photo.id;
+
+                  return (
+                    <div
+                      key={photo.id}
+                      className="group relative rounded-lg overflow-hidden border bg-black/5 border-border hover:border-primary/50 flex items-center justify-center transition-all"
+                      style={{ height: '220px' }}
+                    >
+                      <img
+                        src={photo.url}
+                        alt="Room photo"
+                        className="w-full h-full object-contain bg-neutral-100 dark:bg-neutral-900"
+                      />
+
+                      {/* Actions */}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-4">
+
+                        {/* Top Actions: View */}
+                        <div className="flex gap-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button size="icon" variant="secondary" className="h-8 w-8 rounded-full" onClick={() => setSelectedPhoto(photo)}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl p-0 overflow-hidden bg-transparent border-none shadow-none">
+                              <div className="relative w-full h-[80vh] flex items-center justify-center pointer-events-none">
+                                <img
+                                  src={photo.url}
+                                  alt="Full view"
+                                  className="max-w-full max-h-full object-contain pointer-events-auto rounded-md shadow-2xl"
+                                />
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+
+                          {onRoomsUpdate && (
+                            <Button
+                              size="icon"
+                              variant="destructive"
+                              className="h-8 w-8 rounded-full"
+                              onClick={() => handleDeletePhoto(room.id, photo.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Bottom Action: Set Cover */}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="w-full max-w-[140px] text-xs font-medium mt-2 shadow-lg hover:bg-white"
+                          onClick={() => handleInitiateSetCover(photo)}
+                          disabled={isValidating}
+                        >
+                          {isValidating ? (
+                            "Verificando..."
+                          ) : (
+                            <>
+                              <Star className="h-3 w-3 mr-1 fill-yellow-500 text-yellow-500" />
+                              Definir como Capa
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div >
   );
 }
 

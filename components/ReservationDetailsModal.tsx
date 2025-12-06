@@ -13,12 +13,12 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
 import { CancelReservationModal, CancelReservationData } from './CancelReservationModal';
-import { 
-  Calendar, 
-  User, 
-  CreditCard, 
-  MessageSquare, 
-  FileText, 
+import {
+  Calendar,
+  User,
+  CreditCard,
+  MessageSquare,
+  FileText,
   Clock,
   MapPin,
   Phone,
@@ -95,12 +95,12 @@ export function ReservationDetailsModal({
   const [newNote, setNewNote] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
-  
+
   // Edição de datas
   const [isEditingDates, setIsEditingDates] = useState(false);
   const [editCheckIn, setEditCheckIn] = useState<Date | undefined>(undefined);
   const [editCheckOut, setEditCheckOut] = useState<Date | undefined>(undefined);
-  
+
   // Status do pagamento
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'partial' | 'paid' | 'refunded'>('paid');
   const [showPaymentLink, setShowPaymentLink] = useState(false);
@@ -117,16 +117,16 @@ export function ReservationDetailsModal({
 
   const handleCancelReservation = (data: CancelReservationData) => {
     console.log('Cancelamento processado:', data);
-    
+
     // Chama a função do App.tsx para atualizar o estado
     if (onCancelReservation && reservation) {
       onCancelReservation(reservation.id);
     }
-    
+
     toast.success('Reserva cancelada com sucesso', {
       description: `Reembolso: R$ ${data.refundAmount?.toFixed(2) || '0,00'}`
     });
-    
+
     setCancelModalOpen(false);
     onClose();
   };
@@ -236,8 +236,8 @@ export function ReservationDetailsModal({
               </DialogDescription>
             </div>
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => onEdit?.(reservation)}
               >
@@ -279,162 +279,162 @@ export function ReservationDetailsModal({
                   </CardContent>
                 </Card>
 
-                  {/* Período */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm">Período</CardTitle>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setIsEditingDates(true)}
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      {!isEditingDates ? (
-                        <div className="space-y-2.5">
-                          <div className="flex items-start gap-2">
-                            <Calendar className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs text-gray-500">Check-in</div>
-                              <div className="text-sm font-medium truncate">
-                                {format(reservation.checkIn, "dd/MM/yyyy", { locale: ptBR })}
-                              </div>
-                              <div className="text-xs text-gray-600">14h</div>
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <Calendar className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs text-gray-500">Check-out</div>
-                              <div className="text-sm font-medium truncate">
-                                {format(reservation.checkOut, "dd/MM/yyyy", { locale: ptBR })}
-                              </div>
-                              <div className="text-xs text-gray-600">12h</div>
-                            </div>
-                          </div>
-                          <div className="pt-2 border-t flex items-center justify-between">
-                            <span className="text-xs text-gray-500">Duração</span>
-                            <span className="text-sm font-medium">{nights} {nights === 1 ? 'noite' : 'noites'}</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div>
-                            <Label className="text-xs">Check-in</Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" size="sm" className="w-full justify-start mt-1">
-                                  <Calendar className="mr-2 h-3 w-3" />
-                                  <span className="text-xs">{editCheckIn ? format(editCheckIn, 'dd/MM/yyyy') : 'Selecione'}</span>
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <CalendarPicker
-                                  mode="single"
-                                  selected={editCheckIn}
-                                  onSelect={setEditCheckIn}
-                                  locale={ptBR}
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                          <div>
-                            <Label className="text-xs">Check-out</Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" size="sm" className="w-full justify-start mt-1">
-                                  <Calendar className="mr-2 h-3 w-3" />
-                                  <span className="text-xs">{editCheckOut ? format(editCheckOut, 'dd/MM/yyyy') : 'Selecione'}</span>
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <CalendarPicker
-                                  mode="single"
-                                  selected={editCheckOut}
-                                  onSelect={setEditCheckOut}
-                                  locale={ptBR}
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                          <div className="flex gap-1 pt-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => setIsEditingDates(false)}
-                              className="flex-1"
-                            >
-                              <X className="w-3 h-3 mr-1" />
-                              <span className="text-xs">Cancelar</span>
-                            </Button>
-                            <Button 
-                              variant="default" 
-                              size="sm"
-                              onClick={handleSaveDates}
-                              className="flex-1"
-                            >
-                              <Save className="w-3 h-3 mr-1" />
-                              <span className="text-xs">Salvar</span>
-                            </Button>
-                          </div>
-                          <Alert className="mt-2">
-                            <AlertCircle className="h-3 w-3" />
-                            <AlertDescription className="text-xs">
-                              Alterações de datas podem afetar o preço da reserva.
-                            </AlertDescription>
-                          </Alert>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Resumo Financeiro */}
-                  <Card className="min-w-0">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">Resumo Financeiro</CardTitle>
-                    </CardHeader>
-                    <CardContent className="min-w-0">
+                {/* Período */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm">Período</CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setIsEditingDates(true)}
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {!isEditingDates ? (
                       <div className="space-y-2.5">
-                        {/* Valor Total em Destaque */}
-                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-2.5">
-                          <div className="text-xs uppercase tracking-wide text-gray-600 mb-1">
-                            Valor total
-                          </div>
-                          <div className="text-base font-bold text-gray-900 min-w-0 break-words">
-                            R$ {totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        <div className="flex items-start gap-2">
+                          <Calendar className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-gray-500">Check-in</div>
+                            <div className="text-sm font-medium truncate">
+                              {format(reservation.checkIn, "dd/MM/yyyy", { locale: ptBR })}
+                            </div>
+                            <div className="text-xs text-gray-600">14h</div>
                           </div>
                         </div>
-
-                        {/* Detalhamento Compacto */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between items-center gap-2">
-                            <span className="text-xs text-gray-600">Diárias ({nights}x)</span>
-                            <span className="text-xs font-medium text-gray-900 text-right">
-                              R$ {reservation.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </span>
+                        <div className="flex items-start gap-2">
+                          <Calendar className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-gray-500">Check-out</div>
+                            <div className="text-sm font-medium truncate">
+                              {format(reservation.checkOut, "dd/MM/yyyy", { locale: ptBR })}
+                            </div>
+                            <div className="text-xs text-gray-600">12h</div>
                           </div>
-                          <div className="flex justify-between items-center gap-2">
-                            <span className="text-xs text-gray-600">Taxa de limpeza</span>
-                            <span className="text-xs font-medium text-gray-900 text-right">
-                              R$ {cleaningFee.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center gap-2">
-                            <span className="text-xs text-gray-600">Desconto</span>
-                            <span className="text-xs font-medium text-green-600 text-right">
-                              - R$ 0,00
-                            </span>
-                          </div>
+                        </div>
+                        <div className="pt-2 border-t flex items-center justify-between">
+                          <span className="text-xs text-gray-500">Duração</span>
+                          <span className="text-sm font-medium">{nights} {nights === 1 ? 'noite' : 'noites'}</span>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-xs">Check-in</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className="w-full justify-start mt-1">
+                                <Calendar className="mr-2 h-3 w-3" />
+                                <span className="text-xs">{editCheckIn ? format(editCheckIn, 'dd/MM/yyyy') : 'Selecione'}</span>
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <CalendarPicker
+                                mode="single"
+                                selected={editCheckIn}
+                                onSelect={setEditCheckIn}
+                                locale={ptBR}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Check-out</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className="w-full justify-start mt-1">
+                                <Calendar className="mr-2 h-3 w-3" />
+                                <span className="text-xs">{editCheckOut ? format(editCheckOut, 'dd/MM/yyyy') : 'Selecione'}</span>
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <CalendarPicker
+                                mode="single"
+                                selected={editCheckOut}
+                                onSelect={setEditCheckOut}
+                                locale={ptBR}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="flex gap-1 pt-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsEditingDates(false)}
+                            className="flex-1"
+                          >
+                            <X className="w-3 h-3 mr-1" />
+                            <span className="text-xs">Cancelar</span>
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={handleSaveDates}
+                            className="flex-1"
+                          >
+                            <Save className="w-3 h-3 mr-1" />
+                            <span className="text-xs">Salvar</span>
+                          </Button>
+                        </div>
+                        <Alert className="mt-2">
+                          <AlertCircle className="h-3 w-3" />
+                          <AlertDescription className="text-xs">
+                            Alterações de datas podem afetar o preço da reserva.
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Resumo Financeiro */}
+                <Card className="min-w-0">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Resumo Financeiro</CardTitle>
+                  </CardHeader>
+                  <CardContent className="min-w-0">
+                    <div className="space-y-2.5">
+                      {/* Valor Total em Destaque */}
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-2.5">
+                        <div className="text-xs uppercase tracking-wide text-gray-600 mb-1">
+                          Valor total
+                        </div>
+                        <div className="text-base font-bold text-gray-900 min-w-0 break-words">
+                          R$ {totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </div>
+                      </div>
+
+                      {/* Detalhamento Compacto */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-xs text-gray-600">Diárias ({nights}x)</span>
+                          <span className="text-xs font-medium text-gray-900 text-right">
+                            R$ {reservation.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-xs text-gray-600">Taxa de limpeza</span>
+                          <span className="text-xs font-medium text-gray-900 text-right">
+                            R$ {cleaningFee.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-xs text-gray-600">Desconto</span>
+                          <span className="text-xs font-medium text-green-600 text-right">
+                            - R$ 0,00
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
               {/* SECONDARY INFO - Grid 2 colunas */}
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
@@ -468,7 +468,7 @@ export function ReservationDetailsModal({
                           </div>
                         </div>
                       )}
-                      
+
                       {paymentStatus === 'pending' && (
                         <>
                           <Alert className="border-yellow-200 bg-yellow-50">
@@ -477,29 +477,29 @@ export function ReservationDetailsModal({
                               Aguardando confirmação de pagamento
                             </AlertDescription>
                           </Alert>
-                          
+
                           <div className="space-y-2">
-                            <Button 
-                              className="w-full" 
+                            <Button
+                              className="w-full"
                               onClick={handleGeneratePaymentLink}
                               variant="default"
                             >
                               <Link2 className="w-4 h-4 mr-2" />
                               Gerar Link de Pagamento
                             </Button>
-                            
+
                             {showPaymentLink && (
                               <Card className="border-blue-200 bg-blue-50">
                                 <CardContent className="pt-4 space-y-2">
                                   <Label className="text-sm font-medium">Link de Pagamento</Label>
                                   <div className="flex gap-2">
-                                    <Input 
-                                      value={paymentLink} 
-                                      readOnly 
+                                    <Input
+                                      value={paymentLink}
+                                      readOnly
                                       className="bg-white"
                                     />
-                                    <Button 
-                                      size="sm" 
+                                    <Button
+                                      size="sm"
                                       variant="outline"
                                       onClick={handleCopyPaymentLink}
                                     >
@@ -507,16 +507,16 @@ export function ReservationDetailsModal({
                                     </Button>
                                   </div>
                                   <div className="flex gap-2">
-                                    <Button 
-                                      size="sm" 
+                                    <Button
+                                      size="sm"
                                       className="flex-1"
                                       onClick={handleSendPaymentLink}
                                     >
                                       <Send className="w-4 h-4 mr-2" />
                                       Enviar por E-mail/WhatsApp
                                     </Button>
-                                    <Button 
-                                      size="sm" 
+                                    <Button
+                                      size="sm"
                                       variant="outline"
                                       onClick={() => window.open(paymentLink, '_blank')}
                                     >
@@ -559,8 +559,8 @@ export function ReservationDetailsModal({
                       <CardTitle className="text-base">Alterar Status</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <Select 
-                        value={reservation.status} 
+                      <Select
+                        value={reservation.status}
                         onValueChange={handleChangeStatus}
                       >
                         <SelectTrigger>
@@ -1200,8 +1200,8 @@ export function ReservationDetailsModal({
             </Button>
             {reservation.status !== 'cancelled' && (
               <>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => {
                     if (onEdit) {
@@ -1213,8 +1213,8 @@ export function ReservationDetailsModal({
                   <Edit className="w-4 h-4 mr-2" />
                   Editar Reserva
                 </Button>
-                <Button 
-                  variant="destructive" 
+                <Button
+                  variant="destructive"
                   size="sm"
                   onClick={() => setCancelModalOpen(true)}
                 >

@@ -87,7 +87,7 @@ app.get('/', async (c) => {
   try {
     const organizationId = c.req.query('organizationId');
     const supabase = getSupabaseClient();
-    
+
     // Construir query base
     let query = supabase
       .from('users')
@@ -103,9 +103,9 @@ app.get('/', async (c) => {
 
     if (queryError) {
       console.error('❌ Erro ao buscar usuários no SQL:', queryError);
-      return c.json({ 
-        success: false, 
-        error: `Erro ao buscar usuários: ${queryError.message}` 
+      return c.json({
+        success: false,
+        error: `Erro ao buscar usuários: ${queryError.message}`
       }, 500);
     }
 
@@ -135,16 +135,16 @@ app.get('/', async (c) => {
       };
     });
 
-    return c.json({ 
-      success: true, 
+    return c.json({
+      success: true,
       data: users,
-      total: users.length 
+      total: users.length
     });
   } catch (error) {
     console.error('Error fetching users:', error);
-    return c.json({ 
-      success: false, 
-      error: 'Failed to fetch users' 
+    return c.json({
+      success: false,
+      error: 'Failed to fetch users'
     }, 500);
   }
 });
@@ -156,21 +156,21 @@ app.get('/:id', async (c) => {
     const user = await kv.get(`user:${id}`);
 
     if (!user) {
-      return c.json({ 
-        success: false, 
-        error: 'User not found' 
+      return c.json({
+        success: false,
+        error: 'User not found'
       }, 404);
     }
 
-    return c.json({ 
-      success: true, 
-      data: user 
+    return c.json({
+      success: true,
+      data: user
     });
   } catch (error) {
     console.error('Error fetching user:', error);
-    return c.json({ 
-      success: false, 
-      error: 'Failed to fetch user' 
+    return c.json({
+      success: false,
+      error: 'Failed to fetch user'
     }, 500);
   }
 });
@@ -183,21 +183,21 @@ app.get('/email/:email', async (c) => {
     const user = users.find((u: User) => u.email.toLowerCase() === email);
 
     if (!user) {
-      return c.json({ 
-        success: false, 
-        error: 'User not found' 
+      return c.json({
+        success: false,
+        error: 'User not found'
       }, 404);
     }
 
-    return c.json({ 
-      success: true, 
-      data: user 
+    return c.json({
+      success: true,
+      data: user
     });
   } catch (error) {
     console.error('Error fetching user by email:', error);
-    return c.json({ 
-      success: false, 
-      error: 'Failed to fetch user' 
+    return c.json({
+      success: false,
+      error: 'Failed to fetch user'
     }, 500);
   }
 });
@@ -206,30 +206,30 @@ app.get('/email/:email', async (c) => {
 app.post('/', async (c) => {
   try {
     const body = await c.req.json();
-    const { 
-      organizationId, 
-      name, 
-      email, 
+    const {
+      organizationId,
+      name,
+      email,
       username, // Novo: username opcional (se não fornecido, usa email)
       password, // Novo: senha opcional (se fornecido, cria como 'active')
-      role = 'staff', 
+      role = 'staff',
       status, // Se password fornecido, será 'active', senão 'invited'
-      createdBy 
+      createdBy
     } = body;
 
     // Validações
     if (!organizationId || !name || !email || !createdBy) {
-      return c.json({ 
-        success: false, 
-        error: 'organizationId, name, email, and createdBy are required' 
+      return c.json({
+        success: false,
+        error: 'organizationId, name, email, and createdBy are required'
       }, 400);
     }
 
     // Validar email
     if (!isValidEmail(email)) {
-      return c.json({ 
-        success: false, 
-        error: 'Invalid email format' 
+      return c.json({
+        success: false,
+        error: 'Invalid email format'
       }, 400);
     }
 
@@ -243,9 +243,9 @@ app.post('/', async (c) => {
 
     if (orgError || !organization) {
       console.error('❌ Erro ao buscar organização:', orgError);
-      return c.json({ 
-        success: false, 
-        error: 'Organization not found' 
+      return c.json({
+        success: false,
+        error: 'Organization not found'
       }, 404);
     }
 
@@ -259,16 +259,16 @@ app.post('/', async (c) => {
 
     if (userByEmailError) {
       console.error('❌ Erro ao verificar email existente:', userByEmailError);
-      return c.json({ 
-        success: false, 
-        error: 'Database error checking email' 
+      return c.json({
+        success: false,
+        error: 'Database error checking email'
       }, 500);
     }
 
     if (existingUserByEmail) {
-      return c.json({ 
-        success: false, 
-        error: 'User with this email already exists in this organization' 
+      return c.json({
+        success: false,
+        error: 'User with this email already exists in this organization'
       }, 409);
     }
 
@@ -280,44 +280,44 @@ app.post('/', async (c) => {
 
     if (countError) {
       console.error('❌ Erro ao contar usuários:', countError);
-      return c.json({ 
-        success: false, 
-        error: 'Database error counting users' 
+      return c.json({
+        success: false,
+        error: 'Database error counting users'
       }, 500);
     }
 
     const maxUsers = organization.limits_users;
-    
+
     if (maxUsers !== -1 && (orgUsersCount?.count || 0) >= maxUsers) {
-      return c.json({ 
-        success: false, 
-        error: `Organization has reached the maximum number of users (${maxUsers})` 
+      return c.json({
+        success: false,
+        error: `Organization has reached the maximum number of users (${maxUsers})`
       }, 403);
     }
 
     // ✅ NOVO: Determinar status e username
     const finalStatus = password ? 'active' : (status || 'invited');
     const finalUsername = username || email.split('@')[0]; // Usa email se username não fornecido
-    
+
     // ✅ NOVO: Se password fornecido, criar no SQL com senha hashada
     if (password) {
       const passwordHash = hashPassword(password);
       const now = new Date().toISOString();
-      
+
       // Verificar se username já existe
       const { data: existingUserByUsername } = await supabase
         .from('users')
         .select('id')
         .eq('username', finalUsername)
         .maybeSingle();
-      
+
       if (existingUserByUsername) {
-        return c.json({ 
-          success: false, 
-          error: 'Username já está em uso' 
+        return c.json({
+          success: false,
+          error: 'Username já está em uso'
         }, 409);
       }
-      
+
       // Criar no SQL
       const { data: sqlUser, error: sqlError } = await supabase
         .from('users')
@@ -335,17 +335,17 @@ app.post('/', async (c) => {
         })
         .select()
         .single();
-      
+
       if (sqlError) {
         console.error('❌ Erro ao criar usuário no SQL:', sqlError);
-        return c.json({ 
-          success: false, 
-          error: `Erro ao criar usuário: ${sqlError.message}` 
+        return c.json({
+          success: false,
+          error: `Erro ao criar usuário: ${sqlError.message}`
         }, 500);
       }
-      
+
       console.log(`✅ User created in SQL: ${email} in org ${organization.slug} (${sqlUser.id})`);
-      
+
       // Converter para formato esperado pelo frontend
       const user: User = {
         id: sqlUser.id,
@@ -358,10 +358,10 @@ app.post('/', async (c) => {
         createdBy: sqlUser.created_by || createdBy,
         permissions: getDefaultPermissions(role)
       };
-      
-      return c.json({ 
-        success: true, 
-        data: user 
+
+      return c.json({
+        success: true,
+        data: user
       }, 201);
     }
 
@@ -396,15 +396,15 @@ app.post('/', async (c) => {
 
     console.log(`✅ User created in KV: ${email} in org ${organization.slug} (${id})`);
 
-    return c.json({ 
-      success: true, 
-      data: user 
+    return c.json({
+      success: true,
+      data: user
     }, 201);
   } catch (error) {
     console.error('Error creating user:', error);
-    return c.json({ 
-      success: false, 
-      error: 'Failed to create user' 
+    return c.json({
+      success: false,
+      error: 'Failed to create user'
     }, 500);
   }
 });
@@ -414,23 +414,79 @@ app.patch('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json();
+    const supabase = getSupabaseClient();
 
+    console.log(`[PATCH] Updating user ${id}`, body);
+
+    // 1. Tentar atualizar no SQL
+    const { data: sqlUser, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (sqlUser) {
+      // Preparar updates para SQL
+      const updates: any = {
+        updated_at: new Date().toISOString()
+      };
+
+      if (body.name) updates.name = body.name;
+      if (body.status) updates.status = body.status;
+
+      // Mapeamento reverso de role para type
+      if (body.role) {
+        if (body.role === 'owner' || body.role === 'admin') {
+          updates.type = 'imobiliaria';
+        } else {
+          updates.type = 'staff';
+        }
+      }
+
+      // Se password foi enviada (reset de senha)
+      if (body.password) {
+        updates.password_hash = hashPassword(body.password);
+      }
+
+      const { data: updatedUser, error: updateError } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('❌ Erro ao atualizar usuário no SQL:', updateError);
+        return c.json({
+          success: false,
+          error: `Failed to update user in SQL: ${updateError.message}`
+        }, 500);
+      }
+
+      return c.json({
+        success: true,
+        data: updatedUser, // Retorna objeto SQL raw ou poderia mapear
+        message: 'User updated in SQL'
+      });
+    }
+
+    // 2. Fallback para KV (se não achou no SQL)
     const user = await kv.get(`user:${id}`);
     if (!user) {
-      return c.json({ 
-        success: false, 
-        error: 'User not found' 
+      return c.json({
+        success: false,
+        error: 'User not found in SQL or KV'
       }, 404);
     }
 
-    // Atualizar campos permitidos
+    // Atualizar campos permitidos no KV
     const updated = {
       ...user,
       ...body,
-      id: user.id, // Não permitir mudar ID
-      organizationId: user.organizationId, // Não permitir mudar organização
-      email: user.email, // Não permitir mudar email
-      createdAt: user.createdAt, // Não permitir mudar data de criação
+      id: user.id,
+      organizationId: user.organizationId,
+      email: user.email,
+      createdAt: user.createdAt,
       updatedAt: new Date().toISOString()
     };
 
@@ -439,24 +495,19 @@ app.patch('/:id', async (c) => {
       updated.permissions = getDefaultPermissions(body.role);
     }
 
-    // Se mudou status para active, adicionar joinedAt
-    if (body.status === 'active' && user.status !== 'active' && !updated.joinedAt) {
-      updated.joinedAt = new Date().toISOString();
-    }
-
     await kv.set(`user:${id}`, updated);
+    console.log(`✅ User updated in KV: ${updated.email} (${id})`);
 
-    console.log(`✅ User updated: ${updated.email} (${id})`);
-
-    return c.json({ 
-      success: true, 
-      data: updated 
+    return c.json({
+      success: true,
+      data: updated
     });
+
   } catch (error) {
     console.error('Error updating user:', error);
-    return c.json({ 
-      success: false, 
-      error: 'Failed to update user' 
+    return c.json({
+      success: false,
+      error: 'Failed to update user'
     }, 500);
   }
 });
@@ -468,23 +519,23 @@ app.delete('/:id', async (c) => {
 
     const user = await kv.get(`user:${id}`);
     if (!user) {
-      return c.json({ 
-        success: false, 
-        error: 'User not found' 
+      return c.json({
+        success: false,
+        error: 'User not found'
       }, 404);
     }
 
     // Não permitir deletar owners (deve ter pelo menos 1 owner por org)
     if (user.role === 'owner') {
       const allUsers = await kv.getByPrefix('user:');
-      const orgOwners = allUsers.filter((u: User) => 
+      const orgOwners = allUsers.filter((u: User) =>
         u.organizationId === user.organizationId && u.role === 'owner'
       );
 
       if (orgOwners.length <= 1) {
-        return c.json({ 
-          success: false, 
-          error: 'Cannot delete the last owner of an organization' 
+        return c.json({
+          success: false,
+          error: 'Cannot delete the last owner of an organization'
         }, 403);
       }
     }
@@ -493,15 +544,15 @@ app.delete('/:id', async (c) => {
 
     console.log(`✅ User deleted: ${user.email} (${id})`);
 
-    return c.json({ 
-      success: true, 
-      message: 'User deleted successfully' 
+    return c.json({
+      success: true,
+      message: 'User deleted successfully'
     });
   } catch (error) {
     console.error('Error deleting user:', error);
-    return c.json({ 
-      success: false, 
-      error: 'Failed to delete user' 
+    return c.json({
+      success: false,
+      error: 'Failed to delete user'
     }, 500);
   }
 });
@@ -513,16 +564,16 @@ app.post('/:id/resend-invite', async (c) => {
 
     const user = await kv.get(`user:${id}`);
     if (!user) {
-      return c.json({ 
-        success: false, 
-        error: 'User not found' 
+      return c.json({
+        success: false,
+        error: 'User not found'
       }, 404);
     }
 
     if (user.status !== 'invited') {
-      return c.json({ 
-        success: false, 
-        error: 'User is not in invited status' 
+      return c.json({
+        success: false,
+        error: 'User is not in invited status'
       }, 400);
     }
 
@@ -536,16 +587,16 @@ app.post('/:id/resend-invite', async (c) => {
 
     console.log(`✅ Invite resent: ${user.email} (${id})`);
 
-    return c.json({ 
-      success: true, 
+    return c.json({
+      success: true,
       data: updated,
-      message: 'Invite resent successfully' 
+      message: 'Invite resent successfully'
     });
   } catch (error) {
     console.error('Error resending invite:', error);
-    return c.json({ 
-      success: false, 
-      error: 'Failed to resend invite' 
+    return c.json({
+      success: false,
+      error: 'Failed to resend invite'
     }, 500);
   }
 });
@@ -557,16 +608,16 @@ app.post('/:id/activate', async (c) => {
 
     const user = await kv.get(`user:${id}`);
     if (!user) {
-      return c.json({ 
-        success: false, 
-        error: 'User not found' 
+      return c.json({
+        success: false,
+        error: 'User not found'
       }, 404);
     }
 
     if (user.status === 'active') {
-      return c.json({ 
-        success: false, 
-        error: 'User is already active' 
+      return c.json({
+        success: false,
+        error: 'User is already active'
       }, 400);
     }
 
@@ -581,16 +632,16 @@ app.post('/:id/activate', async (c) => {
 
     console.log(`✅ User activated: ${user.email} (${id})`);
 
-    return c.json({ 
-      success: true, 
+    return c.json({
+      success: true,
       data: updated,
-      message: 'User activated successfully' 
+      message: 'User activated successfully'
     });
   } catch (error) {
     console.error('Error activating user:', error);
-    return c.json({ 
-      success: false, 
-      error: 'Failed to activate user' 
+    return c.json({
+      success: false,
+      error: 'Failed to activate user'
     }, 500);
   }
 });

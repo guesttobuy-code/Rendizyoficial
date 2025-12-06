@@ -17,6 +17,7 @@
 import { Context } from 'npm:hono';
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getSupabaseClient } from './kv_store.tsx';
+import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SUPABASE_PROJECT_REF } from './utils-env.ts';
 
 /**
  * Helper para parsear cookies
@@ -133,10 +134,10 @@ async function lookupOrganizationIdFromImobiliariaId(imobiliariaId: string | und
  * @returns SupabaseClient autenticado com o token do usuário
  */
 function getAuthenticatedSupabaseClient(token: string) {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || 
-                          Deno.env.get('SUPABASE_KEY') ||
-                          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const supabaseUrl = SUPABASE_URL;
+  const supabaseAnonKey = SUPABASE_ANON_KEY || 
+                          SUPABASE_ANON_KEY ||
+                          SUPABASE_SERVICE_ROLE_KEY;
   
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('SUPABASE_URL e SUPABASE_ANON_KEY (ou SUPABASE_KEY) devem estar configuradas');
@@ -382,4 +383,3 @@ export async function getOrganizationId(c: Context): Promise<string | undefined>
     return undefined;
   }
 }
-

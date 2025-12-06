@@ -14,7 +14,8 @@
  * @date 2025-10-30
  */
 
-import { projectId, publicAnonKey } from '../supabase/info';
+import { publicAnonKey } from '../supabase/info';
+import { API_BASE_URL } from '../apiBase';
 
 // ============================================================================
 // TYPES
@@ -64,8 +65,6 @@ export interface HealthCheckResponse {
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
-
-const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/rendizy-server`;
 
 const getHeaders = () => ({
   'Authorization': `Bearer ${publicAnonKey}`,

@@ -11,19 +11,18 @@
  * @date 2025-10-29
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Plus,
   Trash2,
   GripVertical,
   Image as ImageIcon,
   Tag as TagIcon,
-  Check,
-  Upload,
+  Move,
   Loader2,
 } from "lucide-react";
 import { Label } from "../ui/label";
-import { Input } from "../ui/input";
+
 import {
   Select,
   SelectContent,
@@ -31,6 +30,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -39,6 +46,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { Separator } from "../ui/separator";
 import { toast } from "sonner";
 import { uploadRoomPhoto, deleteRoomPhoto } from "../../utils/roomsApi";
+import { TagsSelector } from "../common/TagsSelector";
 
 // ============================================================================
 // CONSTANTS - TIPOS DE CAMAS (AIRBNB/BOOKING)
@@ -186,28 +194,6 @@ const CUSTOM_SPACE_NAMES = [
 ].sort();
 
 // ============================================================================
-// CONSTANTS - TAGS DE FOTOS (BASEADO NA 3ª IMAGEM)
-// ============================================================================
-
-const PHOTO_TAGS = [
-  "Academia / Espaço Fitness",
-  "ADAM",
-  "Alimentos e Bebidas",
-  "Almoço",
-  "Animais",
-  "Animais de Estimação",
-  "Área de Compras",
-  "Área de estar",
-  "Área e instalações",
-  "Área para café / chá",
-  "Arredores",
-  "Atividades",
-  "Banheira/jacuzzi",
-  "Banheiro",
-  "Banheiro compartilhado",
-];
-
-// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -220,6 +206,7 @@ interface Photo {
   url: string;
   tags: string[]; // Tags de categorização apenas (sem capa)
   order: number;
+  path?: string; // Adicionado para o caminho do Supabase Storage
 }
 
 interface Room {
@@ -256,6 +243,8 @@ export function ContentRoomsStep({
   const [showTagsModal, setShowTagsModal] = useState(false);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [targetRoomId, setTargetRoomId] = useState<string>("");
 
   // ============================================================================
   // ROOM MANAGEMENT
@@ -463,6 +452,58 @@ export function ContentRoomsStep({
   };
 
   // ============================================================================
+  // MOVE PHOTOS FEATURE
+  // ============================================================================
+
+  const moveSelectedPhotos = () => {
+    if (!targetRoomId || selectedRoomIndex === -1) return;
+
+    const sourceRoom = data.rooms[selectedRoomIndex];
+    const targetRoomIndex = data.rooms.findIndex((r) => r.id === targetRoomId);
+
+    if (targetRoomIndex === -1) return;
+
+    const targetRoom = data.rooms[targetRoomIndex];
+
+    // Identify photos to move
+    const photosToMove = sourceRoom.photos.filter((p) =>
+      selectedPhotos.includes(p.id)
+    );
+    const keptPhotos = sourceRoom.photos.filter(
+      (p) => !selectedPhotos.includes(p.id)
+    );
+
+    // Update Source Room (Remove photos)
+    const newRooms = [...data.rooms];
+    newRooms[selectedRoomIndex] = { ...sourceRoom, photos: keptPhotos };
+
+    // Update Target Room (Append photos)
+    // Find current max order to append correctly
+    const currentMaxOrder =
+      targetRoom.photos.length > 0
+        ? Math.max(...targetRoom.photos.map((p) => p.order || 0))
+        : -1;
+
+    const movedPhotosWithNewOrder = photosToMove.map((p, idx) => ({
+      ...p,
+      order: currentMaxOrder + 1 + idx,
+    }));
+
+    newRooms[targetRoomIndex] = {
+      ...targetRoom,
+      photos: [...targetRoom.photos, ...movedPhotosWithNewOrder],
+    };
+
+    onChange({ rooms: newRooms });
+
+    // Reset UI
+    setShowMoveModal(false);
+    setSelectedPhotos([]);
+    setTargetRoomId("");
+    toast.success(`${photosToMove.length} foto(s) movida(s) com sucesso!`);
+  };
+
+  // ============================================================================
   // DRAG & DROP
   // ============================================================================
 
@@ -613,11 +654,10 @@ export function ContentRoomsStep({
                 {data.rooms.map((room, index) => (
                   <div
                     key={room.id}
-                    className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedRoomIndex === index
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "hover:bg-muted"
-                    }`}
+                    className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${selectedRoomIndex === index
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "hover:bg-muted"
+                      }`}
                     onClick={() => setSelectedRoomIndex(index)}
                   >
                     <span className="text-lg">
@@ -837,12 +877,21 @@ export function ContentRoomsStep({
                     </Button>
                     <Button
                       size="sm"
+                      variant="outline"
+                      onClick={() => setShowMoveModal(true)}
+                      disabled={selectedPhotos.length === 0}
+                    >
+                      <Move className="h-4 w-4 mr-2" />
+                      Mover
+                    </Button>
+                    <Button
+                      size="sm"
                       variant="default"
                       onClick={() => setShowTagsModal(true)}
                       disabled={selectedPhotos.length === 0}
                     >
                       <TagIcon className="h-4 w-4 mr-2" />
-                      Adicionar Tags ({selectedPhotos.length})
+                      Adicionar Tags
                     </Button>
                   </div>
                 )}
@@ -900,11 +949,10 @@ export function ContentRoomsStep({
                         onDragStart={() => handleDragStart(photo.id)}
                         onDragOver={(e) => handleDragOver(e, photo.id)}
                         onDragEnd={handleDragEnd}
-                        className={`relative group rounded-lg overflow-hidden border-2 cursor-move ${
-                          selectedPhotos.includes(photo.id)
-                            ? "border-primary ring-2 ring-primary"
-                            : "border-transparent"
-                        }`}
+                        className={`relative group rounded-lg overflow-hidden border-2 cursor-move ${selectedPhotos.includes(photo.id)
+                          ? "border-primary ring-2 ring-primary"
+                          : "border-transparent"
+                          }`}
                       >
                         {/* Checkbox de seleção */}
                         <div className="absolute top-2 left-2 z-10">
@@ -985,107 +1033,82 @@ export function ContentRoomsStep({
         </ScrollArea>
       </div>
 
-      {/* MODAL DE TAGS */}
-      {showTagsModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-            <CardContent className="p-6 flex flex-col gap-4 flex-1 overflow-hidden">
-              <div>
-                <h3 className="text-lg font-semibold">Adicionar Tags</h3>
-                <p className="text-sm text-muted-foreground">
-                  Selecione as tags para adicionar às {selectedPhotos.length}{" "}
-                  foto(s) selecionada(s)
-                </p>
-              </div>
+      {/* MODAL DE MOVER FOTOS */}
+      <Dialog open={showMoveModal} onOpenChange={setShowMoveModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mover Fotos</DialogTitle>
+            <DialogDescription>
+              Selecione o cômodo para onde deseja mover as {selectedPhotos.length}{" "}
+              fotos selecionadas.
+            </DialogDescription>
+          </DialogHeader>
 
-              <Separator />
-
-              <ScrollArea className="flex-1">
-                <TagsSelector
-                  onApply={(tags) => applyTagsToSelected(tags)}
-                  onCancel={() => setShowTagsModal(false)}
-                />
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// TAGS SELECTOR COMPONENT
-// ============================================================================
-
-function TagsSelector({
-  onApply,
-  onCancel,
-}: {
-  onApply: (tags: string[]) => void;
-  onCancel: () => void;
-}) {
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const filteredTags = PHOTO_TAGS.filter((tag) =>
-    tag.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) => {
-      const newTags = prev.includes(tag)
-        ? prev.filter((t) => t !== tag)
-        : [...prev, tag];
-      console.log("Tags selecionadas (ContentRoomsStep):", newTags);
-      return newTags;
-    });
-  };
-
-  return (
-    <div className="space-y-4">
-      <Input
-        placeholder="Buscar tags..."
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-      />
-
-      <div className="space-y-2">
-        {filteredTags.length > 0 ? (
-          filteredTags.map((tag) => (
-            <div
-              key={tag}
-              className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-muted ${
-                selectedTags.includes(tag) ? "bg-primary/10 border-primary" : ""
-              }`}
-              onClick={() => toggleTag(tag)}
-            >
-              <Checkbox checked={selectedTags.includes(tag)} />
-              <span className="text-sm">{tag}</span>
-              {selectedTags.includes(tag) && (
-                <Check className="h-4 w-4 ml-auto text-primary" />
-              )}
-            </div>
-          ))
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>Nenhuma tag encontrada para &quot;{searchQuery}&quot;</p>
+          <div className="py-4">
+            <Label className="mb-2 block">Cômodo de destino:</Label>
+            <Select value={targetRoomId} onValueChange={setTargetRoomId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um cômodo..." />
+              </SelectTrigger>
+              <SelectContent>
+                {data.rooms
+                  .filter((_, idx) => idx !== selectedRoomIndex) // Don't show current room
+                  .map((room) => (
+                    <SelectItem key={room.id} value={room.id}>
+                      <span className="flex items-center gap-2">
+                        <span>
+                          {ROOM_TYPES.find((rt) => rt.id === room.type)?.icon ||
+                            "🏠"}
+                        </span>
+                        <span>
+                          {room.customName ||
+                            room.typeName ||
+                            "Cômodo sem nome"}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            {data.rooms.length <= 1 && (
+              <p className="text-sm text-yellow-600 mt-2">
+                Você precisa ter outros cômodos criados para mover fotos.
+              </p>
+            )}
           </div>
-        )}
-      </div>
 
-      <div className="flex justify-between items-center pt-4 border-t">
-        <span className="text-sm text-muted-foreground">
-          {selectedTags.length} tag(s) selecionada(s)
-        </span>
-        <Button
-          onClick={() => onApply(selectedTags)}
-          disabled={selectedTags.length === 0}
-        >
-          <Check className="mr-2 h-4 w-4" />
-          Confirmar
-        </Button>
-      </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMoveModal(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={moveSelectedPhotos}
+              disabled={!targetRoomId}
+            >
+              Confirmar Move
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL DE TAGS */}
+      <Dialog open={showTagsModal} onOpenChange={setShowTagsModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adicionar Tags</DialogTitle>
+            <DialogDescription>
+              Selecione as tags para adicionar às {selectedPhotos.length} foto(s)
+              selecionada(s).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 h-96 w-full">
+            <TagsSelector
+              onApply={(tags) => applyTagsToSelected(tags)}
+              onCancel={() => setShowTagsModal(false)}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

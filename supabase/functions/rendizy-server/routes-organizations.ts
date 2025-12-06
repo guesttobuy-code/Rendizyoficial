@@ -5,6 +5,7 @@ import { safeUpsert } from './utils-db-safe.ts';
 import { getSupabaseClient } from './kv_store.tsx';
 // ✅ REFATORADO v1.0.103.500 - Helper híbrido para organization_id (UUID)
 import { getOrganizationIdOrThrow } from './utils-get-organization-id.ts';
+import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SUPABASE_PROJECT_REF } from './utils-env.ts';
 
 const app = new Hono();
 
@@ -129,7 +130,7 @@ export async function listOrganizations(c: Context) {
     const client = getSupabaseClient();
     
     // ✅ VERIFICAÇÃO: Confirmar que está usando service_role
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const serviceRoleKey = SUPABASE_SERVICE_ROLE_KEY;
     console.log('🔍 [listOrganizations] Service Role Key presente?', serviceRoleKey ? 'SIM (primeiros 20 chars: ' + serviceRoleKey.substring(0, 20) + '...)' : 'NÃO');
     
     console.log('🔍 [listOrganizations] Client criado, fazendo query...');

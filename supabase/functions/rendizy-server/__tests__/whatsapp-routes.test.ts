@@ -17,8 +17,9 @@
 // ============================================================================
 
 import { assertEquals, assertExists } from "https://deno.land/std@0.192.0/testing/asserts.ts";
+import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SUPABASE_PROJECT_REF } from '../utils-env.ts';
 
-const PROJECT_ID = Deno.env.get('SUPABASE_PROJECT_ID') || 'odcgnzfremrqnvtitpcc';
+const PROJECT_ID = SUPABASE_PROJECT_REF || 'odcgnzfremrqnvtitpcc';
 const BASE_URL = `https://${PROJECT_ID}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a`;
 
 /**
@@ -32,8 +33,8 @@ Deno.test("🔒 WhatsApp - Cadeado de Validação: Rota /whatsapp/status existe"
     const response = await fetch(`${BASE_URL}/whatsapp/status`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY') || ''}`,
-        'apikey': Deno.env.get('SUPABASE_ANON_KEY') || ''
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY || ''}`,
+        'apikey': SUPABASE_ANON_KEY || ''
       }
     });
 
@@ -61,8 +62,8 @@ Deno.test("🔒 WhatsApp - Cadeado de Validação: Rota /whatsapp/qr-code existe
     const response = await fetch(`${BASE_URL}/whatsapp/qr-code`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY') || ''}`,
-        'apikey': Deno.env.get('SUPABASE_ANON_KEY') || ''
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY || ''}`,
+        'apikey': SUPABASE_ANON_KEY || ''
       }
     });
 
@@ -84,8 +85,8 @@ Deno.test("🔒 WhatsApp - Cadeado de Validação: Contrato da API está correto
     const response = await fetch(`${BASE_URL}/whatsapp/status`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY') || ''}`,
-        'apikey': Deno.env.get('SUPABASE_ANON_KEY') || ''
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY || ''}`,
+        'apikey': SUPABASE_ANON_KEY || ''
       }
     });
 

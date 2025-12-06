@@ -41,7 +41,7 @@
 
 ✅ **Obtido e configurado!**
 
-- **Token:** `sbp_17d159c6f1a2dab113e0cac351052dee23ededff`
+- **Token:** `sbp_c903c09094a9e34defebdfc0fa477fffda206704`
 - **Tipo:** Access Token (para CLI)
 - **Uso:** Login no Supabase CLI
 - **Status:** ✅ Configurado e funcionando!

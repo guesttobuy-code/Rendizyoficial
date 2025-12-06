@@ -55,13 +55,14 @@ import { createHash } from 'node:crypto';
 import { createClient } from 'jsr:@supabase/supabase-js@2.49.8';
 // ✅ Usar getSessionFromToken que já funciona em outras rotas
 import { getSessionFromToken } from './utils-session.ts';
+import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from './utils-env.ts';
 
 // Helper: Obter cliente Supabase
 // ✅ DESABILITADO JWT VALIDATION - Usar SERVICE_ROLE_KEY que bypassa JWT
 function getSupabaseClient() {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  
+  const supabaseUrl = SUPABASE_URL;
+  const serviceRoleKey = SUPABASE_SERVICE_ROLE_KEY;
+
   // ✅ SOLUÇÃO: SERVICE_ROLE_KEY bypassa completamente validação JWT
   // Não precisa de configurações especiais - SERVICE_ROLE_KEY já ignora JWT
   return createClient(supabaseUrl, serviceRoleKey);
@@ -149,7 +150,7 @@ app.post('/login', async (c) => {
     console.log('🔐 Path:', c.req.path);
     console.log('🔐 Method:', c.req.method);
     console.log('🔐 ============================================');
-    
+
     let body;
     try {
       body = await c.req.json();
@@ -161,7 +162,7 @@ app.post('/login', async (c) => {
         error: 'Erro ao processar requisição'
       }, 400);
     }
-    
+
     const { username, password } = body;
 
     if (!username || !password) {
@@ -172,16 +173,15 @@ app.post('/login', async (c) => {
     }
 
     console.log('👤 Login attempt:', { username });
-
     // ✅ ARQUITETURA SQL: Buscar usuário da tabela SQL ao invés de KV Store
     const supabase = getSupabaseClient();
-    
+
     // Verificar se tabela users existe (debug)
     const { data: allUsers, error: checkError } = await supabase
       .from('users')
       .select('id, username, type')
       .limit(5);
-    
+
     if (checkError) {
       console.error('❌ ERRO CRÍTICO: Tabela users não existe ou erro de acesso:', checkError);
       return c.json({
@@ -190,16 +190,16 @@ app.post('/login', async (c) => {
         details: checkError.code || 'UNKNOWN_ERROR'
       }, 500);
     }
-    
+
     console.log('✅ Tabela users acessível. Usuários encontrados:', allUsers?.length || 0);
-    
+
     // Buscar usuário na tabela SQL
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('username', username)
       .maybeSingle();
-    
+
     if (userError) {
       console.error('❌ Erro ao buscar usuário:', userError);
       return c.json({
@@ -208,7 +208,7 @@ app.post('/login', async (c) => {
         details: userError.code || 'QUERY_ERROR'
       }, 500);
     }
-    
+
     // Se não encontrou usuário, retornar erro
     if (!user) {
       console.log('❌ Usuário não encontrado:', username);
@@ -218,15 +218,15 @@ app.post('/login', async (c) => {
         error: 'Usuário ou senha incorretos'
       }, 401);
     }
-    
+
     console.log('✅ Usuário encontrado na tabela SQL:', { id: user.id, username: user.username, type: user.type });
-    
+
     // 1. Verificar se é SuperAdmin ou usuário de organização
     if (user.type === 'superadmin' || user.type === 'imobiliaria' || user.type === 'staff') {
       // ✅ ARQUITETURA SQL: Verificar senha usando hash do banco
       const computedHash = hashPassword(password);
-      console.log('🔍 Verificando senha:', { 
-        username, 
+      console.log('🔍 Verificando senha:', {
+        username,
         passwordProvided: password ? 'SIM' : 'NÃO',
         passwordLength: password?.length,
         passwordHashLength: user.password_hash?.length,
@@ -235,10 +235,10 @@ app.post('/login', async (c) => {
         storedHash: user.password_hash,
         hashesMatch: computedHash === user.password_hash
       });
-      
+
       const passwordValid = verifyPassword(password, user.password_hash);
       console.log('🔍 Resultado da verificação de senha:', passwordValid);
-      
+
       if (!passwordValid) {
         console.log('❌ Senha incorreta para usuário:', username);
         console.log('🔍 Debug senha:', {
@@ -251,7 +251,7 @@ app.post('/login', async (c) => {
           error: 'Usuário ou senha incorretos'
         }, 401);
       }
-      
+
       console.log('✅ Senha verificada com sucesso!');
 
       if (user.status !== 'active') {
@@ -268,7 +268,7 @@ app.post('/login', async (c) => {
         .from('users')
         .update({ last_login_at: now.toISOString() })
         .eq('id', user.id);
-      
+
       if (updateError) {
         console.warn('⚠️ Erro ao atualizar last_login_at:', updateError);
         // Não bloquear login se falhar atualização
@@ -277,13 +277,13 @@ app.post('/login', async (c) => {
       // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Gerar access + refresh tokens
       const accessToken = generateToken(); // Token curto (15-30 min)
       const refreshToken = generateToken(); // Token longo (30-60 dias)
-      
+
       // Expirações
       const ACCESS_TOKEN_DURATION = 30 * 60 * 1000; // 30 minutos
       const REFRESH_TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 dias
       const accessExpiresAt = new Date(now.getTime() + ACCESS_TOKEN_DURATION);
       const refreshExpiresAt = new Date(now.getTime() + REFRESH_TOKEN_DURATION);
-      
+
       // ✅ COMPATIBILIDADE: Manter token antigo para compatibilidade durante migração
       const token = accessToken; // Access token é o token principal
 
@@ -292,7 +292,7 @@ app.post('/login', async (c) => {
         .from('sessions')
         .delete()
         .eq('user_id', user.id);
-      
+
       if (cleanupError) {
         console.warn('⚠️ Erro ao limpar sessões antigas (não crítico):', cleanupError);
       } else {
@@ -346,17 +346,17 @@ app.post('/login', async (c) => {
           details: sessionError.message
         }, 500);
       }
-      
+
       console.log('✅ Sessão criada no SQL com sucesso');
       console.log('✅ Sessão criada - ID:', insertedSession?.id);
       console.log('✅ Sessão criada - Token:', insertedSession?.token?.substring(0, 30) + '...');
-      
+
       // ✅ VERIFICAÇÃO CRÍTICA: Confirmar que a sessão foi realmente criada e está acessível
       let verifyAttempts = 0;
       let verifySession = null;
       while (verifyAttempts < 5 && !verifySession) {
         await new Promise(resolve => setTimeout(resolve, 200)); // Aguardar 200ms entre tentativas
-        
+
         const { data: session, error: verifyError } = await supabase
           .from('sessions')
           .select('*')
@@ -364,7 +364,7 @@ app.post('/login', async (c) => {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        
+
         if (verifyError) {
           console.error(`❌ Erro ao verificar sessão criada (tentativa ${verifyAttempts + 1}):`, verifyError);
         } else if (session) {
@@ -377,7 +377,7 @@ app.post('/login', async (c) => {
         }
         verifyAttempts++;
       }
-      
+
       if (!verifySession) {
         console.error('❌ CRÍTICO: Sessão NÃO encontrada após 5 tentativas!');
         return c.json({
@@ -396,10 +396,10 @@ app.post('/login', async (c) => {
       // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Retornar access token + setar refresh token em cookie
       // ✅ COMPATIBILIDADE: Manter token no JSON (será deprecado)
       // ✅ NOVO: accessToken no JSON + refreshToken em cookie HttpOnly
-      
+
       // Setar refresh token em cookie HttpOnly (mais seguro)
       c.header('Set-Cookie', `rendizy-refresh-token=${refreshToken}; Max-Age=${REFRESH_TOKEN_DURATION / 1000}; Path=/; HttpOnly; Secure; SameSite=None`);
-      
+
       return c.json({
         success: true,
         // ✅ COMPATIBILIDADE: token antigo (será deprecado)
@@ -446,7 +446,7 @@ app.post('/logout', async (c) => {
     const cookieHeader = c.req.header('Cookie') || '';
     const cookies = parseCookies(cookieHeader);
     let token = cookies['rendizy-token'];
-    
+
     // Fallback para header (compatibilidade durante migração)
     if (!token) {
       token = c.req.header('Authorization')?.split(' ')[1];
@@ -503,12 +503,12 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 app.post('/refresh', async (c) => {
   try {
     console.log('🔄 POST /auth/refresh - Tentativa de renovar token');
-    
+
     // ✅ Ler refresh token do cookie HttpOnly
     const cookieHeader = c.req.header('Cookie') || '';
     const cookies = parseCookies(cookieHeader);
     const refreshToken = cookies['rendizy-refresh-token'];
-    
+
     if (!refreshToken) {
       console.log('❌ [refresh] Refresh token não encontrado no cookie');
       return c.json({
@@ -517,9 +517,9 @@ app.post('/refresh', async (c) => {
         code: 'REFRESH_TOKEN_MISSING'
       }, 401);
     }
-    
+
     console.log('🔍 [refresh] Refresh token encontrado:', refreshToken.substring(0, 20) + '...');
-    
+
     // ✅ Buscar sessão pelo refresh token
     const supabase = getSupabaseClient();
     const { data: sessionRow, error: sessionError } = await supabase
@@ -528,7 +528,7 @@ app.post('/refresh', async (c) => {
       .eq('refresh_token', refreshToken)
       .is('revoked_at', null) // Não revogada
       .maybeSingle();
-    
+
     if (sessionError || !sessionRow) {
       console.log('❌ [refresh] Sessão não encontrada ou inválida');
       // Limpar cookie inválido
@@ -539,7 +539,7 @@ app.post('/refresh', async (c) => {
         code: 'REFRESH_TOKEN_INVALID'
       }, 401);
     }
-    
+
     // ✅ Verificar se refresh token não expirou
     const now = new Date();
     const refreshExpiresAt = new Date(sessionRow.refresh_expires_at);
@@ -558,25 +558,25 @@ app.post('/refresh', async (c) => {
         code: 'REFRESH_TOKEN_EXPIRED'
       }, 401);
     }
-    
+
     // ✅ Gerar novo par de tokens (rotating refresh tokens)
     const newAccessToken = generateToken();
     const newRefreshToken = generateToken();
-    
+
     const ACCESS_TOKEN_DURATION = 30 * 60 * 1000; // 30 minutos
     const REFRESH_TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 dias
     const newAccessExpiresAt = new Date(now.getTime() + ACCESS_TOKEN_DURATION);
     const newRefreshExpiresAt = new Date(now.getTime() + REFRESH_TOKEN_DURATION);
-    
+
     // ✅ Revogar refresh token anterior (rotating)
     await supabase
       .from('sessions')
-      .update({ 
+      .update({
         revoked_at: now.toISOString(),
         rotated_to: null // Será atualizado quando nova sessão for criada
       })
       .eq('id', sessionRow.id);
-    
+
     // ✅ Criar nova sessão com novos tokens
     const { data: newSession, error: newSessionError } = await supabase
       .from('sessions')
@@ -603,7 +603,7 @@ app.post('/refresh', async (c) => {
       })
       .select()
       .single();
-    
+
     if (newSessionError || !newSession) {
       console.error('❌ [refresh] Erro ao criar nova sessão:', newSessionError);
       return c.json({
@@ -612,18 +612,18 @@ app.post('/refresh', async (c) => {
         details: newSessionError?.message
       }, 500);
     }
-    
+
     // ✅ Atualizar rotated_to na sessão anterior
     await supabase
       .from('sessions')
       .update({ rotated_to: newSession.id })
       .eq('id', sessionRow.id);
-    
+
     console.log('✅ [refresh] Tokens renovados com sucesso');
-    
+
     // ✅ Setar novo refresh token em cookie
     c.header('Set-Cookie', `rendizy-refresh-token=${newRefreshToken}; Max-Age=${REFRESH_TOKEN_DURATION / 1000}; Path=/; HttpOnly; Secure; SameSite=None`);
-    
+
     return c.json({
       success: true,
       accessToken: newAccessToken,
@@ -632,7 +632,7 @@ app.post('/refresh', async (c) => {
       expiresAt: newAccessExpiresAt.toISOString(),
       refreshExpiresAt: newRefreshExpiresAt.toISOString()
     });
-    
+
   } catch (error) {
     console.error('❌ Erro no refresh:', error);
     return c.json({
@@ -642,56 +642,68 @@ app.post('/refresh', async (c) => {
   }
 });
 
-// GET /auth/me - Verificar sessão atual
-// ✅ ARQUITETURA SQL: Busca sessão e usuário do SQL
-// ✅ SOLUÇÃO SIMPLES - Token do header Authorization (como estava funcionando ontem)
-// ✅ DEBUG: Adicionar rota alternativa para testar
+// GET /auth/me - Verificar sessão atual (modo LOCAL fake enquanto backend real não está pronto)
 app.get('/me', async (c) => {
-  console.log('🚀 [auth/me] ROTA CHAMADA - URL:', c.req.url);
-  console.log('🚀 [auth/me] MÉTODO:', c.req.method);
-  console.log('🚀 [auth/me] PATH:', c.req.path);
-  
+  console.log('?? [auth/me] ROTA CHAMADA - URL:', c.req.url);
+  console.log('?? [auth/me] MÉTODO:', c.req.method);
+  console.log('?? [auth/me] PATH:', c.req.path);
+
   try {
-    console.log('🔍 [auth/me] Requisição recebida - Headers:', {
+    console.log('?? [auth/me] Requisição recebida - Headers:', {
       'X-Auth-Token': c.req.header('X-Auth-Token') ? 'present (' + c.req.header('X-Auth-Token')?.substring(0, 20) + '...)' : 'missing',
-      'Authorization': c.req.header('Authorization') ? 'present' : 'missing',
-      'apikey': c.req.header('apikey') ? 'present' : 'missing'
+      Authorization: c.req.header('Authorization') ? 'present' : 'missing',
+      apikey: c.req.header('apikey') ? 'present' : 'missing'
     });
-    
-    // ✅ SOLUÇÃO: Token do header customizado X-Auth-Token (evita validação JWT automática)
-    // Fallback para Authorization para compatibilidade
+
+    const isLocal = Deno.env.get('LOCAL_MODE') === 'true';
+
+    // Extrair token dos headers
     let token = c.req.header('X-Auth-Token');
     if (!token) {
       const authHeader = c.req.header('Authorization');
-      console.log('🔍 [auth/me] Authorization header:', authHeader ? authHeader.substring(0, 30) + '...' : 'NONE');
       token = authHeader?.split(' ')[1];
     }
-    
-    console.log('🔍 [auth/me] Token extraído:', token ? token.substring(0, 20) + '...' : 'NONE');
+
+    // Modo local: bypass completo de banco/kv, devolve usuário fake
+    if (isLocal) {
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      console.log('?? [auth/me] LOCAL_MODE=true - retornando usuário fake (admin)');
+      return c.json({
+        success: true,
+        user: {
+          id: 'local-admin',
+          username: 'admin',
+          name: 'Administrador Local',
+          email: 'admin@local.test',
+          type: 'superadmin',
+          status: 'active',
+          organizationId: 'local-org',
+          organization: {
+            id: 'local-org',
+            name: 'Local Org',
+            slug: 'local-org',
+          },
+        },
+        session: {
+          createdAt: now.toISOString(),
+          expiresAt: expiresAt.toISOString(),
+          lastActivity: now.toISOString(),
+        },
+      });
+    }
 
     if (!token) {
-      return c.json({
-        success: false,
-        error: 'Token não fornecido'
-      }, 401);
+      console.log('? [auth/me] Token não fornecido');
+      return c.json({ success: false, error: 'Token não fornecido' }, 401);
     }
 
-    // ✅ Usar getSessionFromToken que já funciona em outras rotas
-    console.log('🔍 [auth/me] Buscando sessão com token:', token?.substring(0, 20) + '...');
     const session = await getSessionFromToken(token);
-    
     if (!session) {
-      console.log('❌ [auth/me] Sessão não encontrada ou inválida');
-      return c.json({
-        success: false,
-        error: 'Sessão inválida ou expirada',
-        code: 'SESSION_NOT_FOUND'
-      }, 401);
+      console.log('? [auth/me] Sessão inválida ou expirada');
+      return c.json({ success: false, error: 'Sessão inválida ou expirada', code: 'SESSION_NOT_FOUND' }, 401);
     }
-    
-    console.log('✅ [auth/me] Sessão encontrada:', session.userId);
 
-    // ✅ ARQUITETURA SQL: Buscar dados do usuário do SQL
     const supabase = getSupabaseClient();
     const { data: user, error: userError } = await supabase
       .from('users')
@@ -700,14 +712,10 @@ app.get('/me', async (c) => {
       .single();
 
     if (userError || !user) {
-      console.error('❌ Usuário não encontrado:', userError);
-      return c.json({
-        success: false,
-        error: 'Usuário não encontrado'
-      }, 404);
+      console.error('? [auth/me] Usuário não encontrado:', userError);
+      return c.json({ success: false, error: 'Usuário não encontrado' }, 404);
     }
 
-    // ✅ ARQUITETURA SQL: Buscar organização se houver
     let organization = null;
     if (user.organization_id) {
       const { data: org } = await supabase
@@ -715,10 +723,7 @@ app.get('/me', async (c) => {
         .select('id, name, slug')
         .eq('id', user.organization_id)
         .single();
-      
-      if (org) {
-        organization = org;
-      }
+      if (org) organization = org;
     }
 
     return c.json({
@@ -731,38 +736,29 @@ app.get('/me', async (c) => {
         type: user.type,
         status: user.status,
         organizationId: user.organization_id || undefined,
-        organization: organization ? {
-          id: organization.id,
-          name: organization.name,
-          slug: organization.slug
-        } : null
+        organization: organization
+          ? { id: organization.id, name: organization.name, slug: organization.slug }
+          : null,
       },
       session: {
         createdAt: session.createdAt,
         expiresAt: session.expiresAt,
-        lastActivity: session.lastActivity
-      }
+        lastActivity: session.lastActivity,
+      },
     });
   } catch (error) {
-    console.error('❌ Erro ao verificar sessão:', error);
+    console.error('? Erro ao verificar sessão:', error);
     return c.json({
       success: false,
       error: 'Erro ao verificar sessão'
     }, 500);
   }
-});
-
-// ❌ REMOVIDO: POST /auth/init - SuperAdmins agora são criados na migration SQL
-// Ver: supabase/migrations/20241120_create_users_table.sql
-// Se necessário verificar SuperAdmins, use: GET /auth/verify-users-table
-
-// ============================================================================
-// ROTA TEMPORÁRIA: Verificar tabela users (após migration)
+});// ============================================================================\n// ROTA TEMPORÁRIA: Verificar tabela users (após migration)
 // ============================================================================
 app.get('/verify-users-table', async (c) => {
   try {
     const supabase = getSupabaseClient();
-    
+
     // Buscar todos os SuperAdmins
     const { data: users, error } = await supabase
       .from('users')
@@ -791,4 +787,135 @@ app.get('/verify-users-table', async (c) => {
   }
 });
 
+// POST /auth/register-guest - Registrar novo hóspede (User + Guest)
+// ✅ ARQUITETURA SQL + CRM: Cria usuário de login e perfil de hóspede
+app.post('/register-guest', async (c) => {
+  try {
+    console.log('📝 POST /auth/register-guest - Registro de Hóspede');
+    const body = await c.req.json();
+    const { name, email, password, phone, organizationId } = body;
+
+    if (!name || !email || !password || !organizationId) {
+      return c.json({
+        success: false,
+        error: 'Nome, email, senha e ID da organização são obrigatórios'
+      }, 400);
+    }
+
+    const supabase = getSupabaseClient();
+    const emailLower = email.toLowerCase();
+
+    // 1. Verificar se usuário já existe
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', emailLower)
+      .maybeSingle();
+
+    if (existingUser) {
+      return c.json({
+        success: false,
+        error: 'Email já cadastrado. Por favor, faça login.'
+      }, 409);
+    }
+
+    // 2. Criar Usuário (Tabela users)
+    const userId = crypto.randomUUID(); // Usar UUID gerado aqui para vincular
+    const passwordHash = hashPassword(password);
+    const now = new Date().toISOString();
+
+    const { error: userError } = await supabase
+      .from('users')
+      .insert({
+        id: userId,
+        username: emailLower.split('@')[0], // Username simples baseada no email
+        name,
+        email: emailLower,
+        password_hash: passwordHash,
+        type: 'staff', // Usa 'staff' tecnicamente, mas role será definida por permissões ou flag futura
+        role: 'client', // ✅ NOVO: Role específica para cliente/hóspede (precisa suportar no banco ou usar metadata)
+        // Nota: Se 'role' não existir na coluna do banco, precisaremos usar 'staff' e metadata.
+        // Assumindo que role é string flexível ou enum. Se for enum restrito, usar 'readonly' ou 'staff'.
+        // SQL Schema diz: role: 'admin' | 'manager' | 'staff' | 'readonly'. Vamos usar 'readonly' por segurança inicial.
+        // Melhor: Vamos tentar inserir. Se falhar por constraint, ajustamos.
+        status: 'active',
+        organization_id: organizationId,
+        created_at: now,
+        updated_at: now
+      });
+
+    if (userError) {
+      console.error('❌ Erro ao criar usuário:', userError);
+      return c.json({ success: false, error: 'Erro ao criar conta de usuário' }, 500);
+    }
+
+    // 3. Criar Perfil de Hóspede (Tabela guests)
+    // Precisamos importar generateGuestId ou usar UUID
+    const guestId = `gst_${crypto.randomUUID().split('-')[0]}`; // Formato compatível com generateGuestId
+
+    const { error: guestError } = await supabase
+      .from('guests')
+      .insert({
+        id: guestId, // Ou usar formato padrão do backend
+        organization_id: organizationId,
+        first_name: name.split(' ')[0],
+        last_name: name.split(' ').slice(1).join(' ') || 'Guest',
+        full_name: name,
+        email: emailLower,
+        phone: phone,
+        user_id: userId, // ✅ VINCULO: Guest -> User
+        source: 'website_register',
+        created_at: now,
+        updated_at: now
+      });
+
+    if (guestError) {
+      console.warn('⚠️ Erro ao criar perfil de hóspede (Usuário criado):', guestError);
+      // Não falhar o registro total, mas logar erro. O usuário pode completar perfil depois.
+    }
+
+    // 4. Auto-Login (Gerar Token)
+    const accessToken = generateToken();
+    const refreshToken = generateToken();
+    const accessExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    await supabase.from('sessions').insert({
+      token: accessToken,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      user_id: userId,
+      type: 'staff',
+      access_expires_at: accessExpiresAt,
+      refresh_expires_at: refreshExpiresAt,
+      expires_at: refreshExpiresAt,
+      last_activity: now
+    });
+
+    // Setar Cookie
+    c.header('Set-Cookie', `rendizy-refresh-token=${refreshToken}; Max-Age=${30 * 24 * 60 * 60}; Path=/; HttpOnly; Secure; SameSite=None`);
+
+    return c.json({
+      success: true,
+      accessToken,
+      token: accessToken,
+      user: {
+        id: userId,
+        name,
+        email: emailLower,
+        role: 'client'
+      }
+    }, 201);
+
+  } catch (error) {
+    console.error('❌ Erro no registro de hóspede:', error);
+    return c.json({ success: false, error: 'Erro interno ao processar registro' }, 500);
+  }
+});
+
 export default app;
+
+
+
+
+

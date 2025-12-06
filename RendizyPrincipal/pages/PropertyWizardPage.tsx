@@ -115,10 +115,10 @@ export function PropertyWizardPage() {
       const timestamp = Date.now().toString(36).slice(-6).toUpperCase();
       const typePrefix = type
         ? type
-            .replace("loc_", "")
-            .replace("acc_", "")
-            .substring(0, 3)
-            .toUpperCase()
+          .replace("loc_", "")
+          .replace("acc_", "")
+          .substring(0, 3)
+          .toUpperCase()
         : "PRP";
       code = `${typePrefix}${timestamp}`;
       console.log("✅ [PropertyWizardPage] Código gerado:", code);
@@ -165,9 +165,43 @@ export function PropertyWizardPage() {
       financialInfo.monthlyRent = monthlyRent;
     }
 
+    // ✅ FIX: Garantir que fotos sejam extraídas para o nível raiz
+    // O backend espera 'photos' no root para salvar na coluna photos
+    // 🆕 v1.0.103.1100 - Extrair fotos também dos cômodos (wizard step 3)
+    let photos =
+      wizardData.contentPhotos?.photos ||
+      wizardData.photos ||
+      [];
+
+    // Extrair fotos dos cômodos se houver
+    if (wizardData.contentRooms?.rooms && Array.isArray(wizardData.contentRooms.rooms)) {
+      const roomPhotos = wizardData.contentRooms.rooms.flatMap((room: any) => room.photos || []);
+      if (roomPhotos.length > 0) {
+        // Evitar duplicatas se já existirem (por ID)
+        const existingIds = new Set(photos.map((p: any) => p.id || p.url));
+        const newPhotos = roomPhotos.filter((p: any) => !existingIds.has(p.id || p.url));
+
+        if (newPhotos.length > 0) {
+          console.log(`📸 [PropertyWizardPage] Adicionando ${newPhotos.length} fotos dos cômodos ao array principal`);
+          photos = [...photos, ...newPhotos];
+        }
+      }
+    }
+
+    const coverPhoto =
+      wizardData.contentPhotos?.coverPhoto ||
+      wizardData.coverPhoto ||
+      (photos.length > 0 ? (photos[0].url || photos[0]) : null);
+
+    console.log("📸 [PropertyWizardPage] Fotos normalizadas:", {
+      count: photos.length,
+      hasCover: !!coverPhoto
+    });
+
     // Retornar dados normalizados (mantendo estrutura wizard para compatibilidade)
     return {
       ...wizardData,
+      internalName: wizardData.internalName || wizardData.contentType?.internalName,
       name: name || "Propriedade",
       code: code,
       type: type || wizardData.contentType?.propertyTypeId || "loc_casa",
@@ -199,6 +233,9 @@ export function PropertyWizardPage() {
       accommodationType: wizardData.contentType?.accommodationTypeId,
       subtype: wizardData.contentType?.subtipo || wizardData.subtype,
       modalities: modalities,
+      // Campos de media
+      photos: photos,
+      coverPhoto: coverPhoto,
       // Campos financeiros para o backend
       financialInfo:
         Object.keys(financialInfo).length > 0 ? financialInfo : undefined,
@@ -229,42 +266,46 @@ export function PropertyWizardPage() {
         JSON.stringify(normalizedData, null, 2)
       );
 
-      // ✅ VALIDAÇÃO EXTRA: Verificar campos obrigatórios antes de enviar
-      if (
-        !normalizedData.name ||
-        !normalizedData.code ||
-        !normalizedData.type
-      ) {
-        console.error("❌ [PropertyWizardPage] Campos obrigatórios faltando:", {
-          name: normalizedData.name,
-          code: normalizedData.code,
-          type: normalizedData.type,
-        });
-        toast.error(
-          "Preencha todos os campos obrigatórios (Nome, Código, Tipo)"
-        );
-        setSaving(false);
-        return;
-      }
+      // ✅ VALIDAÇÃO EXTRA: só forçar campos quando NÃO for rascunho
+      const isDraftSave = !isEditMode || normalizedData.status === "draft";
 
-      if (!normalizedData.address?.city || !normalizedData.address?.state) {
-        console.error(
-          "❌ [PropertyWizardPage] Endereço incompleto:",
-          normalizedData.address
-        );
-        toast.error("Preencha cidade e estado no endereço");
-        setSaving(false);
-        return;
-      }
+      if (!isDraftSave) {
+        if (
+          !normalizedData.name ||
+          !normalizedData.code ||
+          !normalizedData.type
+        ) {
+          console.error("❌ [PropertyWizardPage] Campos obrigatórios faltando:", {
+            name: normalizedData.name,
+            code: normalizedData.code,
+            type: normalizedData.type,
+          });
+          toast.error(
+            "Preencha todos os campos obrigatórios (Nome, Código, Tipo)"
+          );
+          setSaving(false);
+          return;
+        }
 
-      if (!normalizedData.basePrice || normalizedData.basePrice <= 0) {
-        console.error(
-          "❌ [PropertyWizardPage] basePrice inválido:",
-          normalizedData.basePrice
-        );
-        toast.error("Preço base deve ser maior que zero");
-        setSaving(false);
-        return;
+        if (!normalizedData.address?.city || !normalizedData.address?.state) {
+          console.error(
+            "❌ [PropertyWizardPage] Endereço incompleto:",
+            normalizedData.address
+          );
+          toast.error("Preencha cidade e estado no endereço");
+          setSaving(false);
+          return;
+        }
+
+        if (!normalizedData.basePrice || normalizedData.basePrice <= 0) {
+          console.error(
+            "❌ [PropertyWizardPage] basePrice inválido:",
+            normalizedData.basePrice
+          );
+          toast.error("Preço base deve ser maior que zero");
+          setSaving(false);
+          return;
+        }
       }
 
       let response;
@@ -313,8 +354,8 @@ export function PropertyWizardPage() {
         const successMessage = isEditMode
           ? "Propriedade atualizada com sucesso!"
           : isDraft
-          ? "Rascunho salvo! Você pode continuar depois."
-          : "Propriedade criada com sucesso!";
+            ? "Rascunho salvo! Você pode continuar depois."
+            : "Propriedade criada com sucesso!";
 
         toast.success(successMessage);
 

@@ -178,7 +178,7 @@ function App() {
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [errorBannerDismissed, setErrorBannerDismissed] = useState(false); // Novo: rastreia se foi dispensado
   const [initialLoading, setInitialLoading] = useState(false); // 🔥 FORÇA FALSE - sem loading!
-  
+
   // 🔥 DEBUG - Log estado inicial
   useEffect(() => {
     console.log('🟢 APP MONTOU COM SUCESSO!');
@@ -229,11 +229,11 @@ function App() {
     console.log('⚠️ Auto-recuperação DESABILITADA (v1.0.103.157)');
     // 🔥 DESABILITADO - estava causando loop infinito
     // initAutoRecovery();
-    
+
     // 🔥 DESABILITADO v1.0.103.268 - Mock Mode removido para testes com dados reais
     // enableMockMode();
     // setOfflineMode(true);
-    
+
     // Limpar dados mock do localStorage (sistema agora usa apenas Supabase)
     const mockDataKeys = ['rendizy_mock_data', 'rendizy_mock_enabled', 'rendizy_data_version'];
     mockDataKeys.forEach(key => {
@@ -242,9 +242,9 @@ function App() {
         console.log(`🗑️ Removido: ${key}`);
       }
     });
-    
+
     console.log('✅ Sistema rodando em modo PRODUÇÃO (sem mock data).');
-    
+
     // 📱 DESABILITADO v1.0.103.169 - Evolution Contacts Service
     // Evita "Failed to fetch" quando backend está offline
     /*
@@ -267,7 +267,7 @@ function App() {
     'manutencao',
     'cancelada'
   ]);
-  
+
   const [priceEditModal, setPriceEditModal] = useState<{
     open: boolean;
     propertyId?: string;
@@ -328,7 +328,7 @@ function App() {
   const [exportModal, setExportModal] = useState(false);
   const [tagsModal, setTagsModal] = useState(false);
   const [currentView, setCurrentView] = useState<'calendar' | 'list' | 'timeline'>('calendar');
-  
+
   const [editReservationWizard, setEditReservationWizard] = useState<{
     open: boolean;
     reservation?: Reservation;
@@ -389,10 +389,10 @@ function App() {
     };
   }, []); // ✅ Array vazio = roda apenas 1 vez, sem loop
   */
-  
+
   // Log apenas uma vez
   console.log('🎯 APP INITIALIZED - v1.0.103.233 - initialLoading:', initialLoading);
-  
+
   // ⚠️ BRUTAL FIX REMOVIDO v1.0.103.308 - Sistema carrega dados reais do Supabase
 
   // Detectar conflitos sempre que as reservas mudarem
@@ -401,9 +401,9 @@ function App() {
       reservations,
       properties
     );
-    
+
     setConflicts(detectedConflicts);
-    
+
     // Atualizar reservas com flag de conflito
     if (detectedConflicts.length > 0) {
       setReservations(reservationsWithConflicts as Reservation[]);
@@ -465,7 +465,7 @@ function App() {
   const handleQuickAction = (action: 'reservation' | 'quote' | 'predictive' | 'maintenance' | 'tiers' | 'seasonality') => {
     const { propertyId, startDate, endDate } = quickActionsModal;
     setQuickActionsModal({ open: false });
-    
+
     if (action === 'reservation') {
       setCreateReservationWizard({
         open: true,
@@ -543,7 +543,7 @@ function App() {
     // 🔥 DESABILITADO v1.0.103.268 - Mock mode removido para testes com dados reais
     // enableMockMode();
     console.log('✅ Sistema em modo PRODUÇÃO (backend real)');
-    
+
     const checkDataConsistency = () => {
       try {
         const mockData = localStorage.getItem('rendizy_mock_data');
@@ -570,7 +570,7 @@ function App() {
         console.error('Erro ao verificar consistência dos dados:', error);
       }
     };
-    
+
     checkDataConsistency();
   }, []);
 
@@ -579,11 +579,11 @@ function App() {
     const loadProperties = async () => {
       setLoadingProperties(true);
       console.log('🔄 Carregando propriedades do Supabase...');
-      
+
       try {
         const response = await propertiesApi.list();
         console.log('✅ Resposta da API de propriedades:', response);
-        
+
         if (response.success && response.data) {
           const apiProperties = response.data.map((p: any) => ({
             id: p.id || '',
@@ -594,7 +594,7 @@ function App() {
             tarifGroup: p.tarifGroup || 'Padrão',
             tags: p.tags || []
           })).filter((p: Property) => p.id);
-          
+
           console.log(`✅ ${apiProperties.length} propriedades carregadas do Supabase`);
           setProperties(apiProperties);
           setSelectedProperties(apiProperties.map((p: Property) => p.id));
@@ -624,13 +624,13 @@ function App() {
   useEffect(() => {
     const loadReservations = async () => {
       console.log('🔄 Carregando reservas do Supabase...');
-      
+
       try {
         // Calcular intervalo de datas (3 meses antes até 6 meses depois)
         const today = new Date();
         const startDate = new Date(today.getFullYear(), today.getMonth() - 3, 1);
         const endDate = new Date(today.getFullYear(), today.getMonth() + 6, 30);
-        
+
         const [reservationsResponse, guestsResponse, calendarResponse] = await Promise.all([
           reservationsApi.list(),
           guestsApi.list(),
@@ -641,18 +641,18 @@ function App() {
             includePrices: false
           })
         ]);
-        
+
         if (reservationsResponse.success && reservationsResponse.data) {
           const guests = guestsResponse.data || [];
-          
+
           // Convert API reservations to App Reservation format
           const apiReservations = reservationsResponse.data.map((r: any) => {
             const guest = guests.find((g: any) => g.id === r.guestId);
-            
+
             // Parse dates properly to avoid timezone issues
             const [ciYear, ciMonth, ciDay] = r.checkIn.split('-').map(Number);
             const [coYear, coMonth, coDay] = r.checkOut.split('-').map(Number);
-            
+
             return {
               id: r.id,
               propertyId: r.propertyId,
@@ -665,10 +665,10 @@ function App() {
               nights: r.nights
             };
           });
-          
+
           console.log(`✅ ${apiReservations.length} reservas carregadas do Supabase`);
           setReservations(apiReservations);
-          
+
           // Carregar bloqueios do calendário
           if (calendarResponse.success && calendarResponse.data?.blocks) {
             console.log(`✅ ${calendarResponse.data.blocks.length} bloqueios carregados`);
@@ -704,7 +704,7 @@ function App() {
   // ========================================================================
   // CALENDAR MANAGER - AGENDA VIVA (5 ANOS SEMPRE À FRENTE)
   // ========================================================================
-  
+
   // Memoizar funções para evitar loop infinito
   const getCurrentLastDay = useCallback(() => {
     const today = new Date();
@@ -717,10 +717,10 @@ function App() {
     console.log(`📅 AGENDA ESTENDIDA: ${days.length} novos dias adicionados!`);
     console.log(`   → Primeiro dia: ${days[0]?.date}`);
     console.log(`   → Último dia: ${days[days.length - 1]?.date}`);
-    
+
     // TODO: Enviar para o backend quando integrado
     // await calendarApi.extendCalendar(days);
-    
+
     toast.success(
       `Agenda estendida! ${days.length} novos dias adicionados.`,
       {
@@ -758,7 +758,7 @@ function App() {
     sendEmail: boolean;
   }) => {
     console.log('✏️ Editando reserva:', data);
-    
+
     // Atualiza a reserva no estado
     setReservations(prev => prev.map(reservation => {
       if (reservation.id === data.reservationId) {
@@ -766,7 +766,7 @@ function App() {
         const nights = Math.ceil(
           (data.checkOut.getTime() - data.checkIn.getTime()) / (1000 * 60 * 60 * 24)
         );
-        
+
         return {
           ...reservation,
           guestName: data.guestName,
@@ -778,13 +778,13 @@ function App() {
       }
       return reservation;
     }));
-    
+
     // Log para debug
     console.log('📦 Build Info:', BUILD_INFO);
-    
+
     // Fecha o wizard
     setEditReservationWizard({ open: false });
-    
+
     // Toast já é mostrado pelo EditReservationWizard
   };
 
@@ -792,30 +792,30 @@ function App() {
   const handleSearchReservation = async (searchQuery: string) => {
     // Detectar se é um código de reserva (RSV-XXXXXX)
     const reservationCodePattern = /^RSV-[A-Z0-9]{6}$/i;
-    
+
     if (reservationCodePattern.test(searchQuery.trim())) {
       console.log('🔍 Buscando reserva:', searchQuery);
-      
+
       // Buscar a reserva nos dados carregados
-      const reservation = reservations.find(r => 
+      const reservation = reservations.find(r =>
         r.id.toUpperCase() === searchQuery.trim().toUpperCase()
       );
-      
+
       if (reservation) {
         console.log('✅ Reserva encontrada:', reservation);
-        
+
         // 1. Navegar para o calendário
         setActiveModule('calendario');
-        
+
         // 2. Ajustar mês para o check-in da reserva
         const checkInMonth = new Date(reservation.checkIn);
         setCurrentMonth(new Date(checkInMonth.getFullYear(), checkInMonth.getMonth(), 1));
-        
+
         // 3. Selecionar a propriedade da reserva
         if (!selectedProperties.includes(reservation.propertyId)) {
           setSelectedProperties(prev => [...prev, reservation.propertyId]);
         }
-        
+
         // 4. Mostrar preview da reserva após navegação
         setTimeout(() => {
           setReservationPreviewModal({
@@ -823,7 +823,7 @@ function App() {
             reservation
           });
         }, 300);
-        
+
         toast.success(`Reserva ${reservation.id} encontrada!`);
         return true;
       } else {
@@ -832,7 +832,7 @@ function App() {
         return false;
       }
     }
-    
+
     return false; // Não é um código de reserva
   };
 
@@ -911,391 +911,399 @@ function App() {
       <ErrorBoundary>
         <ThemeProvider>
           <LanguageProvider>
-        {/* 🔥 EMERGENCY ROUTER DESABILITADO v1.0.103.244 - causava loops */}
-        {/* <EmergencyRouter /> */}
-        
-        {/* Sincronização URL ↔ Módulo */}
-        <AppRouter activeModule={activeModule} setActiveModule={setActiveModule} />
-        
-        {/* Componentes globais - sempre presentes */}
-        <BuildLogger />
-        <Toaster />
-        
-        <Suspense fallback={<LoadingProgress isLoading={true} />}>
-        <Routes>
-        {/* ✅ ROTA LOGIN - v1.0.103.259 - Sistema Multi-Tenant */}
-        <Route path="/login" element={<LoginPage />} />
-        
-        {/* ✅ ROTA SITES DE CLIENTES - v1.0.103.500 - PÚBLICA (sites são públicos) */}
-        <Route path="/sites/:subdomain" element={<ClientSiteViewer />} />
-        <Route path="/sites/:subdomain/*" element={<ClientSiteViewer />} />
-        
-        {/* 🧪 ROTA TESTE FIGMA - v1.0.103.311 - Criação de Imóvel de Teste - PROTEGIDA */}
-        <Route path="/test/figma-property" element={
-          <ProtectedRoute>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-            <MainSidebar
-              activeModule="test-figma"
-              onModuleChange={setActiveModule}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
+            {/* 🔥 EMERGENCY ROUTER DESABILITADO v1.0.103.244 - causava loops */}
+            {/* <EmergencyRouter /> */}
 
-            <div 
-              className={cn(
-                "flex flex-col min-h-screen transition-all duration-300 p-8",
-                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-              )}
-            >
-              <div className="max-w-4xl mx-auto w-full">
-                <div className="mb-6">
-                  <h1 className="text-3xl mb-2">🧪 Teste Automatizado</h1>
-                  <p className="text-gray-600 dark:text-gray-400">
-                    Ferramenta de desenvolvimento para criação rápida de imóvel de teste "@figma@"
-                  </p>
-                </div>
-                
-                <FigmaTestPropertyCreator />
-                
-                <div className="mt-6 p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950">
-                  <p className="text-sm text-blue-900 dark:text-blue-100">
-                    💡 <strong>Dica:</strong> Após criar o imóvel, acesse "Imóveis" no menu lateral para visualizá-lo.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA CALENDÁRIO - v1.0.103.249 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/calendario" element={
-          <ProtectedRoute>
-            <CalendarModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-              properties={properties}
-              selectedProperties={selectedProperties}
-              setSelectedProperties={(updater) => setSelectedProperties(updater)}
-              reservations={reservations}
-              blocks={blocks}
-              dateRange={dateRange}
-              setDateRange={setDateRange}
-              selectedReservationTypes={selectedReservationTypes}
-              setSelectedReservationTypes={setSelectedReservationTypes}
-              currentView={currentView}
-              setCurrentView={setCurrentView}
-              currentMonth={currentMonth}
-              setCurrentMonth={setCurrentMonth}
-              refreshKey={refreshKey}
-              setExportModal={setExportModal}
-              handleEmptyClick={handleEmptyClick}
-              handleReservationClick={handleReservationClick}
-              handleOpenBlockDetails={handleOpenBlockDetails}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA RESERVAS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/reservations" element={
-          <ProtectedRoute>
-            <ReservationsModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA ADMIN MASTER - v1.0.103.253 - PROTEGIDA (CRÍTICO!) - ENCAPSULADA */}
-        <Route path="/admin" element={
-          <ProtectedRoute>
-            <AdminMasterModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA CHAT - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/chat" element={
-          <ProtectedRoute>
-            <ChatModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA LOCATIONS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/locations" element={
-          <ProtectedRoute>
-            <LocationsModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA PRICING - v1.0.103.400 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/pricing" element={
-          <ProtectedRoute>
-            <PricingModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA INTEGRATIONS - v1.0.103.400 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/integrations" element={
-          <ProtectedRoute>
-            <IntegrationsModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA SITES CLIENTES - v1.0.103.400 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/sites-clientes" element={
-          <ProtectedRoute>
-            <ClientSitesModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA GUESTS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/guests" element={
-          <ProtectedRoute>
-            <GuestsModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ✅ ROTA SETTINGS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/settings" element={
-          <ProtectedRoute>
-            <SettingsModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* Módulo Financeiro - v1.0.103.234 - PROTEGIDO */}
-        <Route path="/financeiro/*" element={
-          <ProtectedRoute>
-            <FinanceiroModule />
-          </ProtectedRoute>
-        }>
-          <Route index element={<FinanceiroDashboard />} />
-          <Route path="plano-contas" element={<PlanoContasPage />} />
-          <Route path="lancamentos" element={<LancamentosPage />} />
-          <Route path="centro-custos" element={<CentroCustosPage />} />
-          <Route path="contas-receber" element={<ContasReceberPage />} />
-          <Route path="contas-pagar" element={<ContasPagarPage />} />
-          <Route path="inadimplencia" element={<InadimplenciaPage />} />
-          <Route path="conciliacao" element={<ConciliacaoPage />} />
-          <Route path="conciliacao/regras" element={<RegrasConciliacaoPage />} />
-          <Route path="conciliacao/fechamento" element={<FechamentoCaixaPage />} />
-          <Route path="contas-bancarias" element={<ContasBancariasPage />} />
-          <Route path="dre" element={<DREPage />} />
-          <Route path="fluxo-caixa" element={<FluxoCaixaPage />} />
-          <Route path="relatorios" element={<RelatoriosGerenciaisPage />} />
-          <Route path="configuracoes" element={<ConfiguracoesFinanceirasPage />} />
-        </Route>
-        
-        {/* Módulo CRM & Tasks - Unificado - PROTEGIDO */}
-        <Route path="/crm/*" element={
-          <ProtectedRoute>
-            <CRMTasksModule />
-          </ProtectedRoute>
-        }>
-          <Route index element={<CRMTasksDashboard />} />
-          
-          {/* Seção Clientes (CRM) */}
-          <Route path="deals" element={<DealsModule />} />
-          <Route path="services" element={<ServicesFunnelModule />} />
-          <Route path="predetermined" element={<PredeterminedFunnelModule />} />
-          
-          {/* Portal do Cliente - Acessível via site da imobiliária */}
-          <Route path="client/processos" element={<ClientProcessView />} />
-          <Route path="contatos" element={<ModulePlaceholder module="Contatos" />} />
-          <Route path="leads" element={<ModulePlaceholder module="Leads" />} />
-          <Route path="proprietarios" element={<ModulePlaceholder module="Proprietários" />} />
-          
-          {/* Seção Tarefas (Tasks) */}
-          <Route path="minhas-tarefas" element={<MyTasksView />} />
-          <Route path="todas-tarefas" element={<ModulePlaceholder module="Todas as Tarefas" />} />
-          <Route path="calendario-tarefas" element={<ModulePlaceholder module="Calendário de Tarefas" />} />
-          <Route path="equipes" element={<ModulePlaceholder module="Equipes" />} />
-          <Route path="prioridades" element={<ModulePlaceholder module="Prioridades" />} />
-          
-          {/* Seção Vendas (CRM) */}
-          <Route path="pipeline" element={<ModulePlaceholder module="Pipeline de Vendas" />} />
-          <Route path="propostas" element={<ModulePlaceholder module="Propostas" />} />
-          <Route path="negocios" element={<ModulePlaceholder module="Negócios" />} />
-          
-          {/* Seção Comunicação (CRM) */}
-          <Route path="emails" element={<ModulePlaceholder module="E-mails" />} />
-          <Route path="chamadas" element={<ModulePlaceholder module="Chamadas" />} />
-          <Route path="agenda" element={<ModulePlaceholder module="Agenda" />} />
-          
-          {/* Seção Análise */}
-          <Route path="relatorios" element={<ModulePlaceholder module="Relatórios" />} />
-          <Route path="tarefas-arquivadas" element={<ModulePlaceholder module="Tarefas Arquivadas" />} />
-          
-          {/* Laboratório de Automações Inteligentes */}
-          <Route path="automacoes-lab" element={<AutomationsNaturalLanguageLab />} />
-          <Route path="automacoes-chat" element={<AutomationsChatLab />} />
-          
-          {/* Configurações */}
-          <Route path="configuracoes" element={<ModulePlaceholder module="Configurações CRM & Tasks" />} />
-        </Route>
-        
-        {/* Módulo Automações - DEPRECADO - Redirecionando para nova tela no CRM */}
-        <Route path="/automacoes/*" element={
-          <ProtectedRoute>
-            <Navigate to="/crm/automacoes-lab" replace />
-          </ProtectedRoute>
-        } />
-        
-        {/* Módulo BI - PROTEGIDO */}
-        <Route path="/bi/*" element={
-          <ProtectedRoute>
-            <BIModule />
-          </ProtectedRoute>
-        }>
-          <Route index element={<BIDashboard />} />
-          <Route path="financeiro" element={<ModulePlaceholder module="Relatório Financeiro" />} />
-          <Route path="ocupacao" element={<ModulePlaceholder module="Relatório de Ocupação" />} />
-          <Route path="reservas" element={<ModulePlaceholder module="Relatório de Reservas" />} />
-          <Route path="clientes" element={<ModulePlaceholder module="Relatório de Clientes" />} />
-          <Route path="tendencias" element={<ModulePlaceholder module="Análise de Tendências" />} />
-          <Route path="comparativos" element={<ModulePlaceholder module="Análises Comparativas" />} />
-          <Route path="previsoes" element={<ModulePlaceholder module="Previsões" />} />
-          <Route path="construtor" element={<ModulePlaceholder module="Construtor de Relatórios" />} />
-          <Route path="meus-relatorios" element={<ModulePlaceholder module="Meus Relatórios" />} />
-          <Route path="agendados" element={<ModulePlaceholder module="Relatórios Agendados" />} />
-          <Route path="kpis" element={<ModulePlaceholder module="KPIs e Metas" />} />
-          <Route path="configuracoes" element={<ModulePlaceholder module="Configurações BI" />} />
-        </Route>
-        
-        {/* ✅ ROTA PROPERTIES - v1.0.103.400 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/properties/*" element={
-          <ProtectedRoute>
-            <PropertiesModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ⭐ ROTA CONVENCIONADA - Dashboard Inicial - v1.0.103.267 - PROTEGIDA (ENCAPSULADA) */}
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <DashboardModule
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              initialLoading={initialLoading}
-              onModuleChange={setActiveModule}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-              conflicts={conflicts}
-              reservations={reservations}
-              properties={properties}
-              onReservationClick={handleReservationClick}
-              onDismissConflictAlert={() => setShowConflictAlert(false)}
-            />
-          </ProtectedRoute>
-        } />
-        
-        {/* ⚡ Rota raiz - REDIRECT AUTOMÁTICO para /dashboard - v1.0.103.267 */}
-        {/* Quando abrir preview (URL raiz /), redireciona automaticamente para /dashboard */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        
-        
-        {/* Rota 404 - Catch All - Renderiza Dashboard - PROTEGIDA */}
-        <Route path="*" element={
-          <ProtectedRoute>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-            <LoadingProgress 
-              isLoading={initialLoading}
-            />
-            
-            <MainSidebar
-              activeModule="painel-inicial"
-              onModuleChange={setActiveModule}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-              onSearchReservation={handleSearchReservation}
-              onAdvancedSearch={handleAdvancedSearch}
-            />
+            {/* Sincronização URL ↔ Módulo */}
+            <AppRouter activeModule={activeModule} setActiveModule={setActiveModule} />
 
-            <div 
-              className={cn(
-                "flex flex-col min-h-screen transition-all duration-300",
-                sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-              )}
-            >
-              <EmergencyRecovery />
-            </div>
-          </div>
-          </ProtectedRoute>
-        } />
-        
-        </Routes>
-        </Suspense>
+            {/* Componentes globais - sempre presentes */}
+            <BuildLogger />
+            <Toaster />
+
+            <Suspense fallback={<LoadingProgress isLoading={true} />}>
+              <Routes>
+                {/* ✅ ROTA LOGIN - v1.0.103.259 - Sistema Multi-Tenant */}
+                <Route path="/login" element={<LoginPage />} />
+
+                {/* ✅ ROTA SITES DE CLIENTES - v1.0.103.500 - PÚBLICA (sites são públicos) */}
+                <Route path="/sites/:subdomain" element={<ClientSiteViewer />} />
+                <Route path="/sites/:subdomain/*" element={<ClientSiteViewer />} />
+
+                {/* 🧪 ROTA TESTE FIGMA - v1.0.103.311 - Criação de Imóvel de Teste - PROTEGIDA */}
+                <Route path="/test/figma-property" element={
+                  <ProtectedRoute>
+                    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+                      <MainSidebar
+                        activeModule="test-figma"
+                        onModuleChange={setActiveModule}
+                        collapsed={sidebarCollapsed}
+                        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+                        onSearchReservation={handleSearchReservation}
+                        onAdvancedSearch={handleAdvancedSearch}
+                      />
+
+                      <div
+                        className={cn(
+                          "flex flex-col min-h-screen transition-all duration-300 p-8",
+                          sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+                        )}
+                      >
+                        <div className="max-w-4xl mx-auto w-full">
+                          <div className="mb-6">
+                            <h1 className="text-3xl mb-2">🧪 Teste Automatizado</h1>
+                            <p className="text-gray-600 dark:text-gray-400">
+                              Ferramenta de desenvolvimento para criação rápida de imóvel de teste "@figma@"
+                            </p>
+                          </div>
+
+                          <FigmaTestPropertyCreator />
+
+                          <div className="mt-6 p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950">
+                            <p className="text-sm text-blue-900 dark:text-blue-100">
+                              💡 <strong>Dica:</strong> Após criar o imóvel, acesse "Imóveis" no menu lateral para visualizá-lo.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA CALENDÁRIO - v1.0.103.249 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/calendario" element={
+                  <ProtectedRoute>
+                    <CalendarModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                      properties={properties}
+                      selectedProperties={selectedProperties}
+                      setSelectedProperties={(updater) => setSelectedProperties(updater)}
+                      reservations={reservations}
+                      blocks={blocks}
+                      dateRange={dateRange}
+                      setDateRange={setDateRange}
+                      selectedReservationTypes={selectedReservationTypes}
+                      setSelectedReservationTypes={setSelectedReservationTypes}
+                      currentView={currentView}
+                      setCurrentView={setCurrentView}
+                      currentMonth={currentMonth}
+                      setCurrentMonth={setCurrentMonth}
+                      refreshKey={refreshKey}
+                      setExportModal={setExportModal}
+                      handleEmptyClick={handleEmptyClick}
+                      handleReservationClick={handleReservationClick}
+                      handleOpenBlockDetails={handleOpenBlockDetails}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA RESERVAS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/reservations" element={
+                  <ProtectedRoute>
+                    <ReservationsModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA ADMIN MASTER - v1.0.103.253 - PROTEGIDA (CRÍTICO!) - ENCAPSULADA */}
+                <Route path="/admin" element={
+                  <ProtectedRoute>
+                    <AdminMasterModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA CHAT - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/chat" element={
+                  <ProtectedRoute>
+                    <ChatModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA LOCATIONS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/locations" element={
+                  <ProtectedRoute>
+                    <LocationsModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA PRICING - v1.0.103.400 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/pricing" element={
+                  <ProtectedRoute>
+                    <PricingModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA INTEGRATIONS - v1.0.103.400 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/integrations" element={
+                  <ProtectedRoute>
+                    <IntegrationsModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA SITES CLIENTES - v1.0.103.400 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/sites-clientes" element={
+                  <ProtectedRoute>
+                    <ClientSitesModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA GUESTS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/guests" element={
+                  <ProtectedRoute>
+                    <GuestsModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA SETTINGS - v1.0.103.253 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/settings" element={
+                  <ProtectedRoute>
+                    <SettingsModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* Módulo Financeiro - v1.0.103.234 - PROTEGIDO */}
+                <Route path="/financeiro/*" element={
+                  <ProtectedRoute>
+                    <FinanceiroModule />
+                  </ProtectedRoute>
+                }>
+                  <Route index element={<FinanceiroDashboard />} />
+                  <Route path="plano-contas" element={<PlanoContasPage />} />
+                  <Route path="lancamentos" element={<LancamentosPage />} />
+                  <Route path="centro-custos" element={<CentroCustosPage />} />
+                  <Route path="contas-receber" element={<ContasReceberPage />} />
+                  <Route path="contas-pagar" element={<ContasPagarPage />} />
+                  <Route path="inadimplencia" element={<InadimplenciaPage />} />
+                  <Route path="conciliacao" element={<ConciliacaoPage />} />
+                  <Route path="conciliacao/regras" element={<RegrasConciliacaoPage />} />
+                  <Route path="conciliacao/fechamento" element={<FechamentoCaixaPage />} />
+                  <Route path="contas-bancarias" element={<ContasBancariasPage />} />
+                  <Route path="dre" element={<DREPage />} />
+                  <Route path="fluxo-caixa" element={<FluxoCaixaPage />} />
+                  <Route path="relatorios" element={<RelatoriosGerenciaisPage />} />
+                  <Route path="configuracoes" element={<ConfiguracoesFinanceirasPage />} />
+                </Route>
+
+                {/* Portal do Cliente (Hóspedes/Proprietários) - Full Screen sem Sidebar do CRM */}
+                <Route path="/portal" element={
+                  <ProtectedRoute>
+                    <ClientProcessView />
+                  </ProtectedRoute>
+                } />
+
+                {/* Módulo CRM & Tasks - Unificado - PROTEGIDO */}
+                <Route path="/crm/*" element={
+                  <ProtectedRoute>
+                    <CRMTasksModule />
+                  </ProtectedRoute>
+                }>
+                  <Route index element={<CRMTasksDashboard />} />
+
+                  {/* Seção Clientes (CRM) */}
+                  <Route path="deals" element={<DealsModule />} />
+                  <Route path="services" element={<ServicesFunnelModule />} />
+                  <Route path="predetermined" element={<PredeterminedFunnelModule />} />
+
+
+                  {/* Portal do Cliente - MOVIDO para rota raiz /portal */}
+                  {/* <Route path="client/processos" element={<ClientProcessView />} /> */}
+                  <Route path="contatos" element={<ModulePlaceholder module="Contatos" />} />
+                  <Route path="leads" element={<ModulePlaceholder module="Leads" />} />
+                  <Route path="proprietarios" element={<ModulePlaceholder module="Proprietários" />} />
+
+                  {/* Seção Tarefas (Tasks) */}
+                  <Route path="minhas-tarefas" element={<MyTasksView />} />
+                  <Route path="todas-tarefas" element={<ModulePlaceholder module="Todas as Tarefas" />} />
+                  <Route path="calendario-tarefas" element={<ModulePlaceholder module="Calendário de Tarefas" />} />
+                  <Route path="equipes" element={<ModulePlaceholder module="Equipes" />} />
+                  <Route path="prioridades" element={<ModulePlaceholder module="Prioridades" />} />
+
+                  {/* Seção Vendas (CRM) */}
+                  <Route path="pipeline" element={<ModulePlaceholder module="Pipeline de Vendas" />} />
+                  <Route path="propostas" element={<ModulePlaceholder module="Propostas" />} />
+                  <Route path="negocios" element={<ModulePlaceholder module="Negócios" />} />
+
+                  {/* Seção Comunicação (CRM) */}
+                  <Route path="emails" element={<ModulePlaceholder module="E-mails" />} />
+                  <Route path="chamadas" element={<ModulePlaceholder module="Chamadas" />} />
+                  <Route path="agenda" element={<ModulePlaceholder module="Agenda" />} />
+
+                  {/* Seção Análise */}
+                  <Route path="relatorios" element={<ModulePlaceholder module="Relatórios" />} />
+                  <Route path="tarefas-arquivadas" element={<ModulePlaceholder module="Tarefas Arquivadas" />} />
+
+                  {/* Laboratório de Automações Inteligentes */}
+                  <Route path="automacoes-lab" element={<AutomationsNaturalLanguageLab />} />
+                  <Route path="automacoes-chat" element={<AutomationsChatLab />} />
+
+                  {/* Configurações */}
+                  <Route path="configuracoes" element={<ModulePlaceholder module="Configurações CRM & Tasks" />} />
+                </Route>
+
+                {/* Módulo Automações - DEPRECADO - Redirecionando para nova tela no CRM */}
+                <Route path="/automacoes/*" element={
+                  <ProtectedRoute>
+                    <Navigate to="/crm/automacoes-lab" replace />
+                  </ProtectedRoute>
+                } />
+
+                {/* Módulo BI - PROTEGIDO */}
+                <Route path="/bi/*" element={
+                  <ProtectedRoute>
+                    <BIModule />
+                  </ProtectedRoute>
+                }>
+                  <Route index element={<BIDashboard />} />
+                  <Route path="financeiro" element={<ModulePlaceholder module="Relatório Financeiro" />} />
+                  <Route path="ocupacao" element={<ModulePlaceholder module="Relatório de Ocupação" />} />
+                  <Route path="reservas" element={<ModulePlaceholder module="Relatório de Reservas" />} />
+                  <Route path="clientes" element={<ModulePlaceholder module="Relatório de Clientes" />} />
+                  <Route path="tendencias" element={<ModulePlaceholder module="Análise de Tendências" />} />
+                  <Route path="comparativos" element={<ModulePlaceholder module="Análises Comparativas" />} />
+                  <Route path="previsoes" element={<ModulePlaceholder module="Previsões" />} />
+                  <Route path="construtor" element={<ModulePlaceholder module="Construtor de Relatórios" />} />
+                  <Route path="meus-relatorios" element={<ModulePlaceholder module="Meus Relatórios" />} />
+                  <Route path="agendados" element={<ModulePlaceholder module="Relatórios Agendados" />} />
+                  <Route path="kpis" element={<ModulePlaceholder module="KPIs e Metas" />} />
+                  <Route path="configuracoes" element={<ModulePlaceholder module="Configurações BI" />} />
+                </Route>
+
+                {/* ✅ ROTA PROPERTIES - v1.0.103.400 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/properties/*" element={
+                  <ProtectedRoute>
+                    <PropertiesModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ⭐ ROTA CONVENCIONADA - Dashboard Inicial - v1.0.103.267 - PROTEGIDA (ENCAPSULADA) */}
+                <Route path="/dashboard" element={
+                  <ProtectedRoute>
+                    <DashboardModule
+                      sidebarCollapsed={sidebarCollapsed}
+                      setSidebarCollapsed={setSidebarCollapsed}
+                      initialLoading={initialLoading}
+                      onModuleChange={setActiveModule}
+                      onSearchReservation={handleSearchReservation}
+                      onAdvancedSearch={handleAdvancedSearch}
+                      conflicts={conflicts}
+                      reservations={reservations}
+                      properties={properties}
+                      onReservationClick={handleReservationClick}
+                      onDismissConflictAlert={() => setShowConflictAlert(false)}
+                    />
+                  </ProtectedRoute>
+                } />
+
+                {/* ⚡ Rota raiz - REDIRECT AUTOMÁTICO para /dashboard - v1.0.103.267 */}
+                {/* Quando abrir preview (URL raiz /), redireciona automaticamente para /dashboard */}
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+
+                {/* Rota 404 - Catch All - Renderiza Dashboard - PROTEGIDA */}
+                <Route path="*" element={
+                  <ProtectedRoute>
+                    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+                      <LoadingProgress
+                        isLoading={initialLoading}
+                      />
+
+                      <MainSidebar
+                        activeModule="painel-inicial"
+                        onModuleChange={setActiveModule}
+                        collapsed={sidebarCollapsed}
+                        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+                        onSearchReservation={handleSearchReservation}
+                        onAdvancedSearch={handleAdvancedSearch}
+                      />
+
+                      <div
+                        className={cn(
+                          "flex flex-col min-h-screen transition-all duration-300",
+                          sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+                        )}
+                      >
+                        <EmergencyRecovery />
+                      </div>
+                    </div>
+                  </ProtectedRoute>
+                } />
+
+              </Routes>
+            </Suspense>
           </LanguageProvider>
         </ThemeProvider>
       </ErrorBoundary>

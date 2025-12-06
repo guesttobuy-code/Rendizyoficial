@@ -12,6 +12,7 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../utils/apiBase';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 
 // ============================================================
@@ -66,7 +67,7 @@ interface ClientSite {
 
 export function ClientSitesManager() {
   console.log('🔍 [ClientSitesManager] Componente renderizado/montado');
-  
+
   const [sites, setSites] = useState<ClientSite[]>([]);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('all');
@@ -86,10 +87,10 @@ export function ClientSitesManager() {
     try {
       setLoadingOrgs(true);
       const url = `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/organizations`;
-      
+
       console.log('🔍 [ClientSitesManager] Carregando organizações...');
       console.log('📍 [ClientSitesManager] URL:', url);
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
@@ -113,7 +114,7 @@ export function ClientSitesManager() {
       console.log('📦 [ClientSitesManager] data.data is array?', Array.isArray(data.data));
       console.log('📦 [ClientSitesManager] Total de organizações:', data.data?.length || 0);
       console.log('📦 [ClientSitesManager] data.total:', data.total);
-      
+
       if (data.success && data.data) {
         console.log('✅ [ClientSitesManager] Organizações encontradas:', data.data.length);
         // Log de cada organização
@@ -142,15 +143,15 @@ export function ClientSitesManager() {
       setLoading(true);
       console.log('🔍 [ClientSitesManager] Carregando sites...');
       console.log('🔍 [ClientSitesManager] selectedOrgId:', selectedOrgId);
-      
+
       // ✅ CORRIGIDO: Passar organizationId como query param quando houver uma organização selecionada
       // Isso garante que o backend busque o site correto mesmo se o organizationId do token for diferente
       const url = selectedOrgId && selectedOrgId !== 'all'
         ? `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites?organization_id=${selectedOrgId}`
         : `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites`;
-      
+
       console.log('📍 [ClientSitesManager] URL:', url);
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
@@ -165,13 +166,13 @@ export function ClientSitesManager() {
       console.log('📦 [ClientSitesManager] data.success:', data.success);
       console.log('📦 [ClientSitesManager] data.data:', data.data);
       console.log('📦 [ClientSitesManager] data.data is array?', Array.isArray(data.data));
-      
+
       if (data.success) {
         // ✅ CORRIGIDO: Garantir que sempre seja um array
         // Se passou organizationId no query, o backend retorna um único site ou array com um site
         // Se não passou, retorna array com todos os sites
         let allSites: ClientSite[] = [];
-        
+
         if (Array.isArray(data.data)) {
           allSites = data.data;
         } else if (data.data) {
@@ -181,17 +182,17 @@ export function ClientSitesManager() {
           // Se data.data é null/undefined, array vazio
           allSites = [];
         }
-        
+
         console.log('📦 [ClientSitesManager] Total de sites encontrados:', allSites.length);
-        
+
         // Filtrar por organização se não for "all" (fallback caso o backend não tenha filtrado)
-        const filteredSites = selectedOrgId === 'all' 
-          ? allSites 
+        const filteredSites = selectedOrgId === 'all'
+          ? allSites
           : allSites.filter((site: ClientSite) => site.organizationId === selectedOrgId);
-        
+
         console.log('📦 [ClientSitesManager] Sites após filtro:', filteredSites.length);
         setSites(filteredSites);
-        
+
         if (filteredSites.length === 0 && selectedOrgId === 'all') {
           console.log('⚠️ [ClientSitesManager] Nenhum site encontrado (pode ser normal se ainda não criou nenhum)');
         }
@@ -224,9 +225,9 @@ export function ClientSitesManager() {
     console.log('🔍 [ClientSitesManager] loadOrganizations type:', typeof loadOrganizations);
     console.log('🔍 [ClientSitesManager] projectId:', projectId);
     console.log('🔍 [ClientSitesManager] publicAnonKey:', publicAnonKey ? 'present' : 'missing');
-    
+
     loadOrganizations();
-    
+
     // Verificar se há uma organização pré-selecionada do TenantManagement
     const preselectedOrg = localStorage.getItem('selectedOrgForSite');
     if (preselectedOrg) {
@@ -277,13 +278,14 @@ export function ClientSitesManager() {
   // Funciona em localhost e produção com URLs limpas
   const getPreviewUrl = (site: ClientSite) => {
     // Detectar se está em localhost ou produção
-    const isLocalhost = window.location.hostname === 'localhost' || 
-                        window.location.hostname === '127.0.0.1' ||
-                        window.location.hostname.includes('localhost');
-    
+    const isLocalhost = window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.includes('localhost');
+
     if (isLocalhost) {
       // Localhost: usar rota local
-      return `http://localhost:5173/sites/${site.subdomain}`;
+      const port = window.location.port || '80';
+      return `http://${window.location.hostname}:${port}/sites/${site.subdomain}`;
     } else {
       // Produção: usar rota do Netlify
       return `https://adorable-biscochitos-59023a.netlify.app/sites/${site.subdomain}`;
@@ -476,7 +478,7 @@ export function ClientSitesManager() {
                           <File className="h-3 w-3 text-gray-500" />
                           <span className="font-mono text-gray-700 truncate">{site.archivePath}</span>
                         </div>
-                        
+
                         {/* ✅ NOVO: Status de arquivos extraídos */}
                         {site.extractedBaseUrl && site.extractedFilesCount ? (
                           <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
@@ -505,16 +507,16 @@ export function ClientSitesManager() {
                             </div>
                           </div>
                         )}
-                        
+
                         {site.source && (
                           <div className="text-gray-500 mt-1">
                             Fonte: <Badge variant="outline" className="text-xs">{site.source}</Badge>
                           </div>
                         )}
                         {site.archiveUrl && (
-                          <a 
-                            href={site.archiveUrl} 
-                            target="_blank" 
+                          <a
+                            href={site.archiveUrl}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline text-xs mt-1 block"
                           >
@@ -692,7 +694,7 @@ function CreateSiteModal({ open, onClose, onSuccess, prefilledOrgId }: {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.organizationId || !formData.siteName) {
       toast.error('Preencha os campos obrigatórios');
       return;
@@ -766,7 +768,7 @@ function CreateSiteModal({ open, onClose, onSuccess, prefilledOrgId }: {
               </div>
             </div>
           )}
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="organizationId">ID da Organização *</Label>
@@ -964,11 +966,11 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
       );
 
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Erro ao salvar');
       }
-      
+
       return result;
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -983,9 +985,9 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
     try {
       setLoading(true);
       setSaveStatus('saving');
-      
+
       const result = await saveData(formData);
-      
+
       if (result.success) {
         setSaveStatus('saved');
         toast.success('Alterações salvas com sucesso!');
@@ -1306,7 +1308,7 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
                   <br />
                   <strong>💡 Dica:</strong> Se você usou o Bolt, peça para ele compilar o site ("Compile este site para produção") e o ZIP já virá com a pasta <code>dist/</code> incluída, tornando o site pronto para uso imediato.
                 </p>
-                
+
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <Label htmlFor="archiveFileEdit">Arquivo (.zip ou .tar.gz)</Label>
@@ -1361,7 +1363,7 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
               {/* Status do Arquivo Atual */}
               <div className="border-t pt-4">
                 <h3 className="text-lg font-semibold mb-2">📁 Arquivos do Site</h3>
-                
+
                 {site.archivePath ? (
                   <div className="space-y-3">
                     {/* Status do ZIP */}
@@ -1383,9 +1385,9 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
                           </code>
                         </div>
                         {site.archiveUrl && (
-                          <a 
-                            href={site.archiveUrl} 
-                            target="_blank" 
+                          <a
+                            href={site.archiveUrl}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline text-sm inline-flex items-center gap-1"
                           >
@@ -1481,15 +1483,15 @@ function EditSiteModal({ site, open, onClose, onSuccess }: {
         </Tabs>
 
         <DialogFooter>
-          <Button 
-            type="button" 
-            variant="outline" 
+          <Button
+            type="button"
+            variant="outline"
             onClick={handleClose}
             disabled={saveStatus === 'saving'}
           >
             {saveStatus === 'saving' ? 'Salvando...' : 'Fechar'}
           </Button>
-          <Button 
+          <Button
             onClick={handleSaveChanges}
             disabled={loading || saveStatus === 'saving'}
           >
@@ -1563,7 +1565,7 @@ function UploadCodeModal({ site, open, onClose, onSuccess }: {
             placeholder="Cole o código do site aqui..."
             className="min-h-[400px] font-mono text-sm"
           />
-          
+
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h4 className="font-medium text-blue-900 mb-2">💡 Dica:</h4>
             <p className="text-sm text-blue-800">
@@ -1646,7 +1648,7 @@ function UploadArchiveModal({ site, open, onClose, onSuccess }: {
           // Fallback: se não tiver steps, assumir que todos foram completados
           setUploadStep(3); // Arquivos corretos
         }
-        
+
         // Mostrar validação detalhada se disponível
         if (data.data?.validation) {
           const validation = data.data.validation;
@@ -1655,12 +1657,12 @@ function UploadArchiveModal({ site, open, onClose, onSuccess }: {
           console.log(`✅ [UploadArchiveModal] Arquivos JS: ${validation.jsFilesCount || 0}`);
           console.log(`✅ [UploadArchiveModal] Arquivos CSS: ${validation.cssFilesCount || 0}`);
         }
-        
+
         // ✅ NOVO: Mostrar progresso de extração
         if (data.data?.extractedFilesCount) {
           console.log(`✅ [UploadArchiveModal] Arquivos extraídos: ${data.data.extractedFilesCount}`);
           setUploadStep(4); // Extraindo arquivos
-          
+
           // Simular progresso de extração (backend já fez, mas mostramos feedback)
           setTimeout(() => {
             setUploadStep(5); // Concluído
@@ -1673,14 +1675,14 @@ function UploadArchiveModal({ site, open, onClose, onSuccess }: {
             setUploadSuccess(true);
           }, 300);
         }
-        
+
         // Mensagem de sucesso com detalhes
-        const successMessage = data.data?.extractedFilesCount 
+        const successMessage = data.data?.extractedFilesCount
           ? `✅ ${data.data.extractedFilesCount} arquivos extraídos e prontos para servir!`
           : (data.message || 'Arquivo validado e enviado com sucesso!');
-        
+
         toast.success(successMessage);
-        
+
         // Aguardar 2 segundos antes de fechar e recarregar
         setTimeout(() => {
           onSuccess(); // Isso deve recarregar a lista de sites
@@ -1780,7 +1782,7 @@ function UploadArchiveModal({ site, open, onClose, onSuccess }: {
                 <span className="text-blue-600">{uploadStep}/5</span>
               </div>
               <div className="w-full bg-blue-200 rounded-full h-2">
-                <div 
+                <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${(uploadStep / 5) * 100}%` }}
                 />
@@ -1981,6 +1983,91 @@ interface ReservationRequest {
 }
 \`\`\`
 
+#### 4. Autenticação e Hóspede (POST /auth/register-guest)
+\`\`\`typescript
+// ✅ Endpoint para registrar hóspede e fazer login automático
+// URL: /auth/register-guest
+interface RegisterGuestRequest {
+  name: string;
+  email: string;
+  phone: string;
+  password?: string; // Se não enviado, gerar aleatória
+  organizationId: string;
+}
+
+interface RegisterGuestResponse {
+  success: true;
+  token: string; // Token de sessão (Access Token)
+  user: {
+    id: string;
+    role: 'client';
+    name: string;
+    email: string;
+  };
+}
+
+// ❗ OBRIGATÓRIO: Antes de confirmar reserva, verificar se usuário está logado.
+// Se não estiver, abrir Modal de Login/Cadastro.
+// Login com Google: supabase.auth.signInWithOAuth({ provider: 'google' })
+\`\`\`
+
+#### 5. Schema do Banco de Dados (Supabase - SQL)
+❗ **IMPORTANTE:** Se você usar o cliente Supabase diretamente (sem a API do Rendizy), use este schema exato.
+Note que os nomes das colunas são snake_case e diferem da interface TypeScript (camelCase).
+
+\`\`\`typescript
+interface DatabaseProperty {
+  id: string;
+  organization_id: string;
+  // Identificação
+  name: string;
+  code: string;
+  type: string;
+  status: string;
+  
+  // Endereço (Flattened)
+  address_street: string;
+  address_number: string;
+  address_complement?: string;
+  address_neighborhood?: string;
+  address_city: string;
+  address_state: string;
+  address_zip_code: string;
+  address_country: string;
+  
+  // Capacidade
+  max_guests: number;
+  bedrooms: number;
+  beds: number;
+  bathrooms: number;
+  area: number;
+  
+  // Precificação (Flattened)
+  pricing_base_price: number; // ⚠️ Use ISTO, não base_price
+  pricing_currency: string;
+  pricing_weekly_discount: number;
+  pricing_monthly_discount: number;
+  
+  // Restrições (Flattened)
+  restrictions_min_nights: number;
+  restrictions_max_nights: number;
+  restrictions_advance_booking: number;
+  
+  // Arrays
+  amenities: string[];
+  photos: string[];
+  
+  // Metadata
+  created_at: string;
+  updated_at: string;
+}
+
+// ⚠️ Mapeamento Obrigatório (Exemplo):
+// pricing_base_price -> pricing.basePrice
+// address_street -> address.street
+// max_guests -> maxGuests
+\`\`\`
+
 ### Páginas Obrigatórias
 
 1. **Home** - Hero + busca + destaques
@@ -1994,7 +2081,8 @@ interface ReservationRequest {
 - ✅ Busca por cidade, datas, número de hóspedes
 - ✅ Filtros por tipo, preço, comodidades
 - ✅ Calendário de disponibilidade integrado
-- ✅ Formulário de reserva/cotação
+- ✅ Formulário de reserva com LOGIN/CADASTRO OBRIGATÓRIO
+- ✅ Botão "Área do Cliente" ou "Minhas Reservas" no Header
 - ✅ Galeria de fotos responsiva
 - ✅ Mapa de localização (Google Maps ou Mapbox)
 - ✅ WhatsApp flutuante para contato
@@ -2048,7 +2136,7 @@ const siteConfig = {
 \`\`\`typescript
 // ✅ IMPORTANTE: Substitua PROJECT_ID pelo ID do seu projeto Supabase
 const PROJECT_ID = "{{PROJECT_ID}}"; // Ex: "odcgnzfremrqnvtitpcc"
-const API_BASE = \`https://\${PROJECT_ID}.supabase.co/functions/v1/rendizy-server\`;
+const API_BASE = API_BASE_URL;
 
 // ✅ AUTENTICAÇÃO: O sistema usa token JWT via header X-Auth-Token
 // O organizationId é extraído automaticamente do token no backend
@@ -2276,7 +2364,7 @@ Após gerar o código do site, você pode:
                 )}
               </Button>
             </div>
-            
+
             <Textarea
               key={`ai-prompt-${promptVersion}`}
               value={aiPrompt}
@@ -2409,7 +2497,7 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
           const shouldUpdate = confirm(
             `Já existe um site para esta organização. Deseja atualizar o site existente com os novos dados?`
           );
-          
+
           if (shouldUpdate) {
             // Atualizar site existente ao invés de criar
             const updateResponse = await fetch(
@@ -2438,13 +2526,13 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
             );
 
             const updateData = await updateResponse.json();
-            
+
             if (!updateData.success) {
               toast.error(updateData.error || 'Erro ao atualizar site');
               setLoading(false);
               return;
             }
-            
+
             // Continuar com o upload do arquivo/código mesmo após atualizar
             toast.success('✅ Site atualizado! Continuando com importação...');
           } else {
@@ -2462,7 +2550,7 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
       // 2. Dependendo do modo, subir código, arquivo ou apenas registrar fonte
       // ✅ CORRIGIDO: Se não houver código/arquivo para fazer upload após atualizar, finalizar aqui
       let hasUploadData = false;
-      
+
       if (importMode === 'code') {
         hasUploadData = !!formData.siteCode;
       } else if (importMode === 'zip') {
@@ -2470,7 +2558,7 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
       } else if (importMode === 'drive') {
         hasUploadData = !!formData.driveUrl;
       }
-      
+
       // Se não houver dados para fazer upload, apenas finalizar
       if (!hasUploadData) {
         toast.success('✅ Site atualizado com sucesso!');
@@ -2478,7 +2566,7 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
         setLoading(false);
         return;
       }
-      
+
       if (importMode === 'code') {
         const uploadResponse = await fetch(
           `https://${projectId}.supabase.co/functions/v1/rendizy-server/make-server-67caf26a/client-sites/${formData.organizationId}/upload-code`,
@@ -2900,3 +2988,6 @@ function ImportSiteModal({ open, onClose, onSuccess, organizations }: {
     </Dialog>
   );
 }
+
+
+

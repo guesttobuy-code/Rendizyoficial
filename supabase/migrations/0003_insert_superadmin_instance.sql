@@ -22,15 +22,15 @@ VALUES (
   1,  -- user_id do superadmin
   'Rafael Rendizy Google teste',  -- Nome da instância
   'D34790BEB178-4054-A6C2-F76445A81747',  -- Instance Token
-  (SELECT value FROM (SELECT EVOLUTION_GLOBAL_API_KEY FROM information_schema.columns WHERE false) AS dummy LIMIT 0),  -- Vai buscar do secret
+  NULL,  -- Substitua por sua Global API Key se tiver; caso contrário ficará NULL
   'https://evo.boravendermuito.com.br'  -- Base URL
 )
 ON CONFLICT (user_id) DO UPDATE
 SET 
   instance_name = EXCLUDED.instance_name,
   instance_api_key = EXCLUDED.instance_api_key,
-  base_url = EXCLUDED.base_url,
-  updated_at = NOW();
+  global_api_key = COALESCE(EXCLUDED.global_api_key, evolution_instances.global_api_key),
+  base_url = EXCLUDED.base_url;
 
 -- ⚠️ NOTA: A global_api_key precisa ser buscada do secret ou inserida manualmente
 -- Se você tiver a Global API Key, execute este UPDATE separadamente:
@@ -55,4 +55,3 @@ SELECT
   updated_at
 FROM evolution_instances
 WHERE user_id = 1;
-

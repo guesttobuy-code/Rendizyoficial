@@ -1,14 +1,22 @@
 
-  import { defineConfig } from 'vite';
-  import react from '@vitejs/plugin-react-swc';
-  import path from 'path';
-  import { webcrypto } from 'crypto';
 
-  if (!globalThis.crypto) {
-    globalThis.crypto = webcrypto as Crypto;
-  }
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react-swc';
+import path from 'path';
+import { webcrypto } from 'crypto';
 
-  export default defineConfig({
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto as Crypto;
+}
+
+export default defineConfig(({ mode }) => {
+  // Carregar variáveis de ambiente baseadas no modo atual (development, production, etc.)
+  const env = loadEnv(mode, process.cwd(), '');
+  console.log("🔍 [Vite Config] Loading Env from:", process.cwd());
+  console.log("🔍 [Vite Config] VITE_SUPABASE_ANON_KEY:", env.VITE_SUPABASE_ANON_KEY ? "FOUND (Starts with " + env.VITE_SUPABASE_ANON_KEY.substring(0, 5) + ")" : "MISSING");
+
+  return {
+
     plugins: [react()],
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
@@ -69,4 +77,5 @@
       port: 3000,
       open: true,
     },
-  });
+  }
+});

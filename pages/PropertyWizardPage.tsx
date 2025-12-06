@@ -38,7 +38,7 @@ export function PropertyWizardPage() {
       try {
         console.log('🔍 Carregando propriedade:', id);
         const response = await propertiesApi.get(id);
-        
+
         if (response.success && response.data) {
           console.log('✅ Propriedade carregada:', response.data);
           setProperty(response.data);
@@ -47,7 +47,7 @@ export function PropertyWizardPage() {
           console.error('❌ Propriedade não encontrada');
           setError('Propriedade não encontrada');
           toast.error('Propriedade não encontrada');
-          
+
           // Redirecionar após 2 segundos
           setTimeout(() => {
             navigate('/properties');
@@ -57,7 +57,7 @@ export function PropertyWizardPage() {
         console.error('❌ Erro ao carregar propriedade:', error);
         setError('Erro ao carregar propriedade. Verifique sua conexão.');
         toast.error('Erro ao carregar propriedade');
-        
+
         // Redirecionar após 2 segundos
         setTimeout(() => {
           navigate('/properties');
@@ -69,25 +69,21 @@ export function PropertyWizardPage() {
 
     loadProperty();
   }, [id, isEditMode, navigate]);
-
   // ✅ BOAS PRÁTICAS v1.0.103.1000 - Normalizar dados do wizard antes de enviar
   const normalizeWizardData = (wizardData: any): any => {
     console.log('🔄 [PropertyWizardPage] Normalizando dados do wizard...');
-    
+
     // Extrair campos do wizard (estrutura aninhada)
-    let name = wizardData.contentType?.internalName || 
-               wizardData.name || 
-               null;
-    
-    let code = wizardData.contentType?.code || 
-               wizardData.code || 
-               null;
-    
-    let type = wizardData.contentType?.propertyTypeId || 
-               wizardData.contentType?.accommodationTypeId ||
-               wizardData.type || 
-               null;
-    
+    // ✅ CORREÇÃO: Priorizar Nome Interno (Step 1) > Título do Anúncio (Step 6) > Outros
+    let name = wizardData.contentType?.internalName ||
+      wizardData.contentDescription?.title ||
+      wizardData.name ||
+      null;
+
+    let code = wizardData.contentType?.code ||
+      wizardData.code ||
+      null;
+
     // Gerar nome a partir do accommodationTypeId se não existir
     if (!name && wizardData.contentType?.accommodationTypeId) {
       const accommodationTypeId = wizardData.contentType.accommodationTypeId;
@@ -104,12 +100,12 @@ export function PropertyWizardPage() {
         'acc_quarto_privado': 'Quarto Privado',
         'acc_quarto_compartilhado': 'Quarto Compartilhado',
       };
-      name = accommodationTypeNames[accommodationTypeId] || 
-             accommodationTypeId.replace('acc_', '').replace(/_/g, ' ')
-                                .replace(/\b\w/g, l => l.toUpperCase());
+      name = accommodationTypeNames[accommodationTypeId] ||
+        accommodationTypeId.replace('acc_', '').replace(/_/g, ' ')
+          .replace(/\b\w/g, l => l.toUpperCase());
       console.log('✅ [PropertyWizardPage] Nome gerado:', name);
     }
-    
+
     // Gerar código único se não existir
     if (!code) {
       const timestamp = Date.now().toString(36).slice(-6).toUpperCase();
@@ -117,10 +113,10 @@ export function PropertyWizardPage() {
       code = `${typePrefix}${timestamp}`;
       console.log('✅ [PropertyWizardPage] Código gerado:', code);
     }
-    
+
     // Extrair endereço de contentLocation
     let address = wizardData.contentLocation?.address || wizardData.address || {};
-    
+
     // Garantir que address tenha city e state (obrigatórios)
     if (!address.city && wizardData.contentLocation?.city) {
       address.city = wizardData.contentLocation.city;
@@ -131,7 +127,7 @@ export function PropertyWizardPage() {
     if (!address.state && wizardData.contentLocation?.stateCode) {
       address.state = wizardData.contentLocation.stateCode;
     }
-    
+
     // ✅ Se ainda não tiver city/state, usar valores padrão temporários (será atualizado no Step 2)
     if (!address.city) {
       address.city = 'Rio de Janeiro';
@@ -142,7 +138,7 @@ export function PropertyWizardPage() {
     if (!address.country) {
       address.country = 'BR';
     }
-    
+
     // Retornar dados normalizados (mantendo estrutura wizard para compatibilidade)
     return {
       ...wizardData,
@@ -151,11 +147,11 @@ export function PropertyWizardPage() {
       type: type || wizardData.contentType?.propertyTypeId || 'loc_casa',
       address: address,
       // Campos obrigatórios mínimos para criação
-      maxGuests: wizardData.contentRooms?.maxGuests || wizardData.maxGuests || 2,
-      bedrooms: wizardData.contentRooms?.bedrooms || wizardData.bedrooms || 1,
-      beds: wizardData.contentRooms?.beds || wizardData.beds || 1,
-      bathrooms: wizardData.contentRooms?.bathrooms || wizardData.bathrooms || 1,
-      basePrice: wizardData.basePrice || 100,
+      maxGuests: wizardData.contentRooms?.maxGuests || wizardData.maxGuests || 0,
+      bedrooms: wizardData.contentRooms?.bedrooms || wizardData.bedrooms || 0,
+      beds: wizardData.contentRooms?.beds || wizardData.beds || 0,
+      bathrooms: wizardData.contentRooms?.bathrooms || wizardData.bathrooms || 0,
+      basePrice: wizardData.basePrice || 0,
       currency: wizardData.currency || 'BRL',
       // Campos do Step 1
       propertyType: wizardData.contentType?.propertyType || 'individual',
@@ -170,16 +166,16 @@ export function PropertyWizardPage() {
     console.log('💾 [PropertyWizardPage] handleSave chamado');
     console.log('📊 [PropertyWizardPage] Dados a salvar (brutos):', data);
     console.log('🔧 [PropertyWizardPage] Modo:', isEditMode ? 'EDIÇÃO' : 'CRIAÇÃO');
-    
+
     setSaving(true);
 
     try {
       // ✅ BOAS PRÁTICAS v1.0.103.1000 - Normalizar dados ANTES de enviar
       const normalizedData = normalizeWizardData(data);
       console.log('✅ [PropertyWizardPage] Dados normalizados:', normalizedData);
-      
+
       let response;
-      
+
       if (isEditMode) {
         console.log('📝 [PropertyWizardPage] Atualizando propriedade ID:', id);
         response = await propertiesApi.update(id, normalizedData);
@@ -193,11 +189,11 @@ export function PropertyWizardPage() {
       if (response.success) {
         console.log('✅ [PropertyWizardPage] Sucesso! Navegando para /properties');
         toast.success(
-          isEditMode 
-            ? 'Propriedade atualizada com sucesso!' 
+          isEditMode
+            ? 'Propriedade atualizada com sucesso!'
             : 'Propriedade criada com sucesso!'
         );
-        
+
         // Usar navigate em vez de window.location
         navigate('/properties');
       } else {
@@ -257,7 +253,7 @@ export function PropertyWizardPage() {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
           <p className="text-muted-foreground">Carregando propriedade...</p>
-          
+
           {/* Botão de emergência mesmo durante loading */}
           <div className="mt-6">
             <Button
@@ -291,15 +287,15 @@ export function PropertyWizardPage() {
                 <ArrowLeft className="h-4 w-4" />
                 Voltar para Imóveis
               </Button>
-              
+
               <div className="h-4 w-px bg-border" />
-              
+
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>Gestão de Imóveis</span>
                 <span>›</span>
                 <span className="text-foreground font-medium">
-                  {isEditMode 
-                    ? `Editar: ${property?.internalName || 'Imóvel'}` 
+                  {isEditMode
+                    ? `Editar: ${property?.internalName || 'Imóvel'}`
                     : 'Nova Propriedade'}
                 </span>
               </div>

@@ -1,3 +1,4 @@
+import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SUPABASE_PROJECT_REF } from './utils-env.ts';
 /**
  * Utilidades de criptografia simétrica para dados sensíveis (ex.: API keys).
  * Usa AES-GCM com chave derivada de variável de ambiente.
@@ -11,12 +12,12 @@ async function getCryptoKey() {
   const secret = Deno.env.get('AI_PROVIDER_SECRET') 
     || Deno.env.get('RENDAI_SECRET')
     || Deno.env.get('ENCRYPTION_SECRET')
-    || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'); // Fallback para service role key se disponível
+    || SUPABASE_SERVICE_ROLE_KEY; // Fallback para service role key se disponível
   
   if (!secret) {
     // Se não houver secret configurado, usar uma chave padrão baseada no projeto
     // Isso permite que funcione mesmo sem configurar a variável
-    const fallbackSecret = Deno.env.get('SUPABASE_URL') || 'rendizy-default-encryption-key-2024';
+    const fallbackSecret = SUPABASE_URL || 'rendizy-default-encryption-key-2024';
     console.warn('[Crypto] ⚠️ AI_PROVIDER_SECRET não configurado, usando fallback. Configure a variável para produção.');
     const keyMaterial = await crypto.subtle.digest('SHA-256', encoder.encode(fallbackSecret));
     return crypto.subtle.importKey(
@@ -78,4 +79,3 @@ export async function decryptSensitive(encoded: string): Promise<string> {
   );
   return decoder.decode(decrypted);
 }
-

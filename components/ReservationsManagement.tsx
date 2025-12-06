@@ -63,9 +63,20 @@ import { ptBR } from 'date-fns/locale';
 interface ReservationsManagementProps {
   organizationId?: string;
   autoOpenCreate?: boolean;
+  onViewDetails?: (reservation: Reservation) => void;
+  onEditReservation?: (reservation: Reservation) => void;
+  onCancelReservation?: (reservation: Reservation) => void;
+  onCreateReservation?: () => void;
 }
 
-export function ReservationsManagement({ organizationId, autoOpenCreate }: ReservationsManagementProps) {
+export function ReservationsManagement({
+  organizationId,
+  autoOpenCreate,
+  onViewDetails,
+  onEditReservation,
+  onCancelReservation,
+  onCreateReservation,
+}: ReservationsManagementProps) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -118,10 +129,10 @@ export function ReservationsManagement({ organizationId, autoOpenCreate }: Reser
 
   // Auto open create modal
   useEffect(() => {
-    if (autoOpenCreate) {
+    if (autoOpenCreate && !onCreateReservation) {
       setShowCreateModal(true);
     }
-  }, [autoOpenCreate]);
+  }, [autoOpenCreate, onCreateReservation]);
 
   const loadReservations = async () => {
     setLoading(true);
@@ -303,18 +314,39 @@ export function ReservationsManagement({ organizationId, autoOpenCreate }: Reser
 
   // Handle actions
   const handleViewDetails = (reservation: Reservation) => {
+    if (onViewDetails) {
+      onViewDetails(reservation);
+      return;
+    }
     setSelectedReservation(reservation);
     setShowDetailsModal(true);
   };
 
   const handleEdit = (reservation: Reservation) => {
+    if (onEditReservation) {
+      onEditReservation(reservation);
+      return;
+    }
     setSelectedReservation(reservation);
     setShowEditModal(true);
   };
 
   const handleCancel = (reservation: Reservation) => {
+    if (onCancelReservation) {
+      onCancelReservation(reservation);
+      return;
+    }
     setSelectedReservation(reservation);
     setShowCancelModal(true);
+  };
+
+  const handleCreate = () => {
+    if (onCreateReservation) {
+      onCreateReservation();
+      return;
+    }
+    setSelectedReservation(null);
+    setShowCreateModal(true);
   };
 
   const handleCreateSuccess = () => {
@@ -787,7 +819,7 @@ export function ReservationsManagement({ organizationId, autoOpenCreate }: Reser
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={() => setShowCreateModal(true)} className="bg-purple-600 hover:bg-purple-700">
+              <Button onClick={handleCreate} className="bg-purple-600 hover:bg-purple-700">
                 <Calendar className="h-4 w-4 mr-2" />
                 Nova Reserva
               </Button>

@@ -7,6 +7,7 @@ import { Hono } from "npm:hono";
 import { getOrganizationIdOrThrow } from "./utils-get-organization-id.ts";
 import { getSupabaseClient } from "./kv_store.tsx";
 import JSZip from "npm:jszip";
+import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SUPABASE_PROJECT_REF } from './utils-env.ts';
 
 const app = new Hono();
 
@@ -1528,7 +1529,7 @@ app.post("/:organizationId/upload-archive", async (c) => {
 
     const extractedFiles: string[] = []; // Caminhos dos arquivos extraídos
     const supabaseUrl =
-      Deno.env.get("SUPABASE_URL") ||
+      SUPABASE_URL ||
       "https://odcgnzfremrqnvtitpcc.supabase.co";
     const publicBaseUrl = `${supabaseUrl}/storage/v1/object/public/${bucketName}`;
 

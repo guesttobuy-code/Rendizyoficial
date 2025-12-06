@@ -9,9 +9,10 @@ import { projectId, publicAnonKey } from './supabase/info';
 import { Photo } from '../components/PhotoManager';
 // Mock backend desabilitado em v1.0.103.305 - Sistema usa apenas Supabase
 
-// Base URL da API
-// ✅ CORREÇÃO: URL correta sem make-server-67caf26a
-const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/rendizy-server`;
+// Base URL da API (permite override via VITE_API_BASE_URL em dev)
+// Base URL da API (permite override via VITE_API_BASE_URL em dev)
+// import { API_BASE_URL as API_BASE_URL_OVERRIDE } from './apiBase'; // REMOVED: File not found or causing issues
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://odcgnzfremrqnvtitpcc.supabase.co/functions/v1/rendizy-server";
 
 // ============================================================================
 // TIPOS
@@ -84,10 +85,10 @@ export interface Property {
   code: string;
   type: string;
   status: string;
-  
+
   // 🔗 VÍNCULO COM LOCATION (hierarquia)
   locationId?: string;           // ID do Location pai
-  
+
   address: {
     city: string;
     state: string;
@@ -334,25 +335,25 @@ async function apiRequest<T>(
 ): Promise<ApiResponse<T>> {
   try {
     const url = `${API_BASE_URL}${endpoint}`;
-    
+
     // ✅ CORREÇÃO: Usar token do usuário do localStorage ao invés de publicAnonKey
     // ✅ SOLUÇÃO: Usar header customizado X-Auth-Token para evitar validação JWT automática do Supabase
     const userToken = localStorage.getItem('rendizy-token');
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${publicAnonKey}`, // Necessário para Supabase Edge Functions
       ...options.headers,
     };
-    
+
     // ✅ Adicionar token customizado em header separado para evitar validação JWT automática
     if (userToken) {
       headers['X-Auth-Token'] = userToken;
     }
-    
+
     // ✅ GARANTIR que credentials não seja passado via options
     const { credentials, ...restOptions } = options;
-    
+
     const response = await fetch(url, {
       ...restOptions,
       headers,
@@ -363,23 +364,23 @@ async function apiRequest<T>(
 
     if (!response.ok) {
       console.error(`API Error [${endpoint}]:`, data);
-      
+
       // ⚡ AUTO-RECUPERAÇÃO: Se "Property not found", resetar dados automaticamente
       if (data.error === 'Property not found') {
         console.warn('⚠️ ERRO: Propriedade não encontrada!');
         console.warn('🔄 AUTO-RECUPERAÇÃO: Resetando dados corrompidos...');
-        
+
         // Resetar dados automaticamente
         localStorage.removeItem('rendizy_mock_data');
         localStorage.removeItem('rendizy_data_version');
-        
+
         console.log('✅ Dados resetados! Recarregando página...');
-        
+
         // Recarregar após 1 segundo
         setTimeout(() => {
           window.location.reload();
         }, 1000);
-        
+
         return data;
       }
     }
@@ -387,17 +388,17 @@ async function apiRequest<T>(
     // Se conseguiu conectar, marca backend como online
     backendOfflineDetected = false;
     return data;
-    
+
   } catch (error) {
     console.error(`❌ Network Error [${endpoint}]:`, error);
     console.error(`   ❌ Full URL: ${API_BASE_URL}${endpoint}`);
     console.error(`   �� Error type: ${error?.constructor?.name}`);
     console.error(`   ❌ Error message: ${error instanceof Error ? error.message : 'Unknown'}`);
-    
+
     // Detectar se é "Failed to fetch" (backend offline)
-    const isBackendOffline = error instanceof TypeError && 
-                            error.message.includes('fetch');
-    
+    const isBackendOffline = error instanceof TypeError &&
+      error.message.includes('fetch');
+
     if (isBackendOffline && !backendOfflineDetected) {
       backendOfflineDetected = true;
       console.info('');
@@ -419,10 +420,10 @@ async function apiRequest<T>(
       console.info('');
       console.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     }
-    
+
     // ⚠️ FALLBACK REMOVIDO v1.0.103.308 - Sistema usa apenas Supabase
     // Não há mais fallback para localStorage para dados de negócio
-    
+
     return {
       success: false,
       error: 'Network error',
@@ -446,7 +447,7 @@ function tryLocalStorageFallback<T>(
   // Retorna null para forçar uso do Supabase apenas
   console.warn('⚠️ tryLocalStorageFallback DESABILITADO - Use apenas Supabase');
   return null;
-  
+
   /* CÓDIGO LEGADO DESABILITADO:
   const method = options.method || 'GET';
   
@@ -650,7 +651,7 @@ export const propertiesApi = {
     const params = new URLSearchParams();
     if (options?.permanent) params.set('permanent', 'true');
     if (options?.force) params.set('force', 'true');
-    
+
     const query = params.toString();
     return apiRequest<null>(`/properties/${id}${query ? '?' + query : ''}`, {
       method: 'DELETE',
@@ -1046,7 +1047,7 @@ export const locationsApi = {
     const params = new URLSearchParams();
     if (options?.permanent) params.set('permanent', 'true');
     if (options?.force) params.set('force', 'true');
-    
+
     const query = params.toString();
     return apiRequest<null>(`/locations/${id}${query ? '?' + query : ''}`, {
       method: 'DELETE',
@@ -1428,35 +1429,35 @@ export const listingsApi = {
 export const photosApi = {
   // Upload de foto
   upload: async (file: File, propertyId: string, room: string): Promise<ApiResponse<Photo>> => {
-    console.log('📸 Frontend: Starting upload', { 
-      fileName: file.name, 
-      fileSize: file.size, 
+    console.log('📸 Frontend: Starting upload', {
+      fileName: file.name,
+      fileSize: file.size,
       fileType: file.type,
-      propertyId, 
-      room 
+      propertyId,
+      room
     });
-    
+
     // COMPRESSÃO AUTOMÁTICA se > 5MB
     let fileToUpload = file;
     const MAX_SIZE_MB = 5;
     const fileSizeMB = file.size / 1024 / 1024;
-    
+
     if (fileSizeMB > MAX_SIZE_MB) {
       console.log(`🗜️ Arquivo muito grande (${fileSizeMB.toFixed(2)}MB), comprimindo...`);
       console.log('🔧 Iniciando importação do módulo de compressão...');
-      
+
       try {
         // Importar compressão dinamicamente
         const compressionModule = await import('./imageCompression');
         console.log('✅ Módulo de compressão importado com sucesso');
-        
+
         const { compressImage } = compressionModule;
-        
+
         if (!compressImage) {
           console.error('❌ Função compressImage não encontrada no módulo');
           throw new Error('Módulo de compressão não disponível');
         }
-        
+
         console.log('🗜️ Chamando compressImage...');
         fileToUpload = await compressImage(file, {
           maxWidth: 1920,
@@ -1464,20 +1465,20 @@ export const photosApi = {
           quality: 0.85,
           maxSizeMB: 4.5, // Um pouco abaixo do limite de 5MB
         });
-        
+
         const newSizeMB = fileToUpload.size / 1024 / 1024;
         const reduction = ((1 - fileToUpload.size / file.size) * 100).toFixed(1);
-        
+
         console.log(`✅ Compressão concluída: ${fileSizeMB.toFixed(2)}MB → ${newSizeMB.toFixed(2)}MB (${reduction}% redução)`);
       } catch (compressionError) {
         console.error('❌ Erro completo na compressão:', compressionError);
         console.error('❌ Stack trace:', compressionError instanceof Error ? compressionError.stack : 'N/A');
-        
+
         // Se a compressão falhar, vamos tentar enviar mesmo assim para o backend validar
         console.warn('⚠️ Enviando arquivo original (sem compressão) - backend pode rejeitar');
       }
     }
-    
+
     const formData = new FormData();
     formData.append('file', fileToUpload);
     formData.append('propertyId', propertyId);
@@ -1521,7 +1522,7 @@ export const photosApi = {
       console.error('❌ Could not parse success response');
       throw new Error('Invalid response from server');
     }
-    
+
     return {
       success: true,
       data: data.photo,
@@ -1546,23 +1547,23 @@ export const photosApi = {
 // FINANCEIRO API (MÓDULO FINANCEIRO v1.0.103.400)
 // ============================================================================
 
-import type { 
-  Lancamento, 
-  Titulo, 
-  ContaBancaria, 
+import type {
+  Lancamento,
+  Titulo,
+  ContaBancaria,
   CentroCusto,
   ContaContabil,
-    FiltroFinanceiro,
-    PaginatedResponse,
-    RegraConciliacao,
-    LinhaExtrato,
+  FiltroFinanceiro,
+  PaginatedResponse,
+  RegraConciliacao,
+  LinhaExtrato,
 } from '../types/financeiro';
 
 export const financeiroApi = {
   // ============================================================================
   // LANÇAMENTOS
   // ============================================================================
-  
+
   lancamentos: {
     list: async (filtros?: FiltroFinanceiro): Promise<ApiResponse<PaginatedResponse<Lancamento>>> => {
       const params = new URLSearchParams();
@@ -1578,35 +1579,35 @@ export const financeiroApi = {
       if (filtros?.limit) params.append('limit', filtros.limit.toString());
       if (filtros?.orderBy) params.append('orderBy', filtros.orderBy);
       if (filtros?.order) params.append('order', filtros.order);
-      
+
       return apiRequest<PaginatedResponse<Lancamento>>(`/financeiro/lancamentos?${params.toString()}`);
     },
-    
+
     create: async (data: Partial<Lancamento>): Promise<ApiResponse<Lancamento>> => {
       return apiRequest<Lancamento>('/financeiro/lancamentos', {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
-    
+
     update: async (id: string, data: Partial<Lancamento>): Promise<ApiResponse<Lancamento>> => {
       return apiRequest<Lancamento>(`/financeiro/lancamentos/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       });
     },
-    
+
     delete: async (id: string): Promise<ApiResponse<null>> => {
       return apiRequest<null>(`/financeiro/lancamentos/${id}`, {
         method: 'DELETE',
       });
     },
   },
-  
+
   // ============================================================================
   // TÍTULOS
   // ============================================================================
-  
+
   titulos: {
     list: async (filtros?: FiltroFinanceiro): Promise<ApiResponse<PaginatedResponse<Titulo>>> => {
       const params = new URLSearchParams();
@@ -1614,17 +1615,17 @@ export const financeiroApi = {
       if (filtros?.status) params.append('status', filtros.status);
       if (filtros?.page) params.append('page', filtros.page.toString());
       if (filtros?.limit) params.append('limit', filtros.limit.toString());
-      
+
       return apiRequest<PaginatedResponse<Titulo>>(`/financeiro/titulos?${params.toString()}`);
     },
-    
+
     create: async (data: Partial<Titulo>): Promise<ApiResponse<Titulo>> => {
       return apiRequest<Titulo>('/financeiro/titulos', {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
-    
+
     quitar: async (id: string, data: { valorPago?: number; dataPagamento?: string }): Promise<ApiResponse<Titulo>> => {
       return apiRequest<Titulo>(`/financeiro/titulos/${id}/quitar`, {
         method: 'POST',
@@ -1632,16 +1633,16 @@ export const financeiroApi = {
       });
     },
   },
-  
+
   // ============================================================================
   // CONTAS BANCÁRIAS
   // ============================================================================
-  
+
   contasBancarias: {
     list: async (): Promise<ApiResponse<ContaBancaria[]>> => {
       return apiRequest<ContaBancaria[]>('/financeiro/contas-bancarias');
     },
-    
+
     create: async (data: Partial<ContaBancaria>): Promise<ApiResponse<ContaBancaria>> => {
       return apiRequest<ContaBancaria>('/financeiro/contas-bancarias', {
         method: 'POST',
@@ -1649,16 +1650,16 @@ export const financeiroApi = {
       });
     },
   },
-  
+
   // ============================================================================
   // CATEGORIAS (Plano de Contas)
   // ============================================================================
-  
+
   categorias: {
     list: async (): Promise<ApiResponse<ContaContabil[]>> => {
       return apiRequest<ContaContabil[]>('/make-server-67caf26a/financeiro/categorias');
     },
-    
+
     create: async (data: Partial<ContaContabil>): Promise<ApiResponse<ContaContabil>> => {
       return apiRequest<ContaContabil>('/make-server-67caf26a/financeiro/categorias', {
         method: 'POST',
@@ -1666,30 +1667,30 @@ export const financeiroApi = {
       });
     },
   },
-  
+
   // ============================================================================
   // MAPEAMENTO DE CAMPOS DO SISTEMA PARA PLANO DE CONTAS
   // ============================================================================
-  
+
   campoMappings: {
     list: async (): Promise<ApiResponse<any[]>> => {
       return apiRequest<any[]>('/make-server-67caf26a/financeiro/campo-mappings');
     },
-    
+
     create: async (data: any): Promise<ApiResponse<any>> => {
       return apiRequest<any>('/make-server-67caf26a/financeiro/campo-mappings', {
         method: 'POST',
         body: JSON.stringify(data),
       });
     },
-    
+
     update: async (id: string, data: any): Promise<ApiResponse<any>> => {
       return apiRequest<any>(`/make-server-67caf26a/financeiro/campo-mappings/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       });
     },
-    
+
     delete: async (id: string): Promise<ApiResponse<null>> => {
       return apiRequest<null>(`/make-server-67caf26a/financeiro/campo-mappings/${id}`, {
         method: 'DELETE',
@@ -1710,16 +1711,16 @@ export const financeiroApi = {
       });
     },
   },
-  
+
   // ============================================================================
   // CENTRO DE CUSTOS
   // ============================================================================
-  
+
   centroCustos: {
     list: async (): Promise<ApiResponse<CentroCusto[]>> => {
       return apiRequest<CentroCusto[]>('/financeiro/centro-custos');
     },
-    
+
     create: async (data: Partial<CentroCusto>): Promise<ApiResponse<CentroCusto>> => {
       return apiRequest<CentroCusto>('/financeiro/centro-custos', {
         method: 'POST',
@@ -1727,71 +1728,71 @@ export const financeiroApi = {
       });
     },
   },
-  
+
   // ============================================================================
   // CONCILIAÇÃO BANCÁRIA
   // ============================================================================
-  
+
   conciliacao: {
     importar: async (arquivo: File, contaId: string, formato: 'csv' | 'ofx'): Promise<ApiResponse<any>> => {
       const formData = new FormData();
       formData.append('arquivo', arquivo);
       formData.append('contaId', contaId);
       formData.append('formato', formato);
-      
+
       return apiRequest<any>('/financeiro/conciliacao/importar', {
         method: 'POST',
         body: formData,
       });
     },
-    
+
     pendentes: async (filtros?: { contaId?: string; dataInicio?: string; dataFim?: string; conciliado?: boolean }): Promise<ApiResponse<any>> => {
       const params = new URLSearchParams();
       if (filtros?.contaId) params.append('contaId', filtros.contaId);
       if (filtros?.dataInicio) params.append('dataInicio', filtros.dataInicio);
       if (filtros?.dataFim) params.append('dataFim', filtros.dataFim);
       if (filtros?.conciliado !== undefined) params.append('conciliado', filtros.conciliado.toString());
-      
+
       return apiRequest<any>(`/financeiro/conciliacao/pendentes?${params.toString()}`);
     },
-    
+
     match: async (linhaExtratoId: string, lancamentoId: string, observacoes?: string): Promise<ApiResponse<any>> => {
       return apiRequest<any>('/financeiro/conciliacao/match', {
         method: 'POST',
         body: JSON.stringify({ linhaExtratoId, lancamentoId, observacoes }),
       });
     },
-    
+
     aplicarRegras: async (linhaIds?: string[]): Promise<ApiResponse<any>> => {
       return apiRequest<any>('/financeiro/conciliacao/aplicar-regras', {
         method: 'POST',
         body: JSON.stringify({ linhaIds: linhaIds || [] }),
       });
     },
-    
+
     fechamento: async (data: string, contaId: string): Promise<ApiResponse<any>> => {
       return apiRequest<any>(`/financeiro/conciliacao/fechamento?data=${data}&contaId=${contaId}`);
     },
-    
+
     regras: {
       list: async (): Promise<ApiResponse<RegraConciliacao[]>> => {
         return apiRequest<RegraConciliacao[]>('/financeiro/conciliacao/regras');
       },
-      
+
       create: async (data: Partial<RegraConciliacao>): Promise<ApiResponse<RegraConciliacao>> => {
         return apiRequest<RegraConciliacao>('/financeiro/conciliacao/regras', {
           method: 'POST',
           body: JSON.stringify(data),
         });
       },
-      
+
       update: async (id: string, data: Partial<RegraConciliacao>): Promise<ApiResponse<RegraConciliacao>> => {
         return apiRequest<RegraConciliacao>(`/financeiro/conciliacao/regras/${id}`, {
           method: 'PUT',
           body: JSON.stringify(data),
         });
       },
-      
+
       delete: async (id: string): Promise<ApiResponse<null>> => {
         return apiRequest<null>(`/financeiro/conciliacao/regras/${id}`, {
           method: 'DELETE',
@@ -1833,7 +1834,7 @@ export const integrationsApi = {
       });
     },
     testConfig: async (configId?: string): Promise<ApiResponse<AIProviderTestResponse>> => {
-      const url = configId 
+      const url = configId
         ? `/make-server-67caf26a/integrations/ai/test?configId=${configId}`
         : '/make-server-67caf26a/integrations/ai/test';
       return apiRequest<AIProviderTestResponse>(url, {
@@ -1910,7 +1911,7 @@ export interface CreateAutomationRequest {
   priority?: 'baixa' | 'media' | 'alta';
 }
 
-export interface UpdateAutomationRequest extends Partial<CreateAutomationRequest> {}
+export interface UpdateAutomationRequest extends Partial<CreateAutomationRequest> { }
 
 export interface AutomationExecution {
   id: string;

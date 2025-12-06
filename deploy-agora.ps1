@@ -5,7 +5,8 @@ Write-Host "`n=== DEPLOY RENDIZY-SERVER (COM VERIFICAÇÃO) ===" -ForegroundColo
 Write-Host ""
 
 # Navegar para o diretório oficial
-Set-Location "C:\dev\RENDIZY PASTA OFICIAL"
+# Set-Location "C:\dev\RENDIZY PASTA OFICIAL"
+Write-Host "Diretorio atual: $PWD"
 
 # PASSO 1: VERIFICAR CONFLITOS (OBRIGATÓRIO)
 Write-Host "🔍 Verificando conflitos de merge..." -ForegroundColor Cyan
@@ -26,7 +27,8 @@ if (Test-Path $verifyScript) {
         Write-Host ""
         exit 1
     }
-} else {
+}
+else {
     Write-Host "⚠️  Script de verificação não encontrado. Continuando sem verificação..." -ForegroundColor Yellow
     Write-Host ""
 }
@@ -41,7 +43,8 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "`n✅ DEPLOY CONCLUÍDO!" -ForegroundColor Green
     Write-Host "`nA rota /chat/channels/config está disponível em:" -ForegroundColor Cyan
     Write-Host "https://odcgnzfremrqnvtitpcc.supabase.co/functions/v1/rendizy-server/chat/channels/config" -ForegroundColor White
-} else {
+}
+else {
     Write-Host "`n❌ ERRO NO DEPLOY" -ForegroundColor Red
     Write-Host "Verifique se está logado: npx supabase login" -ForegroundColor Yellow
 }

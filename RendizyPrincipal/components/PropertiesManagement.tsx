@@ -26,11 +26,19 @@ import {
   DollarSign,
   Download,
   FileText,
+  Search,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import { CreatePropertyTypeModal } from "./CreatePropertyTypeModal";
 import { PropertiesFilterSidebar } from "./PropertiesFilterSidebar";
 import { PropertyViewModal } from "./PropertyViewModal";
@@ -92,7 +100,32 @@ export const PropertiesManagement = () => {
   const navigate = useNavigate();
 
   // Hook de ações padronizadas
-  const { deleteProperty } = usePropertyActions();
+  const { deleteProperty, updateProperty } = usePropertyActions();
+
+  // Função para mudar o status
+  const handleStatusUpdate = async (property: Property, newStatus: 'active' | 'inactive' | 'draft') => {
+    try {
+      // Atualizar localmente primeiro (Optimistic UI)
+      setProperties(prev => prev.map(p =>
+        p.id === property.id ? { ...p, status: newStatus } : p
+      ));
+
+      // Chamar API
+      await updateProperty(property.id, { status: newStatus }, {
+        reloadPage: false,
+        redirectToList: false,
+        customSuccessMessage: `Status alterado para ${newStatus === 'active' ? 'Ativo' :
+          newStatus === 'draft' ? 'Rascunho' : 'Inativo'
+          }`
+      });
+    } catch (error) {
+      // Reverter em caso de erro
+      setProperties(prev => prev.map(p =>
+        p.id === property.id ? { ...p, status: property.status } : p
+      ));
+      console.error('Erro ao atualizar status:', error);
+    }
+  };
 
   // Carregar propriedades do backend
   useEffect(() => {
@@ -160,6 +193,7 @@ export const PropertiesManagement = () => {
       }
 
       const allProperties: Property[] = [];
+      let accommodations: any[] = []; // garante referência mesmo quando a API falha ou não retorna dados
 
       // Adicionar Locations
       if (locationsResponse.success && locationsResponse.data) {
@@ -217,7 +251,7 @@ export const PropertiesManagement = () => {
           }))
         );
 
-        const accommodations = propertiesResponse.data
+        accommodations = propertiesResponse.data
           .filter((prop: any) => {
             // Incluir se:
             // 1. Não tem locationId (propriedade individual) OU
@@ -272,11 +306,28 @@ export const PropertiesManagement = () => {
               status: mappedStatus, // 🆕 IMPORTANTE: Manter status do backend (incluindo 'draft')
               tags: prop.tags || [],
               // 🆕 v1.0.103.313 - Mapear fotos corretamente
-              photos: Array.isArray(prop.photos)
-                ? prop.photos.map((p: any) => p.url || p)
-                : prop.coverPhoto
-                ? [prop.coverPhoto]
-                : [],
+
+              photos: (() => {
+                // 1. Tentar fotos principais
+                if (Array.isArray(prop.photos) && prop.photos.length > 0) {
+                  return prop.photos.map((p: any) => p.url || p);
+                }
+
+                // 2. Fallback: Tentar fotos do wizard (contentRooms)
+                // Isso resolve o caso onde fotos foram salvas no JSON mas não promovidas para a coluna principal
+                if (prop.wizardData?.contentRooms?.rooms) {
+                  const roomPhotos = prop.wizardData.contentRooms.rooms
+                    .flatMap((r: any) => r.photos || [])
+                    .map((p: any) => p.url || p);
+
+                  if (roomPhotos.length > 0) return roomPhotos;
+                }
+
+                // 3. Fallback: Cover Photo
+                if (prop.coverPhoto) return [prop.coverPhoto];
+
+                return [];
+              })(),
               pricing: prop.pricing,
               capacity: {
                 guests: prop.maxGuests || 0,
@@ -291,6 +342,7 @@ export const PropertiesManagement = () => {
               completedSteps: prop.completedSteps || prop.completed_steps || [],
               wizardData: prop.wizardData || prop.wizard_data,
             };
+
           });
 
         // 🆕 DEBUG: Log DEPOIS do mapeamento
@@ -548,11 +600,11 @@ export const PropertiesManagement = () => {
     const averagePrice =
       propertiesWithPrice.length > 0
         ? propertiesWithPrice.reduce(
-            (sum, p) => sum + (p.pricing?.basePrice || 0),
-            0
-          ) /
-          propertiesWithPrice.length /
-          100
+          (sum, p) => sum + (p.pricing?.basePrice || 0),
+          0
+        ) /
+        propertiesWithPrice.length /
+        100
         : 0;
 
     return {
@@ -770,7 +822,7 @@ export const PropertiesManagement = () => {
         {/* Content */}
         <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
           {/* 🆕 SEÇÃO PRIMITIVA DE RASCUNHOS - FORMA MAIS SIMPLES POSSÍVEL */}
-          {!loading &&
+          {false && !loading &&
             (() => {
               const allDrafts = properties.filter(
                 (p) =>
@@ -968,28 +1020,60 @@ export const PropertiesManagement = () => {
                         </Badge>
                       </div>
 
-                      {/* Status Badge */}
-                      <div className="absolute top-2 right-2">
-                        <Badge
-                          variant={
-                            property.status === "active"
-                              ? "default"
-                              : "secondary"
-                          }
-                          className={
-                            property.status === "active"
-                              ? "bg-green-600"
-                              : property.status === "draft"
-                              ? "bg-amber-600"
-                              : "bg-gray-600"
-                          }
-                        >
-                          {property.status === "active"
-                            ? "Ativo"
-                            : property.status === "draft"
-                            ? "Rascunho"
-                            : "Inativo"}
-                        </Badge>
+                      {/* Status Badge com Dropdown */}
+                      <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              className="h-auto p-0 hover:bg-transparent shadow-sm"
+                            >
+                              <Badge
+                                variant={
+                                  property.status === "active"
+                                    ? "default"
+                                    : "secondary"
+                                }
+                                className={`cursor-pointer hover:opacity-90 transition-opacity pr-1.5 ${property.status === "active"
+                                  ? "bg-green-600 hover:bg-green-700"
+                                  : property.status === "draft"
+                                    ? "bg-amber-600 hover:bg-amber-700"
+                                    : "bg-gray-600 hover:bg-gray-700"
+                                  }`}
+                              >
+                                {property.status === "active"
+                                  ? "Ativo"
+                                  : property.status === "draft"
+                                    ? "Rascunho"
+                                    : "Inativo"}
+                                <ChevronDown className="w-3 h-3 ml-1" />
+                              </Badge>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleStatusUpdate(property, 'active')}
+                              className="text-green-600 focus:text-green-700 focus:bg-green-50 cursor-pointer"
+                            >
+                              <CheckCircle2 className="w-4 h-4 mr-2" />
+                              Ativo (Vendas on)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleStatusUpdate(property, 'inactive')}
+                              className="text-gray-600 focus:text-gray-700 focus:bg-gray-50 cursor-pointer"
+                            >
+                              <Wrench className="w-4 h-4 mr-2" />
+                              Inativo (Manutenção)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleStatusUpdate(property, 'draft')}
+                              className="text-amber-600 focus:text-amber-700 focus:bg-amber-50 cursor-pointer"
+                            >
+                              <FileText className="w-4 h-4 mr-2" />
+                              Rascunho
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
 
                       {/* 🆕 Progress Bar para Rascunhos */}
@@ -1148,15 +1232,15 @@ export const PropertiesManagement = () => {
                                 property.status === "active"
                                   ? "bg-emerald-600"
                                   : property.status === "draft"
-                                  ? "bg-amber-600"
-                                  : "bg-gray-600"
+                                    ? "bg-amber-600"
+                                    : "bg-gray-600"
                               }
                             >
                               {property.status === "active"
                                 ? "Disponível"
                                 : property.status === "draft"
-                                ? "Rascunho"
-                                : "Inativo"}
+                                  ? "Rascunho"
+                                  : "Inativo"}
                             </Badge>
                           </div>
 

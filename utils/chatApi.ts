@@ -1,7 +1,8 @@
-import { projectId, publicAnonKey } from './supabase/info';
+import { publicAnonKey } from './supabase/info';
+import { API_BASE_URL } from './apiBase';
 import { isOfflineMode } from './offlineConfig';
 
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1/rendizy-server`;
+const BASE_URL = API_BASE_URL;
 
 // ============================================
 // HEALTH CHECK - Verifica se servidor está acessível

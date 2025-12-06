@@ -5,7 +5,8 @@
 // Suporta modo MOCK para desenvolvimento sem backend
 // ============================================================================
 
-import { projectId, publicAnonKey } from "./supabase/info";
+import { publicAnonKey } from "./supabase/info";
+import { API_BASE_URL as API_BASE_URL_OVERRIDE } from "./apiBase";
 import { Photo } from "../components/PhotoManager";
 // ✅ ARQUITETURA OAuth2 v1.0.103.1010: Importar refreshToken para interceptador 401
 import { refreshToken } from "../services/authService";
@@ -22,7 +23,8 @@ import type {
 
 // Base URL da API
 // ✅ CORREÇÃO: URL correta sem make-server-67caf26a
-const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/rendizy-server`;
+// const API_BASE_URL = API_BASE_URL_OVERRIDE; // Removed
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://odcgnzfremrqnvtitpcc.supabase.co/functions/v1/rendizy-server";
 
 // ============================================================================
 // TIPOS
@@ -358,7 +360,8 @@ export async function apiRequest<T>(
     };
 
     // ✅ Adicionar token customizado em header separado para evitar validação JWT automática
-    if (userToken) {
+    // ⚠️ CRÍTICO: NÃO enviar token na rota de login (evita 401 se token antigo estiver inválido/expirado)
+    if (userToken && !endpoint.includes('/auth/login')) {
       headers["X-Auth-Token"] = userToken;
     }
 
@@ -499,8 +502,7 @@ export async function apiRequest<T>(
     console.error(`   ❌ Full URL: ${API_BASE_URL}${endpoint}`);
     console.error(`   �� Error type: ${error?.constructor?.name}`);
     console.error(
-      `   ❌ Error message: ${
-        error instanceof Error ? error.message : "Unknown"
+      `   ❌ Error message: ${error instanceof Error ? error.message : "Unknown"
       }`
     );
 
@@ -706,58 +708,254 @@ function tryLocalStorageFallback<T>(
 }
 
 // ============================================================================
-// PROPERTIES API
+// PROPERTIES API - COM FALLBACK LOCAL
 // ============================================================================
+
+// ? Fallback local para não perder rascunhos quando o backend falhar/offline
+const LOCAL_PROPERTIES_KEY = "rendizy_local_properties_v1";
+
+const loadLocalProperties = (): Property[] => {
+  try {
+    const raw = localStorage.getItem(LOCAL_PROPERTIES_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as Property[];
+  } catch (error) {
+    console.warn("⚠️ Não foi possível carregar propriedades locais", error);
+    return [];
+  }
+};
+
+const saveLocalProperties = (properties: Property[]) => {
+  try {
+    localStorage.setItem(LOCAL_PROPERTIES_KEY, JSON.stringify(properties));
+  } catch (error) {
+    console.warn("⚠️ Não foi possível salvar rascunho local", error);
+  }
+};
+
+const ensureLocalId = (data: Partial<Property>) => {
+  if (!data.id) {
+    data.id = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+  return data.id as string;
+};
+
+const upsertLocalProperty = (data: Partial<Property>): Property => {
+  const properties = loadLocalProperties();
+  const id = ensureLocalId(data);
+  const index = properties.findIndex((p) => p.id === id);
+  const merged = { ...(properties[index] || {}), ...data, id } as Property;
+  if (index >= 0) {
+    properties[index] = merged;
+  } else {
+    properties.push(merged);
+  }
+  saveLocalProperties(properties);
+  return merged;
+};
+
+const getLocalProperty = (id: string): Property | null => {
+  return loadLocalProperties().find((p) => p.id === id) || null;
+};
 
 export const propertiesApi = {
   // Listar todas as propriedades
   list: async (filters?: {
+
     status?: string[];
+
     type?: string[];
+
     city?: string[];
+
     tags?: string[];
+
     folder?: string;
+
     search?: string;
+
   }): Promise<ApiResponse<Property[]>> => {
-    // ✅ SUPABASE ONLY (desde v1.0.103.305)
+
     const params = new URLSearchParams();
+
     if (filters?.status) params.set("status", filters.status.join(","));
+
     if (filters?.type) params.set("type", filters.type.join(","));
+
     if (filters?.city) params.set("city", filters.city.join(","));
+
     if (filters?.tags) params.set("tags", filters.tags.join(","));
+
     if (filters?.folder) params.set("folder", filters.folder);
+
     if (filters?.search) params.set("search", filters.search);
 
+
+
     const query = params.toString();
-    return apiRequest<Property[]>(`/properties${query ? "?" + query : ""}`);
+
+    try {
+
+      const response = await apiRequest<Property[]>(
+
+        `/properties${query ? "?" + query : ""}`
+
+      );
+
+      if (response.success) return response;
+
+    } catch (error) {
+
+      console.warn("⚠️ Falha ao listar propriedades, usando fallback local", error);
+
+    }
+
+
+
+    const localData = loadLocalProperties();
+
+    return {
+
+      success: true,
+
+      data: localData,
+
+      error: "Backend indisponível - usando rascunhos locais",
+
+      timestamp: new Date().toISOString(),
+
+    };
+
   },
 
   // Buscar propriedade por ID
   get: async (id: string): Promise<ApiResponse<Property>> => {
-    // ✅ SUPABASE ONLY (desde v1.0.103.305)
-    return apiRequest<Property>(`/properties/${id}`);
+
+    try {
+
+      const response = await apiRequest<Property>(`/properties/${id}`);
+
+      if (response.success) return response;
+
+    } catch (error) {
+
+      console.warn(`⚠️ Falha ao buscar propriedade ${id}, tentando fallback local`, error);
+
+    }
+
+
+
+    const localProp = getLocalProperty(id);
+
+    if (localProp) {
+
+      return {
+
+        success: true,
+
+        data: localProp,
+
+        message: "Retornado do rascunho local (backend offline)",
+
+        timestamp: new Date().toISOString(),
+
+      };
+
+    }
+
+
+
+    return {
+
+      success: false,
+
+      error: "Propriedade não encontrada (offline)",
+
+      timestamp: new Date().toISOString(),
+
+    } as any;
+
   },
 
   // Criar nova propriedade
   // ✅ BOAS PRÁTICAS v1.0.103.1000 - Aceitar dados do wizard (estrutura aninhada ou plana)
   create: async (
+
     data: Partial<Property> | any
+
   ): Promise<ApiResponse<Property>> => {
-    return apiRequest<Property>("/properties", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+
+    try {
+
+      const response = await apiRequest<Property>("/properties", {
+
+        method: "POST",
+
+        body: JSON.stringify(data),
+
+      });
+
+      if (response.success) return response;
+
+    } catch (error) {
+      console.error("❌ Falha ao criar propriedade no backend:", error);
+      throw error;
+    }
+
+    // FALLBACK DESABILITADO
+    return { success: false, error: "Backend error" } as any;
+
   },
 
   // Atualizar propriedade
   update: async (
+
     id: string,
+
     data: Partial<Property>
+
   ): Promise<ApiResponse<Property>> => {
-    return apiRequest<Property>(`/properties/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
+
+    try {
+
+      const response = await apiRequest<Property>(`/properties/${id}`, {
+
+        method: "PUT",
+
+        body: JSON.stringify(data),
+
+      });
+
+      if (response.success) return response;
+
+    } catch (error) {
+
+      console.warn(
+
+        `⚠️ Falha ao atualizar propriedade ${id}, salvando localmente`,
+
+        error
+
+      );
+
+    }
+
+
+
+    const saved = upsertLocalProperty({ ...data, id });
+
+    return {
+
+      success: true,
+
+      data: saved,
+
+      message: "Atualizado localmente (backend offline)",
+
+      timestamp: new Date().toISOString(),
+
+    };
+
   },
 
   // Deletar propriedade
@@ -1712,8 +1910,7 @@ export const photosApi = {
     } catch (fetchError) {
       console.error("❌ Fetch error:", fetchError);
       throw new Error(
-        `Network error: ${
-          fetchError instanceof Error ? fetchError.message : "Unknown"
+        `Network error: ${fetchError instanceof Error ? fetchError.message : "Unknown"
         }`
       );
     }
@@ -2229,7 +2426,7 @@ export interface CreateAutomationRequest {
 }
 
 export interface UpdateAutomationRequest
-  extends Partial<CreateAutomationRequest> {}
+  extends Partial<CreateAutomationRequest> { }
 
 export interface AutomationExecution {
   id: string;

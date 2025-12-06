@@ -1,6 +1,28 @@
+
 -- ============================================================================
--- MIGGRO - Sistema de Pagamentos, Badges e Moderação
+-- Tabelas mínimas auxiliares para evitar falha de dependência em resets locais
 -- ============================================================================
+-- Em produção essas tabelas são fornecidas por outros módulos. Para que o
+-- reset local funcione sem erros de referência cruzada, criamos versões
+-- mínimas apenas com a coluna id.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);
+
+CREATE TABLE IF NOT EXISTS service_listings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+);
+
+CREATE TABLE IF NOT EXISTS service_proposals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS service_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 -- ============================================================================
 -- 1. SISTEMA DE PAGAMENTOS
@@ -68,6 +90,15 @@ CREATE TABLE IF NOT EXISTS wallets (
 );
 
 CREATE INDEX idx_wallets_user ON wallets(user_id);
+
+-- Função utilitária para atualizar updated_at (garante existência)
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Trigger para atualizar updated_at
 CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions

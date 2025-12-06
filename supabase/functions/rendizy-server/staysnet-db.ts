@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SUPABASE_PROJECT_REF } from './utils-env.ts';
 
 interface StaysNetConfig {
   apiKey: string;
@@ -37,8 +38,8 @@ interface StaysNetConfigDB {
 
 function getSupabaseClient() {
   return createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    SUPABASE_URL ?? '',
+    SUPABASE_SERVICE_ROLE_KEY ?? ''
   );
 }
 
@@ -369,4 +370,3 @@ export async function savePropertyCacheDB(
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
-
