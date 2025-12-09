@@ -1,4 +1,4 @@
-/**
+/*
  * RENDIZY - Integração com Provedor de IA
  *
  * Permite configurar um provedor (ex.: OpenAI) para uso interno (Automações, Assistentes, etc.)
@@ -54,7 +54,7 @@ const PROVIDERS: ProviderMeta[] = [
     name: 'OpenAI (ChatGPT)',
     description: 'Ideal para qualidade máxima (GPT-4o, GPT-4.1, GPT-3.5, etc.)',
     baseUrl: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4o-mini',
+    defaultModel: 'gpt-5-mini',
     docsUrl: 'https://platform.openai.com/docs/introduction',
     labelVariant: 'success',
   },
@@ -171,9 +171,11 @@ export function AIIntegration() {
     status: 'success' | 'error' | 'idle';
     message?: string;
     testedAt?: string;
-  }>({
-    status: 'idle',
-  });
+  }>(
+    {
+      status: 'idle',
+    }
+  );
   const [savedConfigs, setSavedConfigs] = useState<AIProviderConfigListItem[]>([]);
   const [isLoadingConfigs, setIsLoadingConfigs] = useState(true);
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
@@ -398,9 +400,9 @@ export function AIIntegration() {
       setLastTestResult({
         status: 'success',
         message: `Status ${response.data.httpStatus} - ${
-          response.data.modelsCount !== undefined
-            ? `${response.data.modelsCount} modelos listados`
-            : 'resposta válida'
+        response.data.modelsCount !== undefined
+          ? `${response.data.modelsCount} modelos listados`
+          : 'resposta válida'
         }`,
         testedAt: response.data.testedAt,
       });
@@ -653,7 +655,7 @@ export function AIIntegration() {
               </div>
               <p className="text-xs text-muted-foreground">
                 {hasRemoteApiKey
-                  ? 'API Key já armazenada com segurança. Informe um novo valor apenas se quiser substituí-la.'
+                  ? 'API Key já armazenada com segurança. Informe um novo valor apenas se quiser substituirla.'
                   : 'Sua chave será criptografada no backend Rendizy.'}
               </p>
             </div>
@@ -846,5 +848,3 @@ export function AIIntegration() {
     </div>
   );
 }
-
-
