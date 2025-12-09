@@ -2,30 +2,13 @@
  * RENDIZY - Content Photos Step
  * 
  * Step 6 do wizard de conteúdo: Fotos e Mídia
+ * Refatorado para arquitetura URL-Driven (Phase 2)
  * 
- * FUNCIONALIDADES:
- * - Upload de múltiplas fotos
- * - Drag and drop
- * - Reordenação de fotos
- * - Definir foto de capa
- * - Preview de imagens
- * - Descrição por foto (multilíngue)
- * - Categorização de fotos (Quarto, Banheiro, Área Externa, etc)
- * - Compressão automática (REAL - v1.0.103.307)
- * 
- * @version 1.0.103.307
- * @date 2025-11-05
- * 
- * 🆕 v1.0.103.307:
- * - Compressão automática REAL implementada
- * - Integração com /utils/imageCompression.ts
- * - Fotos > 2MB comprimidas para ~1.9MB
- * - Feedback visual durante compressão
- * - Logs detalhados no console
- * - Toast com estatísticas de compressão
+ * @version 1.0.104.0
+ * @date 2025-12-06
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Upload,
   Image as ImageIcon,
@@ -40,17 +23,18 @@ import {
   Check,
   Loader2,
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Label } from '../ui/label';
-import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { toast } from 'sonner';
-import { compressImage, validateImageFile, formatFileSize } from '../../utils/imageCompression';
+import { compressImage, validateImageFile } from '../../utils/imageCompression';
+import { useWizardNavigation } from '../../hooks/useWizardNavigation';
+import { usePropertyData } from '../../hooks/usePropertyData';
 
 // ============================================================================
 // TYPES
@@ -74,12 +58,6 @@ interface ContentPhotosData {
   photos: Photo[];
 }
 
-interface ContentPhotosStepProps {
-  data: ContentPhotosData;
-  onChange: (data: ContentPhotosData) => void;
-  propertyId?: string;
-}
-
 // ============================================================================
 // CONSTANTES
 // ============================================================================
@@ -99,22 +77,34 @@ const PHOTO_CATEGORIES = [
   { value: 'other', label: 'Outros' },
 ];
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB (será comprimido automaticamente)
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export function ContentPhotosStep({
-  data,
-  onChange,
-  propertyId,
-}: ContentPhotosStepProps) {
+export function ContentPhotosStep() {
+  const { propertyId, goToNextStep, goToPreviousStep } = useWizardNavigation();
+  const { property, loading: loadingProperty, saveProperty } = usePropertyData(propertyId);
+
+  const [data, setData] = useState<ContentPhotosData>({ photos: [] });
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ============================================================================
+  // INIT DATA
+  // ============================================================================
+
+  useEffect(() => {
+    if (property && property.wizardData?.contentPhotos) {
+      // Ensure photos is an array
+      const photos = Array.isArray(property.wizardData.contentPhotos.photos)
+        ? property.wizardData.contentPhotos.photos
+        : [];
+      setData({ photos });
+    }
+  }, [property]);
 
   // ============================================================================
   // HANDLERS
@@ -150,7 +140,7 @@ export function ContentPhotosStep({
         if (originalSize > 2 * 1024 * 1024) {
           try {
             console.log(`🗜️ Comprimindo ${file.name}...`);
-            
+
             processedFile = await compressImage(file, {
               maxWidth: 1920,
               maxHeight: 1920,
@@ -160,10 +150,10 @@ export function ContentPhotosStep({
 
             const compressedSizeMB = processedFile.size / 1024 / 1024;
             const reductionPercent = ((1 - processedFile.size / originalSize) * 100).toFixed(0);
-            
+
             compressedCount++;
             console.log(`✅ ${file.name}: ${originalSizeMB.toFixed(1)}MB → ${compressedSizeMB.toFixed(1)}MB (-${reductionPercent}%)`);
-            
+
           } catch (error) {
             console.error('Erro ao comprimir:', error);
             toast.error(`Erro ao comprimir ${file.name}`);
@@ -179,7 +169,7 @@ export function ContentPhotosStep({
           url,
           file: processedFile,
           category: 'other',
-          isCover: data.photos.length === 0 && i === 0, // Primeira foto é capa
+          isCover: data.photos.length === 0 && i === 0, // Primeira foto é capa se a lista estava vazia
           order: data.photos.length + i,
           descriptions: {},
         };
@@ -188,10 +178,10 @@ export function ContentPhotosStep({
       }
 
       if (newPhotos.length > 0) {
-        onChange({
-          ...data,
-          photos: [...data.photos, ...newPhotos],
-        });
+        setData(prev => ({
+          ...prev,
+          photos: [...prev.photos, ...newPhotos],
+        }));
 
         // Mensagem de sucesso com informação sobre compressão
         if (compressedCount > 0) {
@@ -223,17 +213,13 @@ export function ContentPhotosStep({
 
   const removePhoto = (id: string) => {
     const updated = data.photos.filter((p) => p.id !== id);
-    
+
     // Se removeu a foto de capa, definir a primeira como capa
     if (data.photos.find((p) => p.id === id)?.isCover && updated.length > 0) {
       updated[0].isCover = true;
     }
 
-    onChange({
-      ...data,
-      photos: updated,
-    });
-
+    setData({ photos: updated });
     toast.success('Foto removida');
   };
 
@@ -243,11 +229,7 @@ export function ContentPhotosStep({
       isCover: p.id === id,
     }));
 
-    onChange({
-      ...data,
-      photos: updated,
-    });
-
+    setData({ photos: updated });
     toast.success('Foto de capa atualizada');
   };
 
@@ -256,10 +238,7 @@ export function ContentPhotosStep({
       p.id === id ? { ...p, category } : p
     );
 
-    onChange({
-      ...data,
-      photos: updated,
-    });
+    setData({ photos: updated });
   };
 
   const updatePhotoDescription = (id: string, lang: string, description: string) => {
@@ -269,10 +248,7 @@ export function ContentPhotosStep({
         : p
     );
 
-    onChange({
-      ...data,
-      photos: updated,
-    });
+    setData({ photos: updated });
   };
 
   const movePhoto = (fromIndex: number, toIndex: number) => {
@@ -285,10 +261,7 @@ export function ContentPhotosStep({
       p.order = index;
     });
 
-    onChange({
-      ...data,
-      photos: updated,
-    });
+    setData({ photos: updated });
   };
 
   const handleDragStart = (index: number) => {
@@ -307,12 +280,42 @@ export function ContentPhotosStep({
     setDraggedIndex(null);
   };
 
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Garantir que temos uma capa se houver fotos
+      let finalPhotos = [...data.photos];
+      if (finalPhotos.length > 0 && !finalPhotos.some(p => p.isCover)) {
+        finalPhotos[0].isCover = true;
+      }
+
+      const payload = {
+        wizardData: {
+          contentPhotos: {
+            photos: finalPhotos
+          }
+        }
+      };
+
+      const success = await saveProperty(payload);
+      if (success) {
+        goToNextStep();
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // ============================================================================
   // RENDER
   // ============================================================================
 
+  if (loadingProperty) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>;
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Header Info */}
       <Alert>
         <ImageIcon className="h-4 w-4" />
@@ -339,8 +342,8 @@ export function ContentPhotosStep({
             </div>
             <div className="text-center space-y-2">
               <h3 className="font-semibold">
-                {isCompressing 
-                  ? 'Comprimindo imagens...' 
+                {isCompressing
+                  ? 'Comprimindo imagens...'
                   : 'Arraste fotos para cá ou clique para selecionar'
                 }
               </h3>
@@ -660,6 +663,18 @@ export function ContentPhotosStep({
           </ul>
         </AlertDescription>
       </Alert>
+
+      {/* ACTION BUTTONS */}
+      <div className="fixed bottom-0 left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-between items-center z-10">
+        <div className="text-sm text-muted-foreground">
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={isSaving} onClick={goToPreviousStep}>Voltar</Button>
+          <Button onClick={handleSave} disabled={isSaving || loadingProperty}>
+            {isSaving ? 'Salvando...' : 'Salvar e Avançar'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

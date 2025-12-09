@@ -131,7 +131,7 @@ export function MainSidebar({
   useEffect(() => {
     const savedLogo = localStorage.getItem('rendizy-logo');
     const savedSize = localStorage.getItem('rendizy-logo-size');
-    
+
     if (savedLogo) setCustomLogo(savedLogo);
     if (savedSize) setLogoSize(parseInt(savedSize));
 
@@ -201,10 +201,26 @@ export function MainSidebar({
         },
         {
           id: 'imoveis',
-          label: 'Locais e Anúncios',
+          label: 'Locais (Legacy)',
           icon: Building2,
           iconColor: 'text-white',
           iconBg: 'bg-[#3d4451] dark:bg-[#4a5568]'
+        },
+        {
+          id: 'imoveis-v2',
+          label: 'PROPERTIES V2',
+          icon: Building2,
+          iconColor: 'text-white',
+          iconBg: 'bg-gradient-to-br from-purple-600 to-pink-600',
+          badge: 'DEV'
+        },
+        {
+          id: 'imoveis-v3',
+          label: 'PROPERTIES V3',
+          icon: Building2,
+          iconColor: 'text-white',
+          iconBg: 'bg-gradient-to-br from-blue-600 to-cyan-600',
+          badge: 'NEW'
         },
         {
           id: 'motor-reservas',
@@ -376,6 +392,8 @@ export function MainSidebar({
     'central-reservas': '/reservations',
     'central-mensagens': '/chat',
     'imoveis': '/properties',
+    'imoveis-v2': '/properties-v2',
+    'imoveis-v3': '/properties-v3',
     'locations-manager': '/locations',
     'precificacao-lote': '/pricing',
     'integracoes-bookingcom': '/integrations',
@@ -390,7 +408,7 @@ export function MainSidebar({
 
   const handleMenuClick = (menuId: string, hasSubmenu: boolean, item?: MenuItem) => {
     console.log('🖱️ Menu clicado:', menuId, 'hasSubmenu:', hasSubmenu);
-    
+
     if (hasSubmenu) {
       toggleMenu(menuId);
     } else if (item?.isExternalModule && item.externalPath) {
@@ -401,11 +419,11 @@ export function MainSidebar({
     } else {
       console.log('✅ Mudando para módulo:', menuId);
       onModuleChange(menuId);
-      
+
       // 🔥 NAVEGAÇÃO FORÇADA - Usa window.location para GARANTIR que funciona
       const url = MODULE_TO_URL[menuId] || '/';
       console.log('🚀 Navegando para URL (window.location):', url);
-      
+
       // Tentar navigate primeiro (mais suave)
       try {
         navigate(url);
@@ -414,7 +432,7 @@ export function MainSidebar({
         console.warn('⚠️ Navigate falhou, usando window.location');
         window.location.href = url;
       }
-      
+
       setMobileOpen(false);
     }
   };
@@ -422,11 +440,11 @@ export function MainSidebar({
   const handleSubmenuClick = (submenuId: string) => {
     console.log('🖱️ Submenu clicado:', submenuId);
     onModuleChange(submenuId);
-    
+
     // 🔥 NAVEGAÇÃO FORÇADA - Usa window.location para GARANTIR que funciona
     const url = MODULE_TO_URL[submenuId] || '/';
     console.log('🚀 Navegando para URL (window.location):', url);
-    
+
     // Tentar navigate primeiro (mais suave)
     try {
       navigate(url);
@@ -435,7 +453,7 @@ export function MainSidebar({
       console.warn('⚠️ Navigate falhou, usando window.location');
       window.location.href = url;
     }
-    
+
     setMobileOpen(false);
   };
 
@@ -450,7 +468,7 @@ export function MainSidebar({
   // Handler para mudança no input de busca
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    
+
     // Se query for muito curta, fechar dropdown
     if (value.trim().length < 2) {
       setShowSearchDropdown(false);
@@ -461,19 +479,19 @@ export function MainSidebar({
     // Executar busca avançada
     if (onAdvancedSearch) {
       const results = onAdvancedSearch(value);
-      
+
       // Converter para formato SearchResult
       const searchResults: SearchResult[] = results.map(r => ({
         type: r.type,
         id: r.id,
         title: r.title,
         subtitle: r.subtitle,
-        icon: r.icon === 'Calendar' ? Calendar : 
-              r.icon === 'User' ? User : 
-              r.icon === 'Home' ? Home : Search,
+        icon: r.icon === 'Calendar' ? Calendar :
+          r.icon === 'User' ? User :
+            r.icon === 'Home' ? Home : Search,
         data: r.data
       }));
-      
+
       setSearchResults(searchResults);
       setShowSearchDropdown(searchResults.length > 0);
       setHighlightedSearchIndex(0);
@@ -483,7 +501,7 @@ export function MainSidebar({
   // Handler para seleção de resultado
   const handleSelectResult = async (result: SearchResult) => {
     console.log('🎯 Resultado selecionado:', result);
-    
+
     if (result.type === 'reservation' && result.data) {
       // Buscar reserva usando a função existente
       if (onSearchReservation) {
@@ -499,7 +517,7 @@ export function MainSidebar({
         await onSearchReservation(result.data.id);
       }
     }
-    
+
     // Fechar dropdown e limpar busca
     setShowSearchDropdown(false);
     setSearchQuery('');
@@ -521,7 +539,7 @@ export function MainSidebar({
     // Navegação no dropdown
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlightedSearchIndex(prev => 
+      setHighlightedSearchIndex(prev =>
         prev < searchResults.length - 1 ? prev + 1 : prev
       );
     } else if (e.key === 'ArrowUp') {
@@ -541,10 +559,10 @@ export function MainSidebar({
   // Handler para busca - detecta códigos de reserva
   const handleSearch = async (query: string) => {
     const trimmedQuery = query.trim();
-    
+
     // Verificar se é um código de reserva (RSV-XXXXXX)
     const reservationCodePattern = /^RSV-[A-Z0-9]{6}$/i;
-    
+
     if (reservationCodePattern.test(trimmedQuery) && onSearchReservation) {
       // Tentar buscar a reserva
       const found = await onSearchReservation(trimmedQuery);
@@ -561,20 +579,20 @@ export function MainSidebar({
     if (!searchQuery.trim()) {
       return section; // Sem busca, retornar tudo
     }
-    
+
     const query = searchQuery.toLowerCase();
     const filteredItems = section.items.filter(item => {
       // Buscar no label do item
       if (item.label.toLowerCase().includes(query)) return true;
-      
+
       // Buscar nos subitens
       if (item.submenu) {
         return item.submenu.some(sub => sub.label.toLowerCase().includes(query));
       }
-      
+
       return false;
     });
-    
+
     return {
       ...section,
       items: filteredItems
@@ -610,7 +628,7 @@ export function MainSidebar({
             isDark ? "bg-blue-400" : "bg-blue-600"
           )} />
         )}
-        
+
         {/* Ícone colorido em círculo */}
         <div className={cn(
           "h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-all shadow-sm",
@@ -622,34 +640,34 @@ export function MainSidebar({
             item.iconColor || (isDark ? "text-gray-300" : "text-gray-600")
           )} />
         </div>
-        
+
         {!collapsed && (
           <>
             <span className={cn(
               "flex-1 text-left text-sm",
               isDark ? "text-gray-200" : "text-gray-700"
             )}>{item.label}</span>
-            
+
             {item.badge && (
               <span className={cn(
                 "px-2 py-0.5 text-xs rounded-full font-medium",
                 item.badge === 'DEV'
                   ? (isDark ? "bg-green-500/20 text-green-300" : "bg-green-100 text-green-700")
                   : item.badge === 'BETA'
-                  ? (isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-700")
-                  : (isDark ? "bg-red-500/20 text-red-300" : "bg-red-100 text-red-600")
+                    ? (isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-700")
+                    : (isDark ? "bg-red-500/20 text-red-300" : "bg-red-100 text-red-600")
               )}>
                 {item.badge}
               </span>
             )}
-            
+
             {item.isExternalModule && (
               <ExternalLink className={cn(
                 "h-3.5 w-3.5",
                 isDark ? "text-gray-400" : "text-gray-400"
               )} />
             )}
-            
+
             {hasSubmenu && (
               <ChevronRight className={cn(
                 "h-4 w-4 transition-transform",
@@ -691,7 +709,7 @@ export function MainSidebar({
             {item.submenu!.map(subItem => {
               const SubIcon = subItem.icon;
               const isSubActive = activeModule === subItem.id;
-              
+
               return (
                 <button
                   key={subItem.id}
@@ -711,7 +729,7 @@ export function MainSidebar({
                 >
                   <SubIcon className={cn(
                     "h-4 w-4 flex-shrink-0",
-                    isSubActive 
+                    isSubActive
                       ? (isDark ? "text-blue-300" : "text-blue-600")
                       : (isDark ? "text-gray-500" : "text-gray-400")
                   )} />
@@ -771,8 +789,8 @@ export function MainSidebar({
                 <TooltipTrigger asChild>
                   <button className={cn(
                     "h-10 w-10 rounded-full bg-gradient-to-br flex items-center justify-center ring-2 transition-transform hover:scale-110",
-                    isSuperAdmin 
-                      ? "from-purple-500 to-pink-600" 
+                    isSuperAdmin
+                      ? "from-purple-500 to-pink-600"
                       : "from-blue-500 to-purple-600",
                     isDark ? "ring-gray-700" : "ring-white"
                   )}>
@@ -790,9 +808,9 @@ export function MainSidebar({
               </Tooltip>
             </TooltipProvider>
           </DropdownMenuTrigger>
-          
-          <DropdownMenuContent 
-            align="end" 
+
+          <DropdownMenuContent
+            align="end"
             side="right"
             className={cn(
               "w-56",
@@ -804,9 +822,9 @@ export function MainSidebar({
             )}>
               Minha Conta
             </DropdownMenuLabel>
-            
+
             <DropdownMenuSeparator className={isDark ? "bg-gray-700" : "bg-gray-200"} />
-            
+
             <div className="px-2 py-1.5">
               <p className={cn(
                 "text-sm font-medium",
@@ -821,35 +839,35 @@ export function MainSidebar({
                 {userEmail}
               </p>
             </div>
-            
+
             <DropdownMenuSeparator className={isDark ? "bg-gray-700" : "bg-gray-200"} />
-            
+
             <DropdownMenuItem
               onClick={() => navigate('/settings')}
               className={cn(
-                isDark 
-                  ? "text-gray-200 focus:bg-gray-700 focus:text-white" 
+                isDark
+                  ? "text-gray-200 focus:bg-gray-700 focus:text-white"
                   : "text-gray-700 focus:bg-gray-100 focus:text-gray-900"
               )}
             >
               <Settings className="mr-2 h-4 w-4" />
               Configurações
             </DropdownMenuItem>
-            
+
             <DropdownMenuItem
               onClick={() => navigate('/admin')}
               className={cn(
-                isDark 
-                  ? "text-gray-200 focus:bg-gray-700 focus:text-white" 
+                isDark
+                  ? "text-gray-200 focus:bg-gray-700 focus:text-white"
                   : "text-gray-700 focus:bg-gray-100 focus:text-gray-900"
               )}
             >
               <UserCircle className="mr-2 h-4 w-4" />
               Perfil
             </DropdownMenuItem>
-            
+
             <DropdownMenuSeparator className={isDark ? "bg-gray-700" : "bg-gray-200"} />
-            
+
             <DropdownMenuItem
               onClick={handleLogout}
               disabled={isLoggingOut}
@@ -877,13 +895,13 @@ export function MainSidebar({
       try {
         setIsLoggingOut(true);
         console.log('🚪 Fazendo logout...');
-        
+
         await logout();
-        
+
         toast.success('✅ Logout realizado com sucesso!', {
           description: 'Até logo!'
         });
-        
+
         navigate('/login');
       } catch (error) {
         console.error('❌ Erro ao fazer logout:', error);
@@ -922,8 +940,8 @@ export function MainSidebar({
             )}>
               <div className={cn(
                 "h-10 w-10 rounded-full bg-gradient-to-br flex items-center justify-center ring-2 flex-shrink-0",
-                isSuperAdmin 
-                  ? "from-purple-500 to-pink-600" 
+                isSuperAdmin
+                  ? "from-purple-500 to-pink-600"
                   : "from-blue-500 to-purple-600",
                 isDark ? "ring-gray-700" : "ring-white"
               )}>
@@ -954,9 +972,9 @@ export function MainSidebar({
               )} />
             </button>
           </DropdownMenuTrigger>
-          
-          <DropdownMenuContent 
-            align="end" 
+
+          <DropdownMenuContent
+            align="end"
             className={cn(
               "w-56",
               isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
@@ -967,9 +985,9 @@ export function MainSidebar({
             )}>
               Minha Conta
             </DropdownMenuLabel>
-            
+
             <DropdownMenuSeparator className={isDark ? "bg-gray-700" : "bg-gray-200"} />
-            
+
             <div className="px-2 py-1.5">
               <p className={cn(
                 "text-sm font-medium",
@@ -992,35 +1010,35 @@ export function MainSidebar({
                 {userType}
               </p>
             </div>
-            
+
             <DropdownMenuSeparator className={isDark ? "bg-gray-700" : "bg-gray-200"} />
-            
+
             <DropdownMenuItem
               onClick={() => navigate('/settings')}
               className={cn(
-                isDark 
-                  ? "text-gray-200 focus:bg-gray-700 focus:text-white" 
+                isDark
+                  ? "text-gray-200 focus:bg-gray-700 focus:text-white"
                   : "text-gray-700 focus:bg-gray-100 focus:text-gray-900"
               )}
             >
               <Settings className="mr-2 h-4 w-4" />
               Configurações
             </DropdownMenuItem>
-            
+
             <DropdownMenuItem
               onClick={() => navigate('/admin')}
               className={cn(
-                isDark 
-                  ? "text-gray-200 focus:bg-gray-700 focus:text-white" 
+                isDark
+                  ? "text-gray-200 focus:bg-gray-700 focus:text-white"
                   : "text-gray-700 focus:bg-gray-100 focus:text-gray-900"
               )}
             >
               <UserCircle className="mr-2 h-4 w-4" />
               Perfil
             </DropdownMenuItem>
-            
+
             <DropdownMenuSeparator className={isDark ? "bg-gray-700" : "bg-gray-200"} />
-            
+
             <DropdownMenuItem
               onClick={handleLogout}
               disabled={isLoggingOut}
@@ -1045,165 +1063,165 @@ export function MainSidebar({
         isDark ? "bg-[#2d3748]" : "bg-white"
       )}>
         {/* Header - Fixo */}
-      <div className={cn(
-        "px-4 py-3.5 flex-shrink-0",
-        isDark ? "border-b border-gray-700" : "border-b border-gray-200"
-      )}>
-        <div className="flex items-center gap-3">
-          {!collapsed ? (
-            <div className="flex items-center justify-between w-full">
-              {customLogo ? (
-                <img 
-                  src={customLogo} 
-                  alt="Rendizy" 
-                  className="w-auto object-contain"
-                  style={{ height: `${logoSize * 0.25}rem` }}
-                />
-              ) : (
-                <Logo size="md" className="justify-start" />
-              )}
-              {onToggleCollapse && (
+        <div className={cn(
+          "px-4 py-3.5 flex-shrink-0",
+          isDark ? "border-b border-gray-700" : "border-b border-gray-200"
+        )}>
+          <div className="flex items-center gap-3">
+            {!collapsed ? (
+              <div className="flex items-center justify-between w-full">
+                {customLogo ? (
+                  <img
+                    src={customLogo}
+                    alt="Rendizy"
+                    className="w-auto object-contain"
+                    style={{ height: `${logoSize * 0.25}rem` }}
+                  />
+                ) : (
+                  <Logo size="md" className="justify-start" />
+                )}
+                {onToggleCollapse && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onToggleCollapse}
+                    className={cn(
+                      "h-8 w-8 rounded-lg shrink-0 transition-all",
+                      isDark
+                        ? "hover:bg-white/10 text-gray-300 hover:text-white"
+                        : "hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+                    )}
+                  >
+                    <Menu className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ) : (
+              onToggleCollapse && (
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={onToggleCollapse}
                   className={cn(
-                    "h-8 w-8 rounded-lg shrink-0 transition-all",
-                    isDark 
-                      ? "hover:bg-white/10 text-gray-300 hover:text-white" 
+                    "h-8 w-8 rounded-lg shrink-0 transition-all mx-auto",
+                    isDark
+                      ? "hover:bg-white/10 text-gray-300 hover:text-white"
                       : "hover:bg-gray-100 text-gray-600 hover:text-gray-900"
                   )}
                 >
-                  <Menu className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
-              )}
+              )
+            )}
+          </div>
+        </div>
+
+        {/* Search - Fixo */}
+        {!collapsed && (
+          <div className="px-4 pt-4 pb-2 flex-shrink-0">
+            <div className="relative">
+              <Search className={cn(
+                "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 z-10",
+                isDark ? "text-gray-400" : "text-gray-400"
+              )} />
+              <Input
+                type="text"
+                placeholder="Buscar imóveis, hóspedes, reservas..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                onFocus={() => {
+                  if (searchQuery.trim().length >= 2 && searchResults.length > 0) {
+                    setShowSearchDropdown(true);
+                  }
+                }}
+                className={cn(
+                  "pl-9 h-9",
+                  isDark
+                    ? "bg-gray-700/50 border-gray-600 text-gray-200 placeholder:text-gray-500 focus:bg-gray-700"
+                    : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"
+                )}
+              />
+
+              {/* Advanced Search Dropdown */}
+              <AdvancedSearchDropdown
+                isOpen={showSearchDropdown}
+                results={searchResults}
+                query={searchQuery}
+                onSelect={handleSelectResult}
+                onClose={() => setShowSearchDropdown(false)}
+                highlightedIndex={highlightedSearchIndex}
+              />
             </div>
-          ) : (
-            onToggleCollapse && (
+          </div>
+        )}
+
+        {/* Navigation - Com Scroll */}
+        <div className="flex-1 overflow-y-auto px-3 py-2">
+          <nav className="space-y-6">
+            {filteredSections.map((section, sectionIndex) => (
+              <div key={section.title}>
+                {!collapsed && (
+                  <div className={cn(
+                    "px-3 mb-2 text-xs uppercase tracking-wider",
+                    isDark ? "text-gray-500" : "text-gray-500"
+                  )}>
+                    {section.title}
+                  </div>
+                )}
+                <div className="space-y-0.5">
+                  {section.items.map(item => renderMenuItem(item, isDark))}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </div>
+
+        {/* Theme Toggle - Fixo no rodapé */}
+        {!collapsed && (
+          <div className={cn(
+            "px-4 py-3 flex-shrink-0",
+            isDark ? "border-t border-gray-700" : "border-t border-gray-200"
+          )}>
+            <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
-                size="icon"
-                onClick={onToggleCollapse}
+                size="sm"
+                onClick={() => setTheme('light')}
                 className={cn(
-                  "h-8 w-8 rounded-lg shrink-0 transition-all mx-auto",
-                  isDark 
-                    ? "hover:bg-white/10 text-gray-300 hover:text-white" 
-                    : "hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+                  "flex-1 gap-2",
+                  theme === 'light'
+                    ? "bg-gray-100 text-gray-900"
+                    : (isDark ? "text-gray-400 hover:text-gray-300" : "text-gray-600")
                 )}
               >
-                <ChevronRight className="h-4 w-4" />
+                <Sun className="h-4 w-4" />
+                Light
               </Button>
-            )
-          )}
-        </div>
-      </div>
-
-      {/* Search - Fixo */}
-      {!collapsed && (
-        <div className="px-4 pt-4 pb-2 flex-shrink-0">
-          <div className="relative">
-            <Search className={cn(
-              "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 z-10",
-              isDark ? "text-gray-400" : "text-gray-400"
-            )} />
-            <Input
-              type="text"
-              placeholder="Buscar imóveis, hóspedes, reservas..."
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              onFocus={() => {
-                if (searchQuery.trim().length >= 2 && searchResults.length > 0) {
-                  setShowSearchDropdown(true);
-                }
-              }}
-              className={cn(
-                "pl-9 h-9",
-                isDark 
-                  ? "bg-gray-700/50 border-gray-600 text-gray-200 placeholder:text-gray-500 focus:bg-gray-700" 
-                  : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"
-              )}
-            />
-            
-            {/* Advanced Search Dropdown */}
-            <AdvancedSearchDropdown
-              isOpen={showSearchDropdown}
-              results={searchResults}
-              query={searchQuery}
-              onSelect={handleSelectResult}
-              onClose={() => setShowSearchDropdown(false)}
-              highlightedIndex={highlightedSearchIndex}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Navigation - Com Scroll */}
-      <div className="flex-1 overflow-y-auto px-3 py-2">
-        <nav className="space-y-6">
-          {filteredSections.map((section, sectionIndex) => (
-            <div key={section.title}>
-              {!collapsed && (
-                <div className={cn(
-                  "px-3 mb-2 text-xs uppercase tracking-wider",
-                  isDark ? "text-gray-500" : "text-gray-500"
-                )}>
-                  {section.title}
-                </div>
-              )}
-              <div className="space-y-0.5">
-                {section.items.map(item => renderMenuItem(item, isDark))}
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTheme('dark')}
+                className={cn(
+                  "flex-1 gap-2",
+                  theme === 'dark'
+                    ? (isDark ? "bg-gray-700 text-gray-100" : "bg-gray-800 text-white")
+                    : (isDark ? "text-gray-400 hover:text-gray-300" : "text-gray-600")
+                )}
+              >
+                <Moon className="h-4 w-4" />
+                Dark
+              </Button>
             </div>
-          ))}
-        </nav>
-      </div>
-
-      {/* Theme Toggle - Fixo no rodapé */}
-      {!collapsed && (
-        <div className={cn(
-          "px-4 py-3 flex-shrink-0",
-          isDark ? "border-t border-gray-700" : "border-t border-gray-200"
-        )}>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTheme('light')}
-              className={cn(
-                "flex-1 gap-2",
-                theme === 'light' 
-                  ? "bg-gray-100 text-gray-900" 
-                  : (isDark ? "text-gray-400 hover:text-gray-300" : "text-gray-600")
-              )}
-            >
-              <Sun className="h-4 w-4" />
-              Light
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTheme('dark')}
-              className={cn(
-                "flex-1 gap-2",
-                theme === 'dark' 
-                  ? (isDark ? "bg-gray-700 text-gray-100" : "bg-gray-800 text-white")
-                  : (isDark ? "text-gray-400 hover:text-gray-300" : "text-gray-600")
-              )}
-            >
-              <Moon className="h-4 w-4" />
-              Dark
-            </Button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Footer - User Profile */}
-      {!collapsed ? (
-        <UserProfileSection isDark={isDark} />
-      ) : (
-        <UserProfileSectionCollapsed isDark={isDark} />
-      )}
+        {/* Footer - User Profile */}
+        {!collapsed ? (
+          <UserProfileSection isDark={isDark} />
+        ) : (
+          <UserProfileSectionCollapsed isDark={isDark} />
+        )}
       </div>
     </TooltipProvider>
   );
@@ -1242,7 +1260,7 @@ export function MainSidebar({
             className="lg:hidden fixed inset-0 bg-black/50 z-50"
             onClick={() => setMobileOpen(false)}
           />
-          
+
           {/* Sidebar */}
           <aside className={cn(
             "lg:hidden fixed inset-y-0 left-0 z-50 w-72 border-r flex flex-col animate-in slide-in-from-left duration-300",

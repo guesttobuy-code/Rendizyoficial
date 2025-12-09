@@ -60,6 +60,7 @@ import { NotFoundPage } from './components/NotFoundPage';
 import { EmergencyRouter } from './components/EmergencyRouter';
 import { EmergencyRecovery } from './components/EmergencyRecovery';
 import { PropertyWizardPage } from './pages/PropertyWizardPage';
+import { PropertiesListV3Page } from './pages/PropertiesListV3Page';
 import DiagnosticoImovelPage from './pages/DiagnosticoImovelPage';
 import { FigmaTestPropertyCreator } from './components/FigmaTestPropertyCreator';
 import FinanceiroDashboard from './components/financeiro/FinanceiroDashboard';
@@ -111,6 +112,9 @@ import { SettingsModule } from './components/settings/SettingsModule';
 import { PricingModule } from './components/pricing/PricingModule';
 import { IntegrationsModule } from './components/integrations/IntegrationsModule';
 import { ClientSitesModule } from './components/client-sites/ClientSitesModule';
+import { PropertyHub } from './modules/properties-v2/PropertyHub'; // 🆕 Refatorado
+import { PropertyIdentitySpoke } from './modules/properties-v2/PropertyIdentitySpoke'; // 🆕 Spoke 1
+import { PropertyLocationSpoke } from './modules/properties-v2/PropertyLocationSpoke'; // 🆕 Spoke 2
 
 import { initAutoRecovery } from './utils/autoRecovery';
 import { ChevronLeft, ChevronRight, Plus, Filter, Download, Tag, Sparkles, TrendingUp, Database, AlertTriangle } from 'lucide-react';
@@ -1249,22 +1253,41 @@ function App() {
                   </ProtectedRoute>
                 } />
 
-                {/* ⭐ ROTA CONVENCIONADA - Dashboard Inicial - v1.0.103.267 - PROTEGIDA (ENCAPSULADA) */}
-                <Route path="/dashboard" element={
+                {/* ✨ ROTA PROPERTIES V3 - NOVA ARQUITETURA LIMPA */}
+                <Route path="/properties-v3" element={
                   <ProtectedRoute>
-                    <DashboardModule
-                      sidebarCollapsed={sidebarCollapsed}
-                      setSidebarCollapsed={setSidebarCollapsed}
-                      initialLoading={initialLoading}
-                      onModuleChange={setActiveModule}
-                      onSearchReservation={handleSearchReservation}
-                      onAdvancedSearch={handleAdvancedSearch}
-                      conflicts={conflicts}
-                      reservations={reservations}
-                      properties={properties}
-                      onReservationClick={handleReservationClick}
-                      onDismissConflictAlert={() => setShowConflictAlert(false)}
-                    />
+                    <PropertiesListV3Page />
+                  </ProtectedRoute>
+                } />
+                <Route path="/properties/new" element={
+                  <ProtectedRoute>
+                    <PropertyWizardPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/properties/:id/edit" element={
+                  <ProtectedRoute>
+                    <PropertyWizardPage />
+                  </ProtectedRoute>
+                } />
+
+                {/* ✅ ROTA PROPERTIES V2 - REFATORADO - v2.0 - PROTEGIDA */}
+                <Route path="/properties-v2/*" element={
+                  <ProtectedRoute>
+                    <PropertyHub />
+                  </ProtectedRoute>
+                } />
+
+                {/* 🆕 Rota SPOKE 1 - Identificação */}
+                <Route path="/properties-v2/:id/identification" element={
+                  <ProtectedRoute>
+                    <PropertyIdentitySpoke />
+                  </ProtectedRoute>
+                } />
+
+                {/* 🆕 Rota SPOKE 2 - Localização (Address) */}
+                <Route path="/properties-v2/:id/location" element={
+                  <ProtectedRoute>
+                    <PropertyLocationSpoke />
                   </ProtectedRoute>
                 } />
 

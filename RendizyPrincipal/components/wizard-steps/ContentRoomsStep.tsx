@@ -20,6 +20,7 @@ import {
   Tag as TagIcon,
   Move,
   Loader2,
+  Upload,
 } from "lucide-react";
 import { Label } from "../ui/label";
 

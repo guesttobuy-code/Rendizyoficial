@@ -2,13 +2,13 @@
  * RENDIZY - Wizard Step: Localização
  * 
  * Step 2 do Wizard de Edição de Propriedades
- * Baseado na imagem fornecida pelo usuário
+ * Refatorado para arquitetura URL-Driven (Phase 2)
  * 
- * @version 1.0.103.9
- * @date 2025-10-29
+ * @version 1.0.104.0
+ * @date 2025-12-06
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MapPin, Upload, Image as ImageIcon, Car, Wifi, Globe, Clock, Zap } from 'lucide-react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -22,6 +22,8 @@ import {
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { useWizardNavigation } from '../../hooks/useWizardNavigation';
+import { usePropertyData } from '../../hooks/usePropertyData';
 
 // ============================================================================
 // TYPES
@@ -50,44 +52,68 @@ interface FormData {
   showBuildingNumber: AddressVisibility;
   photos: string[];
   // Características do Local (afetam todos os anúncios)
-  hasExpressCheckInOut?: boolean; // Check-in/checkout expressos
-  hasParking?: boolean; // Estacionamento
-  hasCableInternet?: boolean; // Internet a Cabo
-  hasWiFi?: boolean; // Internet Wi-Fi
-  has24hReception?: boolean; // Recepção 24 horas
-}
-
-interface ContentLocationStepProps {
-  data: FormData;
-  onChange: (data: FormData) => void;
+  hasExpressCheckInOut?: boolean;
+  hasParking?: boolean;
+  hasCableInternet?: boolean;
+  hasWiFi?: boolean;
+  has24hReception?: boolean;
 }
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export function ContentLocationStep({ data, onChange }: ContentLocationStepProps) {
+export function ContentLocationStep() {
+  const { propertyId, goToNextStep, goToPreviousStep } = useWizardNavigation();
+  const { property, loading: loadingProperty, saveProperty } = usePropertyData(propertyId);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [data, setData] = useState<FormData>({
+    mode: 'new',
+    address: {
+      country: 'BR',
+      state: '',
+      stateCode: '',
+      zipCode: '',
+      city: '',
+      neighborhood: '',
+      street: '',
+      number: '',
+      complement: ''
+    },
+    showBuildingNumber: 'global',
+    photos: []
+  });
+
   const [mapPreviewUrl, setMapPreviewUrl] = useState<string>('');
+
+  // ============================================================================
+  // INIT DATA
+  // ============================================================================
+
+  useEffect(() => {
+    if (property && property.wizardData?.contentLocation) {
+      setData(property.wizardData.contentLocation);
+      // If address exists, update map preview potentially
+      if (property.wizardData.contentLocation.address?.zipCode) {
+        // Optional: trigger map update or keep it simple
+      }
+    }
+  }, [property]);
 
   // ============================================================================
   // HANDLERS
   // ============================================================================
 
   const handleChange = (field: keyof FormData, value: any) => {
-    onChange({
-      ...data,
-      [field]: value,
-    });
+    setData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleAddressChange = (field: keyof AddressData, value: any) => {
-    onChange({
-      ...data,
-      address: {
-        ...data.address,
-        [field]: value,
-      },
-    });
+    setData(prev => ({
+      ...prev,
+      address: { ...prev.address, [field]: value }
+    }));
   };
 
   const handleCepBlur = async () => {
@@ -98,17 +124,16 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
         const cepData = await response.json();
 
         if (!cepData.erro) {
-          onChange({
-            ...data,
-            address: {
-              ...data.address,
-              street: cepData.logradouro || data.address.street,
-              neighborhood: cepData.bairro || data.address.neighborhood,
-              city: cepData.localidade || data.address.city,
-              state: cepData.uf || data.address.state,
-              stateCode: cepData.uf || data.address.stateCode,
-            },
-          });
+          const newAddress = {
+            ...data.address,
+            street: cepData.logradouro || data.address.street,
+            neighborhood: cepData.bairro || data.address.neighborhood,
+            city: cepData.localidade || data.address.city,
+            state: cepData.uf || data.address.state,
+            stateCode: cepData.uf || data.address.stateCode,
+          };
+
+          setData(prev => ({ ...prev, address: newAddress }));
 
           // Gerar URL do mapa com base no endereço
           updateMapPreview(cepData);
@@ -135,8 +160,25 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files) {
-      // TODO: Implementar upload de fotos
+      // TODO: Implementar upload de fotos real
       console.log('Fotos selecionadas:', files);
+    }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        wizardData: {
+          contentLocation: data
+        }
+      };
+      const success = await saveProperty(payload);
+      if (success) {
+        goToNextStep();
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -144,8 +186,12 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
   // RENDER
   // ============================================================================
 
+  if (loadingProperty) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>;
+  }
+
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-5xl pb-20">
       {/* TABS: Novo endereço / Vincular a existente */}
       <Tabs
         value={data.mode}
@@ -689,6 +735,18 @@ export function ContentLocationStep({ data, onChange }: ContentLocationStepProps
           </CardContent>
         </Card>
       )}
+
+      {/* ACTION BUTTONS */}
+      <div className="fixed bottom-0 left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-between items-center z-10">
+        <div className="text-sm text-muted-foreground">
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={isSaving} onClick={goToPreviousStep}>Voltar</Button>
+          <Button onClick={handleSave} disabled={isSaving || loadingProperty}>
+            {isSaving ? 'Salvando...' : 'Salvar e Avançar'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

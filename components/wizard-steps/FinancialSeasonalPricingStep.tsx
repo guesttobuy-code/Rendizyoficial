@@ -1,23 +1,12 @@
 /**
  * RENDIZY - Financial Seasonal Pricing Step
+ * Refatorado para arquitetura URL-Driven (Phase 3)
  * 
- * Step 3 do wizard financeiro: Configuração de Preço Temporada
- * 
- * FUNCIONALIDADES:
- * - Configuração de moeda e região
- * - Política de descontos por estadia
- * - Depósitos e cauções
- * - Regras de precificação dinâmica
- * - Taxas de serviço (limpeza, pet, etc)
- * - Toggle Global/Individual por seção
- * - Acordeões expansíveis
- * - Auto-save automático
- * 
- * @version 1.0.103.125
- * @date 2025-10-30
+ * @version 1.0.104.0
+ * @date 2025-12-06
  */
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DollarSign,
   Globe,
@@ -44,6 +33,8 @@ import {
   SelectValue,
 } from '../ui/select';
 import { Alert, AlertDescription } from '../ui/alert';
+import { useWizardNavigation } from '../../hooks/useWizardNavigation';
+import { usePropertyData } from '../../hooks/usePropertyData';
 
 // ============================================================================
 // TYPES
@@ -54,22 +45,22 @@ interface FinancialSeasonalPricingData {
   configMode: 'individual' | 'global';
   region: 'global' | 'custom';
   currency: string;
-  
+
   // Política de Descontos
   discountPolicy: 'global' | 'individual';
   longStayDiscount: number;
   weeklyDiscount: number;
   monthlyDiscount: number;
-  
+
   // Depósitos e Garantias
   depositMode: 'global' | 'individual';
   depositAmount: number;
   depositCurrency: string;
-  
+
   // Precificação Dinâmica
   dynamicPricingMode: 'global' | 'individual';
   enableDynamicPricing: boolean;
-  
+
   // Taxas de Serviço
   feesMode: 'global' | 'individual';
   cleaningFee: number;
@@ -78,11 +69,6 @@ interface FinancialSeasonalPricingData {
   petFeePaidBy: 'guest' | 'owner' | 'shared';
   extraServicesFee: number;
   extraServicesFeePaidBy: 'guest' | 'owner' | 'shared';
-}
-
-interface FinancialSeasonalPricingStepProps {
-  data: FinancialSeasonalPricingData;
-  onChange: (data: FinancialSeasonalPricingData) => void;
 }
 
 // ============================================================================
@@ -112,27 +98,154 @@ const PAID_BY_OPTIONS = [
 ];
 
 // ============================================================================
+// SUB-COMPONENTS
+// ============================================================================
+
+const GlobalIndividualToggle = ({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: 'global' | 'individual';
+  onChange: (value: 'global' | 'individual') => void;
+  disabled?: boolean;
+}) => (
+  <div className="inline-flex rounded-lg border border-border bg-muted/50 p-1">
+    <Button
+      type="button"
+      size="sm"
+      variant={value === 'global' ? 'default' : 'ghost'}
+      className={`px-4 py-1 text-xs transition-all ${value === 'global'
+          ? 'bg-blue-600 text-white hover:bg-blue-700'
+          : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
+        }`}
+      onClick={() => onChange('global')}
+      disabled={disabled}
+    >
+      Global
+    </Button>
+    <Button
+      type="button"
+      size="sm"
+      variant={value === 'individual' ? 'default' : 'ghost'}
+      className={`px-4 py-1 text-xs transition-all ${value === 'individual'
+          ? 'bg-pink-600 text-white hover:bg-pink-700'
+          : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
+        }`}
+      onClick={() => onChange('individual')}
+      disabled={disabled}
+    >
+      Individual
+    </Button>
+  </div>
+);
+
+const CurrencyInput = ({
+  value,
+  onChange,
+  currency,
+  placeholder = '0,00',
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  currency: string;
+  placeholder?: string;
+}) => {
+  const currencyObj = CURRENCIES.find((c) => c.value === currency);
+  const symbol = currencyObj?.symbol || 'R$';
+
+  return (
+    <div className="flex items-center border rounded-lg overflow-hidden">
+      <div className="px-3 py-2 bg-green-50 border-r border-border">
+        <span className="text-sm font-medium text-green-700">{symbol}</span>
+      </div>
+      <Input
+        type="number"
+        value={value || ''}
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        placeholder={placeholder}
+        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+      />
+    </div>
+  );
+};
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export function FinancialSeasonalPricingStep({
-  data,
-  onChange,
-}: FinancialSeasonalPricingStepProps) {
+export function FinancialSeasonalPricingStep() {
+  const { propertyId, goToNextStep, goToPreviousStep } = useWizardNavigation();
+  const { property, loading: loadingProperty, saveProperty } = usePropertyData(propertyId);
+  const [isSaving, setIsSaving] = useState(false);
+
   // Expanded sections state
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['config', 'fees']) // Abrir Config e Taxas por padrão
   );
+
+  const [formData, setFormData] = useState<FinancialSeasonalPricingData>({
+    configMode: 'global',
+    region: 'global',
+    currency: 'BRL',
+    discountPolicy: 'global',
+    longStayDiscount: 0,
+    weeklyDiscount: 0,
+    monthlyDiscount: 0,
+    depositMode: 'global',
+    depositAmount: 0,
+    depositCurrency: 'BRL',
+    dynamicPricingMode: 'global',
+    enableDynamicPricing: false,
+    feesMode: 'global',
+    cleaningFee: 0,
+    cleaningFeePaidBy: 'guest',
+    petFee: 0,
+    petFeePaidBy: 'guest',
+    extraServicesFee: 0,
+    extraServicesFeePaidBy: 'guest',
+  });
+
+  // ============================================================================
+  // INIT DATA
+  // ============================================================================
+
+  useEffect(() => {
+    if (property && property.wizardData?.financialSeasonalPricing) {
+      setFormData(prev => ({
+        ...prev,
+        ...property.wizardData.financialSeasonalPricing
+      }));
+    }
+  }, [property]);
 
   // ============================================================================
   // HANDLERS
   // ============================================================================
 
   const handleFieldChange = (field: keyof FinancialSeasonalPricingData, value: any) => {
-    onChange({
-      ...data,
-      [field]: value,
-    });
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        wizardData: {
+          financialSeasonalPricing: formData
+        }
+      };
+
+      const success = await saveProperty(payload);
+      if (success) {
+        goToNextStep();
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const toggleSection = (sectionId: string) => {
@@ -148,57 +261,6 @@ export function FinancialSeasonalPricingStep({
   const isSectionExpanded = (sectionId: string) => {
     return expandedSections.has(sectionId);
   };
-
-  // ============================================================================
-  // TOGGLE COMPONENT
-  // ============================================================================
-
-  const GlobalIndividualToggle = ({
-    value,
-    onChange,
-    disabled = false,
-  }: {
-    value: 'global' | 'individual';
-    onChange: (value: 'global' | 'individual') => void;
-    disabled?: boolean;
-  }) => (
-    <div className="inline-flex rounded-lg border border-border bg-muted/50 p-1">
-      <Button
-        type="button"
-        size="sm"
-        variant={value === 'global' ? 'default' : 'ghost'}
-        className={`
-          px-4 py-1 text-xs transition-all
-          ${
-            value === 'global'
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
-          }
-        `}
-        onClick={() => onChange('global')}
-        disabled={disabled}
-      >
-        Global
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant={value === 'individual' ? 'default' : 'ghost'}
-        className={`
-          px-4 py-1 text-xs transition-all
-          ${
-            value === 'individual'
-              ? 'bg-pink-600 text-white hover:bg-pink-700'
-              : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
-          }
-        `}
-        onClick={() => onChange('individual')}
-        disabled={disabled}
-      >
-        Individual
-      </Button>
-    </div>
-  );
 
   // ============================================================================
   // ACCORDION SECTION COMPONENT
@@ -259,46 +321,13 @@ export function FinancialSeasonalPricingStep({
     );
   };
 
-  // ============================================================================
-  // CURRENCY INPUT COMPONENT
-  // ============================================================================
 
-  const CurrencyInput = ({
-    value,
-    onChange,
-    currency,
-    placeholder = '0,00',
-  }: {
-    value: number;
-    onChange: (value: number) => void;
-    currency: string;
-    placeholder?: string;
-  }) => {
-    const currencyObj = CURRENCIES.find((c) => c.value === currency);
-    const symbol = currencyObj?.symbol || 'R$';
-
-    return (
-      <div className="flex items-center border rounded-lg overflow-hidden">
-        <div className="px-3 py-2 bg-green-50 border-r border-border">
-          <span className="text-sm font-medium text-green-700">{symbol}</span>
-        </div>
-        <Input
-          type="number"
-          value={value || ''}
-          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-          placeholder={placeholder}
-          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-        />
-      </div>
-    );
-  };
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
+  if (loadingProperty) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>;
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Header Alert */}
       <Alert>
         <Info className="h-4 w-4" />
@@ -320,13 +349,13 @@ export function FinancialSeasonalPricingStep({
               </CardDescription>
             </div>
             <GlobalIndividualToggle
-              value={data.configMode}
+              value={formData.configMode}
               onChange={(value) => handleFieldChange('configMode', value)}
             />
           </div>
         </CardHeader>
 
-        {data.configMode === 'global' && (
+        {formData.configMode === 'global' && (
           <CardContent>
             <Alert className="bg-blue-50 border-blue-200">
               <Info className="h-4 w-4 text-blue-600" />
@@ -340,7 +369,7 @@ export function FinancialSeasonalPricingStep({
       </Card>
 
       {/* Seções Expansíveis - Somente se Individual */}
-      {data.configMode === 'individual' && (
+      {formData.configMode === 'individual' && (
         <div className="space-y-4">
           {/* 1. CONFIGURAÇÃO BASE */}
           <AccordionSection
@@ -360,7 +389,7 @@ export function FinancialSeasonalPricingStep({
                   </span>
                 </Label>
                 <Select
-                  value={data.region}
+                  value={formData.region}
                   onValueChange={(value) => handleFieldChange('region', value)}
                 >
                   <SelectTrigger>
@@ -386,7 +415,7 @@ export function FinancialSeasonalPricingStep({
                 </Label>
                 <div className="flex gap-2">
                   <Select
-                    value={data.currency}
+                    value={formData.currency}
                     onValueChange={(value) => handleFieldChange('currency', value)}
                   >
                     <SelectTrigger className="flex-1">
@@ -417,12 +446,12 @@ export function FinancialSeasonalPricingStep({
             color="border-amber-500"
             badge={
               <GlobalIndividualToggle
-                value={data.discountPolicy}
+                value={formData.discountPolicy}
                 onChange={(value) => handleFieldChange('discountPolicy', value)}
               />
             }
           >
-            {data.discountPolicy === 'individual' ? (
+            {formData.discountPolicy === 'individual' ? (
               <div className="grid gap-4">
                 {/* Desconto Estadia Longa */}
                 <div className="space-y-2">
@@ -434,7 +463,7 @@ export function FinancialSeasonalPricingStep({
                     type="number"
                     min="0"
                     max="100"
-                    value={data.longStayDiscount || ''}
+                    value={formData.longStayDiscount || ''}
                     onChange={(e) =>
                       handleFieldChange('longStayDiscount', parseFloat(e.target.value) || 0)
                     }
@@ -452,7 +481,7 @@ export function FinancialSeasonalPricingStep({
                     type="number"
                     min="0"
                     max="100"
-                    value={data.weeklyDiscount || ''}
+                    value={formData.weeklyDiscount || ''}
                     onChange={(e) =>
                       handleFieldChange('weeklyDiscount', parseFloat(e.target.value) || 0)
                     }
@@ -470,7 +499,7 @@ export function FinancialSeasonalPricingStep({
                     type="number"
                     min="0"
                     max="100"
-                    value={data.monthlyDiscount || ''}
+                    value={formData.monthlyDiscount || ''}
                     onChange={(e) =>
                       handleFieldChange('monthlyDiscount', parseFloat(e.target.value) || 0)
                     }
@@ -498,12 +527,12 @@ export function FinancialSeasonalPricingStep({
             color="border-purple-500"
             badge={
               <GlobalIndividualToggle
-                value={data.depositMode}
+                value={formData.depositMode}
                 onChange={(value) => handleFieldChange('depositMode', value)}
               />
             }
           >
-            {data.depositMode === 'individual' ? (
+            {formData.depositMode === 'individual' ? (
               <div className="space-y-4">
                 <Alert className="bg-purple-50 border-purple-200">
                   <AlertCircle className="h-4 w-4 text-purple-600" />
@@ -521,9 +550,9 @@ export function FinancialSeasonalPricingStep({
                     </span>
                   </Label>
                   <CurrencyInput
-                    value={data.depositAmount}
+                    value={formData.depositAmount}
                     onChange={(value) => handleFieldChange('depositAmount', value)}
-                    currency={data.currency}
+                    currency={formData.depositCurrency}
                     placeholder="0,00"
                   />
                 </div>
@@ -547,12 +576,12 @@ export function FinancialSeasonalPricingStep({
             color="border-green-500"
             badge={
               <GlobalIndividualToggle
-                value={data.dynamicPricingMode}
+                value={formData.dynamicPricingMode}
                 onChange={(value) => handleFieldChange('dynamicPricingMode', value)}
               />
             }
           >
-            {data.dynamicPricingMode === 'individual' ? (
+            {formData.dynamicPricingMode === 'individual' ? (
               <div className="space-y-4">
                 <Alert className="bg-green-50 border-green-200">
                   <Info className="h-4 w-4 text-green-600" />
@@ -573,17 +602,17 @@ export function FinancialSeasonalPricingStep({
                   </div>
                   <Button
                     type="button"
-                    variant={data.enableDynamicPricing ? 'default' : 'outline'}
+                    variant={formData.enableDynamicPricing ? 'default' : 'outline'}
                     size="sm"
                     onClick={() =>
-                      handleFieldChange('enableDynamicPricing', !data.enableDynamicPricing)
+                      handleFieldChange('enableDynamicPricing', !formData.enableDynamicPricing)
                     }
                   >
-                    {data.enableDynamicPricing ? 'Ativado' : 'Desativado'}
+                    {formData.enableDynamicPricing ? 'Ativado' : 'Desativado'}
                   </Button>
                 </div>
 
-                {data.enableDynamicPricing && (
+                {formData.enableDynamicPricing && (
                   <Alert>
                     <Info className="h-4 w-4" />
                     <AlertDescription className="text-xs">
@@ -626,12 +655,12 @@ export function FinancialSeasonalPricingStep({
                   </p>
                 </div>
                 <GlobalIndividualToggle
-                  value={data.feesMode}
+                  value={formData.feesMode}
                   onChange={(value) => handleFieldChange('feesMode', value)}
                 />
               </div>
 
-              {data.feesMode === 'individual' ? (
+              {formData.feesMode === 'individual' ? (
                 <div className="space-y-6">
                   {/* Taxa de Limpeza */}
                   <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
@@ -645,9 +674,9 @@ export function FinancialSeasonalPricingStep({
                     </div>
                     <div className="grid gap-3">
                       <CurrencyInput
-                        value={data.cleaningFee}
+                        value={formData.cleaningFee}
                         onChange={(value) => handleFieldChange('cleaningFee', value)}
-                        currency={data.currency}
+                        currency={formData.currency}
                         placeholder="0,00"
                       />
                       <div className="space-y-2">
@@ -655,7 +684,7 @@ export function FinancialSeasonalPricingStep({
                           Quem paga esta taxa?
                         </Label>
                         <Select
-                          value={data.cleaningFeePaidBy}
+                          value={formData.cleaningFeePaidBy}
                           onValueChange={(value) =>
                             handleFieldChange('cleaningFeePaidBy', value)
                           }
@@ -680,9 +709,9 @@ export function FinancialSeasonalPricingStep({
                     <Label className="text-sm font-medium">Taxa Extra por Pet</Label>
                     <div className="grid gap-3">
                       <CurrencyInput
-                        value={data.petFee}
+                        value={formData.petFee}
                         onChange={(value) => handleFieldChange('petFee', value)}
-                        currency={data.currency}
+                        currency={formData.currency}
                         placeholder="0,00"
                       />
                       <div className="space-y-2">
@@ -690,7 +719,7 @@ export function FinancialSeasonalPricingStep({
                           Quem paga esta taxa?
                         </Label>
                         <Select
-                          value={data.petFeePaidBy}
+                          value={formData.petFeePaidBy}
                           onValueChange={(value) => handleFieldChange('petFeePaidBy', value)}
                         >
                           <SelectTrigger>
@@ -718,9 +747,9 @@ export function FinancialSeasonalPricingStep({
                     </Label>
                     <div className="grid gap-3">
                       <CurrencyInput
-                        value={data.extraServicesFee}
+                        value={formData.extraServicesFee}
                         onChange={(value) => handleFieldChange('extraServicesFee', value)}
-                        currency={data.currency}
+                        currency={formData.currency}
                         placeholder="0,00"
                       />
                       <div className="space-y-2">
@@ -728,7 +757,7 @@ export function FinancialSeasonalPricingStep({
                           Quem paga esta taxa?
                         </Label>
                         <Select
-                          value={data.extraServicesFeePaidBy}
+                          value={formData.extraServicesFeePaidBy}
                           onValueChange={(value) =>
                             handleFieldChange('extraServicesFeePaidBy', value)
                           }
@@ -771,6 +800,18 @@ export function FinancialSeasonalPricingStep({
           preços específicos.
         </AlertDescription>
       </Alert>
+
+      {/* ACTION BUTTONS */}
+      <div className="fixed bottom-0 left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-between items-center z-10">
+        <div className="text-sm text-muted-foreground">
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={isSaving} onClick={goToPreviousStep}>Voltar</Button>
+          <Button onClick={handleSave} disabled={isSaving || loadingProperty}>
+            {isSaving ? 'Salvando...' : 'Salvar e Avançar'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

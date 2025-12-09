@@ -1,22 +1,12 @@
 /**
  * RENDIZY - Financial Individual Pricing Step
+ * Refatorado para arquitetura URL-Driven (Phase 3)
  * 
- * Step 4 do wizard financeiro: Precificação Individual de Temporada
- * 
- * FUNCIONALIDADES:
- * - Preço base por noite
- * - Períodos sazonais com preços específicos
- * - Descontos por permanência (semanal, mensal)
- * - Preços por dia da semana
- * - Datas especiais (feriados, eventos)
- * - Preview de calendário
- * - Modo Global vs Individual
- * 
- * @version 1.0.103.131
- * @date 2025-10-30
+ * @version 1.0.104.0
+ * @date 2025-12-06
  */
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DollarSign,
   Calendar,
@@ -37,11 +27,11 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { useWizardNavigation } from '../../hooks/useWizardNavigation';
+import { usePropertyData } from '../../hooks/usePropertyData';
 
 // ============================================================================
 // TYPES
@@ -79,32 +69,27 @@ interface SpecialDate {
 interface FinancialIndividualPricingData {
   // Modo
   pricingMode: 'global' | 'individual';
-  
+
   // Preço Base
   basePricePerNight: number;
   currency: string;
-  
+
   // Descontos por Permanência
   enableStayDiscounts: boolean;
   weeklyDiscount: number; // Percentual
   monthlyDiscount: number; // Percentual
-  
+
   // Períodos Sazonais
   enableSeasonalPricing: boolean;
   seasonalPeriods: SeasonalPeriod[];
-  
+
   // Preços por Dia da Semana
   enableWeekdayPricing: boolean;
   weekdayPricing: WeekdayPricing;
-  
+
   // Datas Especiais
   enableSpecialDates: boolean;
   specialDates: SpecialDate[];
-}
-
-interface FinancialIndividualPricingStepProps {
-  data: FinancialIndividualPricingData;
-  onChange: (data: FinancialIndividualPricingData) => void;
 }
 
 // ============================================================================
@@ -132,19 +117,74 @@ const WEEKDAYS = [
 // MAIN COMPONENT
 // ============================================================================
 
-export function FinancialIndividualPricingStep({
-  data,
-  onChange,
-}: FinancialIndividualPricingStepProps) {
+export function FinancialIndividualPricingStep() {
+  const { propertyId, goToNextStep, goToPreviousStep } = useWizardNavigation();
+  const { property, loading: loadingProperty, saveProperty } = usePropertyData(propertyId);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [formData, setFormData] = useState<FinancialIndividualPricingData>({
+    pricingMode: 'global',
+    basePricePerNight: 0,
+    currency: 'BRL',
+    enableStayDiscounts: false,
+    weeklyDiscount: 0,
+    monthlyDiscount: 0,
+    enableSeasonalPricing: false,
+    seasonalPeriods: [],
+    enableWeekdayPricing: false,
+    weekdayPricing: {
+      monday: 0,
+      tuesday: 0,
+      wednesday: 0,
+      thursday: 0,
+      friday: 0,
+      saturday: 0,
+      sunday: 0,
+    },
+    enableSpecialDates: false,
+    specialDates: [],
+  });
+
+  // ============================================================================
+  // INIT DATA
+  // ============================================================================
+
+  useEffect(() => {
+    if (property && property.wizardData?.financialIndividualPricing) {
+      setFormData(prev => ({
+        ...prev,
+        ...property.wizardData.financialIndividualPricing
+      }));
+    }
+  }, [property]);
+
   // ============================================================================
   // HANDLERS
   // ============================================================================
 
   const handleFieldChange = (field: keyof FinancialIndividualPricingData, value: any) => {
-    onChange({
-      ...data,
-      [field]: value,
-    });
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        wizardData: {
+          financialIndividualPricing: formData
+        }
+      };
+
+      const success = await saveProperty(payload);
+      if (success) {
+        goToNextStep();
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const addSeasonalPeriod = () => {
@@ -153,24 +193,24 @@ export function FinancialIndividualPricingStep({
       name: 'Nova Temporada',
       startDate: '',
       endDate: '',
-      pricePerNight: data.basePricePerNight || 0,
+      pricePerNight: formData.basePricePerNight || 0,
       minNights: 1,
       color: 'blue',
       icon: Sun,
     };
 
-    handleFieldChange('seasonalPeriods', [...(data.seasonalPeriods || []), newPeriod]);
+    handleFieldChange('seasonalPeriods', [...(formData.seasonalPeriods || []), newPeriod]);
   };
 
   const updateSeasonalPeriod = (id: string, field: keyof SeasonalPeriod, value: any) => {
-    const updated = (data.seasonalPeriods || []).map((period) =>
+    const updated = (formData.seasonalPeriods || []).map((period) =>
       period.id === id ? { ...period, [field]: value } : period
     );
     handleFieldChange('seasonalPeriods', updated);
   };
 
   const removeSeasonalPeriod = (id: string) => {
-    const filtered = (data.seasonalPeriods || []).filter((period) => period.id !== id);
+    const filtered = (formData.seasonalPeriods || []).filter((period) => period.id !== id);
     handleFieldChange('seasonalPeriods', filtered);
   };
 
@@ -179,28 +219,28 @@ export function FinancialIndividualPricingStep({
       id: `special_${Date.now()}`,
       name: 'Data Especial',
       date: '',
-      pricePerNight: (data.basePricePerNight || 0) * 1.5,
+      pricePerNight: (formData.basePricePerNight || 0) * 1.5,
       minNights: 1,
     };
 
-    handleFieldChange('specialDates', [...(data.specialDates || []), newDate]);
+    handleFieldChange('specialDates', [...(formData.specialDates || []), newDate]);
   };
 
   const updateSpecialDate = (id: string, field: keyof SpecialDate, value: any) => {
-    const updated = (data.specialDates || []).map((date) =>
+    const updated = (formData.specialDates || []).map((date) =>
       date.id === id ? { ...date, [field]: value } : date
     );
     handleFieldChange('specialDates', updated);
   };
 
   const removeSpecialDate = (id: string) => {
-    const filtered = (data.specialDates || []).filter((date) => date.id !== id);
+    const filtered = (formData.specialDates || []).filter((date) => date.id !== id);
     handleFieldChange('specialDates', filtered);
   };
 
   const updateWeekdayPrice = (day: keyof WeekdayPricing, value: number) => {
     handleFieldChange('weekdayPricing', {
-      ...(data.weekdayPricing || {
+      ...(formData.weekdayPricing || {
         monday: 0,
         tuesday: 0,
         wednesday: 0,
@@ -214,15 +254,15 @@ export function FinancialIndividualPricingStep({
   };
 
   const getCurrencySymbol = () => {
-    return CURRENCIES.find((c) => c.value === data.currency)?.symbol || 'R$';
+    return CURRENCIES.find((c) => c.value === formData.currency)?.symbol || 'R$';
   };
 
-  // ============================================================================
-  // RENDER
-  // ============================================================================
+  if (loadingProperty) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>;
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Header Info */}
       <Alert>
         <DollarSign className="h-4 w-4" />
@@ -254,13 +294,12 @@ export function FinancialIndividualPricingStep({
             <Button
               type="button"
               size="sm"
-              variant={data.pricingMode === 'global' ? 'default' : 'ghost'}
+              variant={formData.pricingMode === 'global' ? 'default' : 'ghost'}
               className={`
                 px-4 py-1 text-xs transition-all
-                ${
-                  data.pricingMode === 'global'
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
+                ${formData.pricingMode === 'global'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
                 }
               `}
               onClick={() => handleFieldChange('pricingMode', 'global')}
@@ -270,13 +309,12 @@ export function FinancialIndividualPricingStep({
             <Button
               type="button"
               size="sm"
-              variant={data.pricingMode === 'individual' ? 'default' : 'ghost'}
+              variant={formData.pricingMode === 'individual' ? 'default' : 'ghost'}
               className={`
                 px-4 py-1 text-xs transition-all
-                ${
-                  data.pricingMode === 'individual'
-                    ? 'bg-pink-600 text-white hover:bg-pink-700'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
+                ${formData.pricingMode === 'individual'
+                  ? 'bg-pink-600 text-white hover:bg-pink-700'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
                 }
               `}
               onClick={() => handleFieldChange('pricingMode', 'individual')}
@@ -285,7 +323,7 @@ export function FinancialIndividualPricingStep({
             </Button>
           </div>
 
-          {data.pricingMode === 'global' && (
+          {formData.pricingMode === 'global' && (
             <div className="mt-4 space-y-4">
               <Alert>
                 <Info className="h-4 w-4" />
@@ -346,7 +384,7 @@ export function FinancialIndividualPricingStep({
       </Card>
 
       {/* Conteúdo Individual */}
-      {data.pricingMode === 'individual' && (
+      {formData.pricingMode === 'individual' && (
         <>
           {/* 1. PREÇO BASE */}
           <Card className="border-l-4 border-green-500">
@@ -369,7 +407,7 @@ export function FinancialIndividualPricingStep({
               <div className="space-y-2">
                 <Label>Moeda</Label>
                 <Select
-                  value={data.currency}
+                  value={formData.currency}
                   onValueChange={(value) => handleFieldChange('currency', value)}
                 >
                   <SelectTrigger>
@@ -398,7 +436,7 @@ export function FinancialIndividualPricingStep({
                     type="number"
                     min="0"
                     step="0.01"
-                    value={data.basePricePerNight || ''}
+                    value={formData.basePricePerNight || ''}
                     onChange={(e) =>
                       handleFieldChange('basePricePerNight', parseFloat(e.target.value) || 0)
                     }
@@ -424,7 +462,7 @@ export function FinancialIndividualPricingStep({
                   </CardDescription>
                 </div>
                 <Switch
-                  checked={data.enableStayDiscounts}
+                  checked={formData.enableStayDiscounts}
                   onCheckedChange={(checked) =>
                     handleFieldChange('enableStayDiscounts', checked)
                   }
@@ -432,7 +470,7 @@ export function FinancialIndividualPricingStep({
               </div>
             </CardHeader>
 
-            {data.enableStayDiscounts && (
+            {formData.enableStayDiscounts && (
               <CardContent className="space-y-4">
                 {/* Desconto Semanal */}
                 <div className="space-y-2">
@@ -443,7 +481,7 @@ export function FinancialIndividualPricingStep({
                       min="0"
                       max="100"
                       step="1"
-                      value={data.weeklyDiscount || ''}
+                      value={formData.weeklyDiscount || ''}
                       onChange={(e) =>
                         handleFieldChange('weeklyDiscount', parseFloat(e.target.value) || 0)
                       }
@@ -465,7 +503,7 @@ export function FinancialIndividualPricingStep({
                       min="0"
                       max="100"
                       step="1"
-                      value={data.monthlyDiscount || ''}
+                      value={formData.monthlyDiscount || ''}
                       onChange={(e) =>
                         handleFieldChange('monthlyDiscount', parseFloat(e.target.value) || 0)
                       }
@@ -495,7 +533,7 @@ export function FinancialIndividualPricingStep({
                   </CardDescription>
                 </div>
                 <Switch
-                  checked={data.enableSeasonalPricing}
+                  checked={formData.enableSeasonalPricing}
                   onCheckedChange={(checked) =>
                     handleFieldChange('enableSeasonalPricing', checked)
                   }
@@ -503,7 +541,7 @@ export function FinancialIndividualPricingStep({
               </div>
             </CardHeader>
 
-            {data.enableSeasonalPricing && (
+            {formData.enableSeasonalPricing && (
               <CardContent className="space-y-4">
                 <Button
                   type="button"
@@ -516,7 +554,7 @@ export function FinancialIndividualPricingStep({
                   Adicionar Período Sazonal
                 </Button>
 
-                {(!data.seasonalPeriods || data.seasonalPeriods.length === 0) && (
+                {(!formData.seasonalPeriods || formData.seasonalPeriods.length === 0) && (
                   <Alert>
                     <Info className="h-4 w-4" />
                     <AlertDescription className="text-xs">
@@ -526,7 +564,7 @@ export function FinancialIndividualPricingStep({
                   </Alert>
                 )}
 
-                {data.seasonalPeriods && data.seasonalPeriods.map((period) => (
+                {formData.seasonalPeriods && formData.seasonalPeriods.map((period) => (
                   <div
                     key={period.id}
                     className="p-4 border rounded-lg bg-muted/20 space-y-3"
@@ -636,7 +674,7 @@ export function FinancialIndividualPricingStep({
                   </CardDescription>
                 </div>
                 <Switch
-                  checked={data.enableWeekdayPricing}
+                  checked={formData.enableWeekdayPricing}
                   onCheckedChange={(checked) =>
                     handleFieldChange('enableWeekdayPricing', checked)
                   }
@@ -644,7 +682,7 @@ export function FinancialIndividualPricingStep({
               </div>
             </CardHeader>
 
-            {data.enableWeekdayPricing && (
+            {formData.enableWeekdayPricing && (
               <CardContent className="space-y-3">
                 {WEEKDAYS.map((day) => (
                   <div key={day.key} className="flex items-center gap-3">
@@ -659,7 +697,7 @@ export function FinancialIndividualPricingStep({
                         type="number"
                         min="0"
                         step="0.01"
-                        value={data.weekdayPricing?.[day.key as keyof WeekdayPricing] || ''}
+                        value={formData.weekdayPricing?.[day.key as keyof WeekdayPricing] || ''}
                         onChange={(e) =>
                           updateWeekdayPrice(
                             day.key as keyof WeekdayPricing,
@@ -690,13 +728,13 @@ export function FinancialIndividualPricingStep({
                   </CardDescription>
                 </div>
                 <Switch
-                  checked={data.enableSpecialDates}
+                  checked={formData.enableSpecialDates}
                   onCheckedChange={(checked) => handleFieldChange('enableSpecialDates', checked)}
                 />
               </div>
             </CardHeader>
 
-            {data.enableSpecialDates && (
+            {formData.enableSpecialDates && (
               <CardContent className="space-y-4">
                 <Button
                   type="button"
@@ -709,7 +747,7 @@ export function FinancialIndividualPricingStep({
                   Adicionar Data Especial
                 </Button>
 
-                {data.specialDates && data.specialDates.map((specialDate) => (
+                {formData.specialDates && formData.specialDates.map((specialDate) => (
                   <div
                     key={specialDate.id}
                     className="p-4 border rounded-lg bg-muted/20 space-y-3"
@@ -793,17 +831,29 @@ export function FinancialIndividualPricingStep({
         </>
       )}
 
-      {/* Help */}
-      {data.pricingMode === 'individual' && (
+      {/* Footer Help */}
+      {formData.pricingMode === 'individual' && (
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            <strong>Dica:</strong> A ordem de prioridade é: Datas Especiais → Períodos Sazonais
-            → Dia da Semana → Preço Base. Configure primeiro o preço base e depois os ajustes
-            sazonais.
+            <strong>Dica:</strong> Mantenha seus preços baseados na análise de mercado.
+            Preços dinâmicos podem ser configurados na etapa anterior para automatizar
+            ajustes.
           </AlertDescription>
         </Alert>
       )}
+
+      {/* ACTION BUTTONS */}
+      <div className="fixed bottom-0 left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-between items-center z-10">
+        <div className="text-sm text-muted-foreground">
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={isSaving} onClick={goToPreviousStep}>Voltar</Button>
+          <Button onClick={handleSave} disabled={isSaving || loadingProperty}>
+            {isSaving ? 'Salvando...' : 'Salvar e Avançar'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

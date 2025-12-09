@@ -1,13 +1,9 @@
 /**
  * RENDIZY - Content Amenities Step (PASSO 5)
+ * Refatorado para arquitetura URL-Driven (Phase 2)
  * 
- * Step 5: Amenidades da Acomodação (SEMPRE EDITÁVEL)
- * Seleção de amenidades específicas da unidade/acomodação
- * 
- * @version 1.0.103.81
- * @date 2025-10-30
- * 
- * v1.0.103.81: Adicionado collapse/expand por categoria
+ * @version 1.0.104.0
+ * @date 2025-12-06
  */
 
 import { useState, useEffect } from 'react';
@@ -23,6 +19,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -30,49 +27,35 @@ import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { LISTING_AMENITIES } from '../../utils/amenities-categories';
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-interface ContentAmenitiesStepProps {
-  value: {
-    listingAmenities?: string[]; // Amenidades da Acomodação (sempre editável)
-  };
-  onChange: (data: any) => void;
-}
+import { useWizardNavigation } from '../../hooks/useWizardNavigation';
+import { usePropertyData } from '../../hooks/usePropertyData';
+import { toast } from 'sonner';
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export default function ContentAmenitiesStep({
-  value = {},
-  onChange,
-}: ContentAmenitiesStepProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedAmenities, setSelectedAmenities] = useState<string[]>(
-    value.listingAmenities || []
-  );
+export default function ContentAmenitiesStep() {
+  const { propertyId, goToNextStep, goToPreviousStep } = useWizardNavigation();
+  const { property, loading: loadingProperty, saveProperty } = usePropertyData(propertyId);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Estado para controlar quais categorias estão expandidas
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set() // Todas fechadas por padrão
-  );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   // ============================================================================
-  // UPDATE PARENT
+  // INIT DATA
   // ============================================================================
 
   useEffect(() => {
-    onChange({
-      ...value,
-      listingAmenities: selectedAmenities,
-    });
-  }, [selectedAmenities]);
+    if (property && property.wizardData?.contentAmenities) {
+      setSelectedAmenities(property.wizardData.contentAmenities.propertyAmenities || []);
+    }
+  }, [property]);
 
   // ============================================================================
-  // CATEGORY TOGGLE
+  // HANDLERS
   // ============================================================================
 
   const toggleCategory = (categoryId: string) => {
@@ -87,10 +70,6 @@ export default function ContentAmenitiesStep({
     });
   };
 
-  // ============================================================================
-  // AMENITY SELECTION
-  // ============================================================================
-
   const toggleAmenity = (amenityId: string) => {
     setSelectedAmenities((prev) => {
       if (prev.includes(amenityId)) {
@@ -99,6 +78,27 @@ export default function ContentAmenitiesStep({
         return [...prev, amenityId];
       }
     });
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        wizardData: {
+          contentAmenities: {
+            propertyAmenities: selectedAmenities,
+            inheritLocationAmenities: true // Default behavior
+          }
+        }
+      };
+
+      const success = await saveProperty(payload);
+      if (success) {
+        goToNextStep();
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ============================================================================
@@ -126,8 +126,12 @@ export default function ContentAmenitiesStep({
   // RENDER
   // ============================================================================
 
+  if (loadingProperty) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>;
+  }
+
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="space-y-6 pb-20">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3 mb-2">
@@ -241,11 +245,10 @@ export default function ContentAmenitiesStep({
                           return (
                             <div
                               key={amenity.id}
-                              className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                                isChecked
+                              className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${isChecked
                                   ? 'bg-green-50 border-green-200'
                                   : 'bg-white border-gray-200 hover:border-gray-300'
-                              }`}
+                                }`}
                               onClick={() => toggleAmenity(amenity.id)}
                             >
                               <Checkbox
@@ -284,6 +287,18 @@ export default function ContentAmenitiesStep({
             {totalSelected === 1 ? 'amenidade' : 'amenidades'}. Essas informações ajudarão os
             hóspedes a escolher sua acomodação.
           </p>
+        </div>
+      </div>
+
+      {/* ACTION BUTTONS */}
+      <div className="fixed bottom-0 left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-between items-center z-10">
+        <div className="text-sm text-muted-foreground">
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={isSaving} onClick={goToPreviousStep}>Voltar</Button>
+          <Button onClick={handleSave} disabled={isSaving || loadingProperty}>
+            {isSaving ? 'Salvando...' : 'Salvar e Avançar'}
+          </Button>
         </div>
       </div>
     </div>
