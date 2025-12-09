@@ -1,13 +1,12 @@
 /**
  * RENDIZY - Financial Residential & Sales Pricing Step
+ * Refatorado para arquitetura URL-Driven (Phase 3)
  * 
- * PASSO 2 FINANCEIRO: Preços Locação Residencial e Venda de Imóveis
- * 
- * @version 1.0.103.121
- * @date 2025-10-30
+ * @version 1.0.104.0
+ * @date 2025-12-06
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -15,12 +14,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Calendar } from '../ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { CalendarIcon, DollarSign, Home, TrendingUp, Info, AlertCircle, ChevronDown } from 'lucide-react';
+import { CalendarIcon, Home, TrendingUp, Info, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Alert, AlertDescription } from '../ui/alert';
 import { cn } from '../ui/utils';
-import { Card, CardContent } from '../ui/card';
+import { useWizardNavigation } from '../../hooks/useWizardNavigation';
+import { usePropertyData } from '../../hooks/usePropertyData';
 
 // ============================================================================
 // TYPES
@@ -32,12 +32,12 @@ interface FormData {
   securityDeposit?: number;
   condoFee?: number;
   iptuMonthly?: number;
-  rentalStartDate?: Date;
+  rentalStartDate?: Date | string;
   minContractMonths?: number;
   maxContractMonths?: number;
   rentAdjustmentIndex?: 'IGPM' | 'IPCA' | 'CDI' | 'FIXED';
   rentAdjustmentMonths?: number;
-  
+
   // COMPRA E VENDA
   salePrice?: number;
   condoFeeOwner?: number;
@@ -47,31 +47,24 @@ interface FormData {
   acceptsTrade: boolean;
   exclusiveSale: boolean;
   commissionPercentage?: number;
-  
+
   // COMPARTILHADO
   priceType: 'rental' | 'sale' | 'both';
-}
-
-interface FinancialResidentialPricingStepProps {
-  data: FormData;
-  onChange: (data: FormData) => void;
-  categories?: string[];
 }
 
 // ============================================================================
 // SUB-COMPONENTS
 // ============================================================================
 
-/** Componente de Seção Colapsável */
-const CollapsibleSection = ({ 
-  title, 
+const CollapsibleSection = ({
+  title,
   description,
   icon: Icon,
   children,
   variant = 'default',
   defaultOpen = true,
-}: { 
-  title: string; 
+}: {
+  title: string;
   description?: string;
   icon?: any;
   children: React.ReactNode;
@@ -101,7 +94,6 @@ const CollapsibleSection = ({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
       <div className={cn("border rounded-lg overflow-hidden", colors[variant])}>
-        {/* Header Clicável */}
         <CollapsibleTrigger className="w-full">
           <div className={cn("p-4 flex items-center justify-between hover:opacity-80 transition-opacity", headerColors[variant])}>
             <div className="flex items-center gap-3">
@@ -118,26 +110,16 @@ const CollapsibleSection = ({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div 
-                className="px-3 py-1.5 text-sm rounded-md hover:bg-gray-100 transition-colors cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // TODO: Implementar salvamento automático
-                }}
-              >
-                Salvar
-              </div>
-              <ChevronDown 
+              <ChevronDown
                 className={cn(
                   "h-5 w-5 text-gray-500 transition-transform duration-200",
                   isOpen && "transform rotate-180"
-                )} 
+                )}
               />
             </div>
           </div>
         </CollapsibleTrigger>
 
-        {/* Conteúdo */}
         <CollapsibleContent>
           <div className="p-6 space-y-6 border-t">
             {children}
@@ -152,29 +134,91 @@ const CollapsibleSection = ({
 // MAIN COMPONENT
 // ============================================================================
 
-export function FinancialResidentialPricingStep({
-  data,
-  onChange,
-  categories = []
-}: FinancialResidentialPricingStepProps) {
+export function FinancialResidentialPricingStep() {
+  const { propertyId, goToNextStep, goToPreviousStep } = useWizardNavigation();
+  const { property, loading: loadingProperty, saveProperty } = usePropertyData(propertyId);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [formData, setFormData] = useState<FormData>({
+    monthlyRent: undefined,
+    securityDeposit: undefined,
+    condoFee: undefined,
+    iptuMonthly: undefined,
+    rentalStartDate: undefined,
+    minContractMonths: undefined,
+    maxContractMonths: undefined,
+    rentAdjustmentIndex: 'IGPM',
+    rentAdjustmentMonths: 12,
+    salePrice: undefined,
+    condoFeeOwner: undefined,
+    iptuAnnual: undefined,
+    propertyAge: undefined,
+    acceptsFinancing: false,
+    acceptsTrade: false,
+    exclusiveSale: false,
+    commissionPercentage: 6.0,
+    priceType: 'both', // Default safe value, logic handles rendering both sections
+  });
+
+  // ============================================================================
+  // INIT DATA
+  // ============================================================================
+
+  useEffect(() => {
+    if (property && property.wizardData?.financialResidentialPricing) {
+      setFormData(prev => ({
+        ...prev,
+        ...property.wizardData.financialResidentialPricing
+      }));
+    }
+  }, [property]);
+
+  // ============================================================================
+  // HANDLERS
+  // ============================================================================
+
   const handleChange = (field: keyof FormData, value: any) => {
-    onChange({
-      ...data,
+    setFormData(prev => ({
+      ...prev,
       [field]: value
-    });
+    }));
   };
 
-  // Sempre mostra AMBAS as seções (Locação E Venda)
-  const showRental = true;
-  const showSale = true;
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        wizardData: {
+          financialResidentialPricing: formData
+        }
+      };
+
+      const success = await saveProperty(payload);
+      if (success) {
+        goToNextStep();
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Helper
+  const getDateObject = (date?: Date | string) => {
+    if (!date) return undefined;
+    return typeof date === 'string' ? new Date(date) : date;
+  };
+
+  if (loadingProperty) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>;
+  }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto pb-20">
       {/* Alert Informativo */}
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Configure os valores para locação residencial e/ou venda de imóveis. 
+          Configure os valores para locação residencial e/ou venda de imóveis.
           Clique nas setinhas para expandir ou recolher cada seção.
         </AlertDescription>
       </Alert>
@@ -193,7 +237,6 @@ export function FinancialResidentialPricingStep({
         <div className="space-y-2">
           <Label htmlFor="monthlyRent" className="flex items-center gap-2">
             Valor do Aluguel Mensal
-            <span className="text-red-500">*</span>
           </Label>
           <p className="text-xs text-gray-600">
             Valor base do aluguel cobrado mensalmente, sem incluir condomínio ou IPTU.
@@ -206,7 +249,7 @@ export function FinancialResidentialPricingStep({
               min="0"
               step="0.01"
               placeholder="0,00"
-              value={data.monthlyRent || ''}
+              value={formData.monthlyRent || ''}
               onChange={(e) => handleChange('monthlyRent', parseFloat(e.target.value) || undefined)}
               className="pl-10"
             />
@@ -227,7 +270,7 @@ export function FinancialResidentialPricingStep({
               min="0"
               step="0.01"
               placeholder="0,00"
-              value={data.securityDeposit || ''}
+              value={formData.securityDeposit || ''}
               onChange={(e) => handleChange('securityDeposit', parseFloat(e.target.value) || undefined)}
               className="pl-10"
             />
@@ -248,7 +291,7 @@ export function FinancialResidentialPricingStep({
               min="0"
               step="0.01"
               placeholder="0,00"
-              value={data.condoFee || ''}
+              value={formData.condoFee || ''}
               onChange={(e) => handleChange('condoFee', parseFloat(e.target.value) || undefined)}
               className="pl-10"
             />
@@ -269,7 +312,7 @@ export function FinancialResidentialPricingStep({
               min="0"
               step="0.01"
               placeholder="0,00"
-              value={data.iptuMonthly || ''}
+              value={formData.iptuMonthly || ''}
               onChange={(e) => handleChange('iptuMonthly', parseFloat(e.target.value) || undefined)}
               className="pl-10"
             />
@@ -299,12 +342,12 @@ export function FinancialResidentialPricingStep({
                 variant="outline"
                 className={cn(
                   "w-full justify-start text-left font-normal",
-                  !data.rentalStartDate && "text-muted-foreground"
+                  !formData.rentalStartDate && "text-muted-foreground"
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {data.rentalStartDate ? (
-                  format(data.rentalStartDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                {formData.rentalStartDate ? (
+                  format(getDateObject(formData.rentalStartDate)!, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
                 ) : (
                   <span>Selecione a data</span>
                 )}
@@ -313,7 +356,7 @@ export function FinancialResidentialPricingStep({
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
-                selected={data.rentalStartDate}
+                selected={getDateObject(formData.rentalStartDate)}
                 onSelect={(date) => handleChange('rentalStartDate', date)}
                 initialFocus
                 locale={ptBR}
@@ -333,7 +376,7 @@ export function FinancialResidentialPricingStep({
                 type="number"
                 min="1"
                 placeholder="12"
-                value={data.minContractMonths || ''}
+                value={formData.minContractMonths || ''}
                 onChange={(e) => handleChange('minContractMonths', parseInt(e.target.value) || undefined)}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">meses</span>
@@ -349,7 +392,7 @@ export function FinancialResidentialPricingStep({
                 type="number"
                 min="1"
                 placeholder="36"
-                value={data.maxContractMonths || ''}
+                value={formData.maxContractMonths || ''}
                 onChange={(e) => handleChange('maxContractMonths', parseInt(e.target.value) || undefined)}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">meses</span>
@@ -364,7 +407,7 @@ export function FinancialResidentialPricingStep({
             Qual índice será usado para reajustar o valor do aluguel anualmente?
           </p>
           <Select
-            value={data.rentAdjustmentIndex}
+            value={formData.rentAdjustmentIndex}
             onValueChange={(value: any) => handleChange('rentAdjustmentIndex', value)}
           >
             <SelectTrigger id="rentAdjustmentIndex">
@@ -390,7 +433,7 @@ export function FinancialResidentialPricingStep({
               type="number"
               min="1"
               placeholder="12"
-              value={data.rentAdjustmentMonths || ''}
+              value={formData.rentAdjustmentMonths || ''}
               onChange={(e) => handleChange('rentAdjustmentMonths', parseInt(e.target.value) || undefined)}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">meses</span>
@@ -425,7 +468,7 @@ export function FinancialResidentialPricingStep({
               min="0"
               step="0.01"
               placeholder="0,00"
-              value={data.salePrice || ''}
+              value={formData.salePrice || ''}
               onChange={(e) => handleChange('salePrice', parseFloat(e.target.value) || undefined)}
               className="pl-10"
             />
@@ -446,7 +489,7 @@ export function FinancialResidentialPricingStep({
               min="0"
               step="0.01"
               placeholder="0,00"
-              value={data.condoFeeOwner || ''}
+              value={formData.condoFeeOwner || ''}
               onChange={(e) => handleChange('condoFeeOwner', parseFloat(e.target.value) || undefined)}
               className="pl-10"
             />
@@ -467,7 +510,7 @@ export function FinancialResidentialPricingStep({
               min="0"
               step="0.01"
               placeholder="0,00"
-              value={data.iptuAnnual || ''}
+              value={formData.iptuAnnual || ''}
               onChange={(e) => handleChange('iptuAnnual', parseFloat(e.target.value) || undefined)}
               className="pl-10"
             />
@@ -486,7 +529,7 @@ export function FinancialResidentialPricingStep({
               type="number"
               min="0"
               placeholder="0"
-              value={data.propertyAge || ''}
+              value={formData.propertyAge || ''}
               onChange={(e) => handleChange('propertyAge', parseInt(e.target.value) || undefined)}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">anos</span>
@@ -513,7 +556,7 @@ export function FinancialResidentialPricingStep({
           <div className="flex gap-2">
             <Button
               type="button"
-              variant={data.acceptsFinancing ? "default" : "outline"}
+              variant={formData.acceptsFinancing ? "default" : "outline"}
               size="sm"
               className="flex-1"
               onClick={() => handleChange('acceptsFinancing', true)}
@@ -522,7 +565,7 @@ export function FinancialResidentialPricingStep({
             </Button>
             <Button
               type="button"
-              variant={!data.acceptsFinancing ? "default" : "outline"}
+              variant={!formData.acceptsFinancing ? "default" : "outline"}
               size="sm"
               className="flex-1"
               onClick={() => handleChange('acceptsFinancing', false)}
@@ -541,7 +584,7 @@ export function FinancialResidentialPricingStep({
           <div className="flex gap-2">
             <Button
               type="button"
-              variant={data.acceptsTrade ? "default" : "outline"}
+              variant={formData.acceptsTrade ? "default" : "outline"}
               size="sm"
               className="flex-1"
               onClick={() => handleChange('acceptsTrade', true)}
@@ -550,7 +593,7 @@ export function FinancialResidentialPricingStep({
             </Button>
             <Button
               type="button"
-              variant={!data.acceptsTrade ? "default" : "outline"}
+              variant={!formData.acceptsTrade ? "default" : "outline"}
               size="sm"
               className="flex-1"
               onClick={() => handleChange('acceptsTrade', false)}
@@ -569,7 +612,7 @@ export function FinancialResidentialPricingStep({
           <div className="flex gap-2">
             <Button
               type="button"
-              variant={data.exclusiveSale ? "default" : "outline"}
+              variant={formData.exclusiveSale ? "default" : "outline"}
               size="sm"
               className="flex-1"
               onClick={() => handleChange('exclusiveSale', true)}
@@ -578,7 +621,7 @@ export function FinancialResidentialPricingStep({
             </Button>
             <Button
               type="button"
-              variant={!data.exclusiveSale ? "default" : "outline"}
+              variant={!formData.exclusiveSale ? "default" : "outline"}
               size="sm"
               className="flex-1"
               onClick={() => handleChange('exclusiveSale', false)}
@@ -602,13 +645,25 @@ export function FinancialResidentialPricingStep({
               max="100"
               step="0.1"
               placeholder="6.0"
-              value={data.commissionPercentage || ''}
+              value={formData.commissionPercentage || ''}
               onChange={(e) => handleChange('commissionPercentage', parseFloat(e.target.value) || undefined)}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
           </div>
         </div>
       </CollapsibleSection>
+
+      {/* ACTION BUTTONS */}
+      <div className="fixed bottom-0 left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-between items-center z-10">
+        <div className="text-sm text-muted-foreground">
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={isSaving} onClick={goToPreviousStep}>Voltar</Button>
+          <Button onClick={handleSave} disabled={isSaving || loadingProperty}>
+            {isSaving ? 'Salvando...' : 'Salvar e Avançar'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

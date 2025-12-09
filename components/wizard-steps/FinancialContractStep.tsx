@@ -1,15 +1,12 @@
 /**
  * RENDIZY - Financial Contract Configuration Step
+ * Refatorado para arquitetura URL-Driven (Phase 3)
  * 
- * PASSO 1 FINANCEIRO: Configuração de Relacionamento e Remuneração
- * 
- * Estrutura baseada no Stays.net com nomenclatura própria do Rendizy
- * 
- * @version 1.0.103.117
- * @date 2025-10-30
+ * @version 1.0.104.0
+ * @date 2025-12-06
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -17,11 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Calendar } from '../ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { CalendarIcon, User, Info, HelpCircle, Percent } from 'lucide-react';
+import { CalendarIcon, User, Info, Percent } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Alert, AlertDescription } from '../ui/alert';
 import { cn } from '../ui/utils';
+import { useWizardNavigation } from '../../hooks/useWizardNavigation';
+import { usePropertyData } from '../../hooks/usePropertyData';
 
 // ============================================================================
 // TYPES
@@ -44,17 +42,17 @@ interface FormData {
   // SEÇÃO 1: Responsabilidade Legal
   ownerId?: string;
   managerId?: string;
-  
+
   // SEÇÃO 2: Modalidade Contratual
-  registeredDate?: Date;
+  registeredDate?: Date | string; // Supabase returns string
   isSublet: boolean;
   isExclusive: boolean;
-  
+
   // SEÇÃO 3: Vigência do Contrato
-  contractStartDate?: Date;
-  contractEndDate?: Date;
+  contractStartDate?: Date | string;
+  contractEndDate?: Date | string;
   blockCalendarAfterEnd: boolean;
-  
+
   // SEÇÃO 4: Remuneração da Gestão
   commissionModel: 'global' | 'individual';
   commissionType?: 'percentage' | 'fixed_monthly';
@@ -63,11 +61,11 @@ interface FormData {
   considerChannelFees: boolean;
   deductChannelFees: boolean;
   allowExclusiveTransfer: boolean;
-  
+
   // SEÇÃO 5: Encargos Adicionais
   electricityChargeMode: 'global' | 'individual';
-  
-  // SEÇÃO 6: Notificações e Comunicação (8 campos)
+
+  // SEÇÃO 6: Notificações e Comunicação
   showReservationsInOwnerCalendar: 'global' | 'individual';
   ownerPreReservationEmail: 'global' | 'individual';
   agentPreReservationEmail: 'global' | 'individual';
@@ -78,25 +76,15 @@ interface FormData {
   reserveLinkBeforeCheckout: 'global' | 'individual';
 }
 
-interface FinancialContractStepProps {
-  data: FormData;
-  onChange: (data: FormData) => void;
-  owners?: Owner[];
-  managers?: Manager[];
-  onCreateOwner?: () => void;
-  onCreateManager?: () => void;
-}
-
 // ============================================================================
 // SUB-COMPONENTS
 // ============================================================================
 
-/** Componente de Toggle Sim/Não */
-const YesNoToggle = ({ 
-  value, 
-  onChange 
-}: { 
-  value: boolean; 
+const YesNoToggle = ({
+  value,
+  onChange
+}: {
+  value: boolean;
   onChange: (value: boolean) => void;
 }) => (
   <div className="flex gap-2">
@@ -121,13 +109,12 @@ const YesNoToggle = ({
   </div>
 );
 
-/** Componente de Toggle Global/Individual */
-const GlobalIndividualToggle = ({ 
-  value, 
+const GlobalIndividualToggle = ({
+  value,
   onChange,
-  showPassButton = false 
-}: { 
-  value: 'global' | 'individual'; 
+  showPassButton = false
+}: {
+  value: 'global' | 'individual';
   onChange: (value: 'global' | 'individual') => void;
   showPassButton?: boolean;
 }) => (
@@ -171,20 +158,18 @@ const GlobalIndividualToggle = ({
   </div>
 );
 
-/** Componente de Card de Seção */
-const SectionCard = ({ 
-  title, 
+const SectionCard = ({
+  title,
   description,
   helpLinks,
-  children 
-}: { 
-  title: string; 
+  children
+}: {
+  title: string;
   description?: string | React.ReactNode;
   helpLinks?: { label: string; href?: string }[];
   children: React.ReactNode;
 }) => (
   <div className="space-y-4">
-    {/* Header */}
     <div className="flex items-start justify-between gap-4">
       <div className="flex-1">
         <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
@@ -208,12 +193,7 @@ const SectionCard = ({
           </div>
         )}
       </div>
-      <Button variant="outline" size="sm">
-        Salvar
-      </Button>
     </div>
-
-    {/* Content */}
     <div className="p-6 border rounded-lg bg-white shadow-sm space-y-6">
       {children}
     </div>
@@ -224,26 +204,91 @@ const SectionCard = ({
 // MAIN COMPONENT
 // ============================================================================
 
-export function FinancialContractStep({
-  data,
-  onChange,
-  owners = [],
-  managers = [],
-  onCreateOwner,
-  onCreateManager
-}: FinancialContractStepProps) {
+export function FinancialContractStep() {
+  const { propertyId, goToNextStep, goToPreviousStep } = useWizardNavigation();
+  const { property, loading: loadingProperty, saveProperty } = usePropertyData(propertyId);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Mock owners/managers since they were passed as empty in parent
+  const owners: Owner[] = [];
+  const managers: Manager[] = [];
+
+  const [formData, setFormData] = useState<FormData>({
+    isSublet: false,
+    isExclusive: false,
+    blockCalendarAfterEnd: false,
+    commissionModel: 'global',
+    considerChannelFees: false,
+    deductChannelFees: false,
+    allowExclusiveTransfer: false,
+    electricityChargeMode: 'global',
+    showReservationsInOwnerCalendar: 'global',
+    ownerPreReservationEmail: 'global',
+    agentPreReservationEmail: 'global',
+    ownerConfirmedReservationEmail: 'global',
+    agentConfirmedReservationEmail: 'global',
+    cancellationEmail: 'global',
+    deletedReservationEmail: 'global',
+    reserveLinkBeforeCheckout: 'global',
+  });
+
+  // ============================================================================
+  // INIT DATA
+  // ============================================================================
+
+  useEffect(() => {
+    if (property && property.wizardData?.financialContract) {
+      setFormData(prev => ({
+        ...prev,
+        ...property.wizardData.financialContract
+      }));
+    }
+  }, [property]);
+
+  // ============================================================================
+  // HANDLERS
+  // ============================================================================
+
   const handleChange = (field: keyof FormData, value: any) => {
-    onChange({
-      ...data,
+    setFormData(prev => ({
+      ...prev,
       [field]: value
-    });
+    }));
   };
 
-  const selectedOwner = owners.find(o => o.id === data.ownerId);
-  const selectedManager = managers.find(m => m.id === data.managerId);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        wizardData: {
+          financialContract: formData
+        }
+      };
+
+      const success = await saveProperty(payload);
+      if (success) {
+        goToNextStep();
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Convert string dates to Date objects for Calendar component
+  const getDateObject = (date?: Date | string) => {
+    if (!date) return undefined;
+    return typeof date === 'string' ? new Date(date) : date;
+  };
+
+  const selectedOwner = owners.find(o => o.id === formData.ownerId);
+  const selectedManager = managers.find(m => m.id === formData.managerId);
+
+  if (loadingProperty) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>;
+  }
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
+    <div className="space-y-8 max-w-4xl mx-auto pb-20">
       {/* ================================================================ */}
       {/* SEÇÃO 1: RESPONSABILIDADE LEGAL */}
       {/* ================================================================ */}
@@ -267,7 +312,7 @@ export function FinancialContractStep({
           </p>
           <div className="flex gap-2">
             <Select
-              value={data.ownerId}
+              value={formData.ownerId}
               onValueChange={(value) => handleChange('ownerId', value)}
             >
               <SelectTrigger id="owner" className="flex-1">
@@ -306,7 +351,7 @@ export function FinancialContractStep({
           </p>
           <div className="flex gap-2">
             <Select
-              value={data.managerId || 'none'}
+              value={formData.managerId || 'none'}
               onValueChange={(value) => handleChange('managerId', value === 'none' ? undefined : value)}
             >
               <SelectTrigger id="manager" className="flex-1">
@@ -314,7 +359,7 @@ export function FinancialContractStep({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Não definido</SelectItem>
-                {managers.map(manager => (
+                {managers.map((manager: Manager) => (
                   <SelectItem key={manager.id} value={manager.id}>
                     {manager.name}
                   </SelectItem>
@@ -339,7 +384,7 @@ export function FinancialContractStep({
         <div className="space-y-2">
           <Label>Data de Cadastro no Sistema</Label>
           <p className="text-xs text-gray-600">
-            Quando este imóvel foi registrado na plataforma? Esta informação é útil para 
+            Quando este imóvel foi registrado na plataforma? Esta informação é útil para
             relatórios e análises de desempenho ao longo do tempo.
           </p>
           <Popover>
@@ -349,12 +394,12 @@ export function FinancialContractStep({
                 variant="outline"
                 className={cn(
                   "w-full justify-start text-left font-normal",
-                  !data.registeredDate && "text-muted-foreground"
+                  !formData.registeredDate && "text-muted-foreground"
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {data.registeredDate ? (
-                  format(data.registeredDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                {formData.registeredDate ? (
+                  format(getDateObject(formData.registeredDate)!, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
                 ) : (
                   <span>Selecione a data</span>
                 )}
@@ -363,7 +408,7 @@ export function FinancialContractStep({
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
-                selected={data.registeredDate}
+                selected={getDateObject(formData.registeredDate)}
                 onSelect={(date) => handleChange('registeredDate', date)}
                 initialFocus
                 locale={ptBR}
@@ -376,14 +421,11 @@ export function FinancialContractStep({
         <div className="space-y-2">
           <Label>Repasse de Propriedade (Sublocação)</Label>
           <p className="text-xs text-gray-600">
-            Este imóvel é gerenciado através de sublocação ou repasse? Imóveis nesta categoria 
-            podem ter prioridade em propostas comerciais.{' '}
-            <button type="button" className="text-blue-600 hover:underline">
-              Saiba mais sobre repasse de propriedade
-            </button>
+            Este imóvel é gerenciado através de sublocação ou repasse? Imóveis nesta categoria
+            podem ter prioridade em propostas comerciais.
           </p>
           <YesNoToggle
-            value={data.isSublet}
+            value={formData.isSublet}
             onChange={(value) => handleChange('isSublet', value)}
           />
         </div>
@@ -392,14 +434,11 @@ export function FinancialContractStep({
         <div className="space-y-2">
           <Label>Exclusividade de Gestão</Label>
           <p className="text-xs text-gray-600">
-            Marque [Sim] se você possui direitos exclusivos de gestão e comercialização deste imóvel. 
-            Isso facilita filtros e relatórios de performance dos seus anúncios exclusivos.{' '}
-            <button type="button" className="text-blue-600 hover:underline">
-              Entenda os benefícios da exclusividade
-            </button>
+            Marque [Sim] se você possui direitos exclusivos de gestão e comercialização deste imóvel.
+            Isso facilita filtros e relatórios de performance dos seus anúncios exclusivos.
           </p>
           <YesNoToggle
-            value={data.isExclusive}
+            value={formData.isExclusive}
             onChange={(value) => handleChange('isExclusive', value)}
           />
         </div>
@@ -426,12 +465,12 @@ export function FinancialContractStep({
                   variant="outline"
                   className={cn(
                     "justify-start text-left font-normal",
-                    !data.contractStartDate && "text-muted-foreground"
+                    !formData.contractStartDate && "text-muted-foreground"
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {data.contractStartDate ? (
-                    format(data.contractStartDate, "dd/MM/yyyy")
+                  {formData.contractStartDate ? (
+                    format(getDateObject(formData.contractStartDate)!, "dd/MM/yyyy")
                   ) : (
                     <span>Início</span>
                   )}
@@ -440,7 +479,7 @@ export function FinancialContractStep({
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={data.contractStartDate}
+                  selected={getDateObject(formData.contractStartDate)}
                   onSelect={(date) => handleChange('contractStartDate', date)}
                   initialFocus
                   locale={ptBR}
@@ -455,12 +494,12 @@ export function FinancialContractStep({
                   variant="outline"
                   className={cn(
                     "justify-start text-left font-normal",
-                    !data.contractEndDate && "text-muted-foreground"
+                    !formData.contractEndDate && "text-muted-foreground"
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {data.contractEndDate ? (
-                    format(data.contractEndDate, "dd/MM/yyyy")
+                  {formData.contractEndDate ? (
+                    format(getDateObject(formData.contractEndDate)!, "dd/MM/yyyy")
                   ) : (
                     <span>Término</span>
                   )}
@@ -469,11 +508,11 @@ export function FinancialContractStep({
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={data.contractEndDate}
+                  selected={getDateObject(formData.contractEndDate)}
                   onSelect={(date) => handleChange('contractEndDate', date)}
                   disabled={(date) => {
-                    if (!data.contractStartDate) return false;
-                    return date < data.contractStartDate;
+                    if (!formData.contractStartDate) return false;
+                    return date < (getDateObject(formData.contractStartDate) || new Date());
                   }}
                   initialFocus
                   locale={ptBR}
@@ -487,14 +526,11 @@ export function FinancialContractStep({
         <div className="space-y-2">
           <Label>Bloqueio Automático de Calendário ao Final do Contrato</Label>
           <p className="text-xs text-gray-600">
-            Ao ativar esta opção, o sistema bloqueará automaticamente todas as datas posteriores 
-            ao término do contrato, impedindo novas reservas.{' '}
-            <button type="button" className="text-blue-600 hover:underline">
-              Como funciona o bloqueio automático
-            </button>
+            Ao ativar esta opção, o sistema bloqueará automaticamente todas as datas posteriores
+            ao término do contrato, impedindo novas reservas.
           </p>
           <YesNoToggle
-            value={data.blockCalendarAfterEnd}
+            value={formData.blockCalendarAfterEnd}
             onChange={(value) => handleChange('blockCalendarAfterEnd', value)}
           />
         </div>
@@ -511,28 +547,28 @@ export function FinancialContractStep({
         <div className="space-y-2">
           <Label>Modelo de Remuneração</Label>
           <p className="text-xs text-gray-600">
-            Escolha entre usar as configurações globais da sua empresa ou definir valores 
+            Escolha entre usar as configurações globais da sua empresa ou definir valores
             específicos para este imóvel.
           </p>
           <GlobalIndividualToggle
-            value={data.commissionModel}
+            value={formData.commissionModel}
             onChange={(value) => handleChange('commissionModel', value)}
           />
         </div>
 
         {/* Se Individual, mostrar campos adicionais */}
-        {data.commissionModel === 'individual' && (
+        {formData.commissionModel === 'individual' && (
           <>
             {/* Tipo de Remuneração */}
             <div className="space-y-2">
               <Label>Tipo de Remuneração</Label>
               <p className="text-xs text-gray-600">
-                Defina se sua remuneração será baseada em porcentagem sobre as reservas ou 
+                Defina se sua remuneração será baseada em porcentagem sobre as reservas ou
                 um valor fixo mensal.
               </p>
               <Select
-                value={data.commissionType}
-                onValueChange={(value: 'percentage' | 'fixed_monthly') => 
+                value={formData.commissionType}
+                onValueChange={(value: 'percentage' | 'fixed_monthly') =>
                   handleChange('commissionType', value)
                 }
               >
@@ -547,7 +583,7 @@ export function FinancialContractStep({
             </div>
 
             {/* Se percentual, mostrar campo de % */}
-            {data.commissionType === 'percentage' && (
+            {formData.commissionType === 'percentage' && (
               <>
                 <div className="space-y-2">
                   <Label>Percentual de Remuneração</Label>
@@ -562,8 +598,8 @@ export function FinancialContractStep({
                       max="100"
                       step="0.1"
                       placeholder="0.0"
-                      value={data.commissionPercentage || ''}
-                      onChange={(e) => 
+                      value={formData.commissionPercentage || ''}
+                      onChange={(e) =>
                         handleChange('commissionPercentage', parseFloat(e.target.value) || undefined)
                       }
                       className="pl-10"
@@ -578,7 +614,7 @@ export function FinancialContractStep({
                     Escolha qual valor será usado como base para calcular sua remuneração.
                   </p>
                   <RadioGroup
-                    value={data.commissionCalculationBase}
+                    value={formData.commissionCalculationBase}
                     onValueChange={(value) => handleChange('commissionCalculationBase', value)}
                   >
                     <div className="flex items-center space-x-2">
@@ -616,7 +652,7 @@ export function FinancialContractStep({
         por considerar as taxas dessas plataformas no cálculo de repasse ao titular."
       >
         <YesNoToggle
-          value={data.considerChannelFees}
+          value={formData.considerChannelFees}
           onChange={(value) => handleChange('considerChannelFees', value)}
         />
       </SectionCard>
@@ -628,16 +664,13 @@ export function FinancialContractStep({
         title="Descontar Taxas das Plataformas do Repasse?"
         description={
           <span>
-            Se você considera as taxas das plataformas, pode optar por descontá-las antes 
-            de calcular o valor de repasse ao titular do imóvel.{' '}
-            <button type="button" className="text-blue-600 hover:underline">
-              Entenda o impacto no fluxo financeiro
-            </button>
+            Se você considera as taxas das plataformas, pode optar por descontá-las antes
+            de calcular o valor de repasse ao titular do imóvel.
           </span>
         }
       >
         <YesNoToggle
-          value={data.deductChannelFees}
+          value={formData.deductChannelFees}
           onChange={(value) => handleChange('deductChannelFees', value)}
         />
       </SectionCard>
@@ -651,7 +684,7 @@ export function FinancialContractStep({
         oferecendo maior flexibilidade na gestão financeira."
       >
         <YesNoToggle
-          value={data.allowExclusiveTransfer}
+          value={formData.allowExclusiveTransfer}
           onChange={(value) => handleChange('allowExclusiveTransfer', value)}
         />
       </SectionCard>
@@ -665,7 +698,7 @@ export function FinancialContractStep({
         nas reservas deste imóvel."
       >
         <GlobalIndividualToggle
-          value={data.electricityChargeMode}
+          value={formData.electricityChargeMode}
           onChange={(value) => handleChange('electricityChargeMode', value)}
           showPassButton
         />
@@ -682,11 +715,11 @@ export function FinancialContractStep({
         <div className="space-y-2">
           <Label>Exibir Reservas no Painel do Titular</Label>
           <p className="text-xs text-gray-600">
-            O titular deve visualizar todas as reservas no painel dele, mesmo antes do repasse 
+            O titular deve visualizar todas as reservas no painel dele, mesmo antes do repasse
             financeiro ser processado?
           </p>
           <GlobalIndividualToggle
-            value={data.showReservationsInOwnerCalendar}
+            value={formData.showReservationsInOwnerCalendar}
             onChange={(value) => handleChange('showReservationsInOwnerCalendar', value)}
           />
         </div>
@@ -698,7 +731,7 @@ export function FinancialContractStep({
             O titular deve receber e-mail quando houver uma solicitação de reserva (ainda não confirmada)?
           </p>
           <GlobalIndividualToggle
-            value={data.ownerPreReservationEmail}
+            value={formData.ownerPreReservationEmail}
             onChange={(value) => handleChange('ownerPreReservationEmail', value)}
             showPassButton
           />
@@ -711,7 +744,7 @@ export function FinancialContractStep({
             O administrador deve receber e-mail quando houver uma solicitação de reserva?
           </p>
           <GlobalIndividualToggle
-            value={data.agentPreReservationEmail}
+            value={formData.agentPreReservationEmail}
             onChange={(value) => handleChange('agentPreReservationEmail', value)}
             showPassButton
           />
@@ -721,13 +754,10 @@ export function FinancialContractStep({
         <div className="space-y-2">
           <Label>Notificar Titular sobre Reservas Confirmadas</Label>
           <p className="text-xs text-gray-600">
-            O titular deve receber e-mail quando uma reserva for confirmada e paga?{' '}
-            <button type="button" className="text-blue-600 hover:underline">
-              Ver modelo de e-mail
-            </button>
+            O titular deve receber e-mail quando uma reserva for confirmada e paga?
           </p>
           <GlobalIndividualToggle
-            value={data.ownerConfirmedReservationEmail}
+            value={formData.ownerConfirmedReservationEmail}
             onChange={(value) => handleChange('ownerConfirmedReservationEmail', value)}
             showPassButton
           />
@@ -740,7 +770,7 @@ export function FinancialContractStep({
             O administrador deve receber e-mail quando uma reserva for confirmada?
           </p>
           <GlobalIndividualToggle
-            value={data.agentConfirmedReservationEmail}
+            value={formData.agentConfirmedReservationEmail}
             onChange={(value) => handleChange('agentConfirmedReservationEmail', value)}
             showPassButton
           />
@@ -750,13 +780,10 @@ export function FinancialContractStep({
         <div className="space-y-2">
           <Label>Notificar sobre Cancelamentos</Label>
           <p className="text-xs text-gray-600">
-            Titular e administrador devem receber e-mail quando uma reserva for cancelada?{' '}
-            <button type="button" className="text-blue-600 hover:underline">
-              Ver política de cancelamento
-            </button>
+            Titular e administrador devem receber e-mail quando uma reserva for cancelada?
           </p>
           <GlobalIndividualToggle
-            value={data.cancellationEmail}
+            value={formData.cancellationEmail}
             onChange={(value) => handleChange('cancellationEmail', value)}
             showPassButton
           />
@@ -766,14 +793,11 @@ export function FinancialContractStep({
         <div className="space-y-2">
           <Label>Notificar sobre Exclusão de Reservas</Label>
           <p className="text-xs text-gray-600">
-            Titular e administrador devem receber e-mail quando uma reserva for excluída 
-            do sistema?{' '}
-            <button type="button" className="text-blue-600 hover:underline">
-              Diferença entre cancelamento e exclusão
-            </button>
+            Titular e administrador devem receber e-mail quando uma reserva for excluída
+            do sistema?
           </p>
           <GlobalIndividualToggle
-            value={data.deletedReservationEmail}
+            value={formData.deletedReservationEmail}
             onChange={(value) => handleChange('deletedReservationEmail', value)}
             showPassButton
           />
@@ -786,11 +810,23 @@ export function FinancialContractStep({
             Enviar link da reserva antes do checkout final (útil para pagamentos diretos).
           </p>
           <GlobalIndividualToggle
-            value={data.reserveLinkBeforeCheckout}
+            value={formData.reserveLinkBeforeCheckout}
             onChange={(value) => handleChange('reserveLinkBeforeCheckout', value)}
           />
         </div>
       </SectionCard>
+
+      {/* ACTION BUTTONS */}
+      <div className="fixed bottom-0 left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-between items-center z-10">
+        <div className="text-sm text-muted-foreground">
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={isSaving} onClick={goToPreviousStep}>Voltar</Button>
+          <Button onClick={handleSave} disabled={isSaving || loadingProperty}>
+            {isSaving ? 'Salvando...' : 'Salvar e Avançar'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

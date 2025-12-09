@@ -4,6 +4,7 @@ import App from "./App.tsx";
 import "./index.css";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import "./src/utils/browserLogCollector"; // 📝 Ativa captura de logs
 
 // ✅ Tratamento de erros global para evitar crash do servidor
 window.addEventListener('error', (event) => {

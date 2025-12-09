@@ -56,11 +56,11 @@ git push
 ⚠️ **Obtido, mas formato pode estar incorreto**
 
 ```
-Token: sbp_17d159c6f1a2dab113e0cac351052dee23ededff
+Token: sbp_c903c09094a9e34defebdfc0fa477fffda206704
 Tipo: Access Token (para Supabase CLI)
 Formato: sbp_...
-Status: ⚠️ Token obtido, mas CLI rejeitou (formato pode estar errado)
-Erro: "Invalid access token format. Must be like `sbp_0102...1920`"
+Status: ✅ Funcionando
+Testado: ✅ Sim (npx supabase login funcionou)
 ```
 
 **Onde obter novo token:**

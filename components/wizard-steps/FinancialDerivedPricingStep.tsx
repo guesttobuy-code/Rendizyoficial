@@ -1,22 +1,12 @@
 /**
  * RENDIZY - Financial Derived Pricing Step
+ * Refatorado para arquitetura URL-Driven (Phase 3)
  * 
- * Step 5 do wizard financeiro: Preços Derivados (Hóspedes Adicionais)
- * 
- * FUNCIONALIDADES:
- * - Preços por número de hóspedes
- * - Toggle Porcentagem/Valor Fixo
- * - Taxas para crianças por faixa etária
- * - Sistema dinâmico de faixas etárias
- * - Cálculo: Por noite vs Única
- * - Preview de cálculo de preços
- * - Auto-save automático
- * 
- * @version 1.0.103.130
- * @date 2025-10-30
+ * @version 1.0.104.0
+ * @date 2025-12-06
  */
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   DollarSign,
@@ -37,6 +27,8 @@ import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Alert, AlertDescription } from '../ui/alert';
+import { useWizardNavigation } from '../../hooks/useWizardNavigation';
+import { usePropertyData } from '../../hooks/usePropertyData';
 
 // ============================================================================
 // TYPES
@@ -55,35 +47,72 @@ interface FinancialDerivedPricingData {
   maxGuestsIncluded: number;
   extraGuestFeeType: 'percentage' | 'fixed';
   extraGuestFeeValue: number;
-  
+
   // Taxas para Crianças
   chargeForChildren: boolean;
   childrenChargeType: 'per_night' | 'one_time';
   ageBrackets: AgeBracket[];
 }
 
-interface FinancialDerivedPricingStepProps {
-  data: FinancialDerivedPricingData;
-  onChange: (data: FinancialDerivedPricingData) => void;
-}
-
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export function FinancialDerivedPricingStep({
-  data,
-  onChange,
-}: FinancialDerivedPricingStepProps) {
+export function FinancialDerivedPricingStep() {
+  const { propertyId, goToNextStep, goToPreviousStep } = useWizardNavigation();
+  const { property, loading: loadingProperty, saveProperty } = usePropertyData(propertyId);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [formData, setFormData] = useState<FinancialDerivedPricingData>({
+    pricesVaryByGuests: false,
+    maxGuestsIncluded: 1,
+    extraGuestFeeType: 'percentage',
+    extraGuestFeeValue: 0,
+    chargeForChildren: false,
+    childrenChargeType: 'per_night',
+    ageBrackets: [],
+  });
+
+  // ============================================================================
+  // INIT DATA
+  // ============================================================================
+
+  useEffect(() => {
+    if (property && property.wizardData?.financialDerivedPricing) {
+      setFormData(prev => ({
+        ...prev,
+        ...property.wizardData.financialDerivedPricing
+      }));
+    }
+  }, [property]);
+
   // ============================================================================
   // HANDLERS
   // ============================================================================
 
   const handleFieldChange = (field: keyof FinancialDerivedPricingData, value: any) => {
-    onChange({
-      ...data,
-      [field]: value,
-    });
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        wizardData: {
+          financialDerivedPricing: formData
+        }
+      };
+
+      const success = await saveProperty(payload);
+      if (success) {
+        goToNextStep();
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const addAgeBracket = () => {
@@ -93,19 +122,19 @@ export function FinancialDerivedPricingStep({
       maxAge: 12,
       fee: 0,
     };
-    
-    handleFieldChange('ageBrackets', [...data.ageBrackets, newBracket]);
+
+    handleFieldChange('ageBrackets', [...formData.ageBrackets, newBracket]);
   };
 
   const updateAgeBracket = (id: string, field: keyof AgeBracket, value: any) => {
-    const updated = data.ageBrackets.map((bracket) =>
+    const updated = formData.ageBrackets.map((bracket) =>
       bracket.id === id ? { ...bracket, [field]: value } : bracket
     );
     handleFieldChange('ageBrackets', updated);
   };
 
   const removeAgeBracket = (id: string) => {
-    const filtered = data.ageBrackets.filter((bracket) => bracket.id !== id);
+    const filtered = formData.ageBrackets.filter((bracket) => bracket.id !== id);
     handleFieldChange('ageBrackets', filtered);
   };
 
@@ -116,32 +145,32 @@ export function FinancialDerivedPricingStep({
   const calculatePreview = () => {
     const basePrice = 200; // Exemplo
     let total = basePrice;
-    
+
     // Hóspedes extras
-    if (data.pricesVaryByGuests && data.extraGuestFeeValue > 0) {
-      const extraGuests = Math.max(0, 4 - data.maxGuestsIncluded); // Exemplo: 4 hóspedes
-      
-      if (data.extraGuestFeeType === 'percentage') {
-        total += basePrice * (data.extraGuestFeeValue / 100) * extraGuests;
+    if (formData.pricesVaryByGuests && formData.extraGuestFeeValue > 0) {
+      const extraGuests = Math.max(0, 4 - formData.maxGuestsIncluded); // Exemplo: 4 hóspedes
+
+      if (formData.extraGuestFeeType === 'percentage') {
+        total += basePrice * (formData.extraGuestFeeValue / 100) * extraGuests;
       } else {
-        total += data.extraGuestFeeValue * extraGuests;
+        total += formData.extraGuestFeeValue * extraGuests;
       }
     }
-    
+
     // Crianças
-    if (data.chargeForChildren && data.ageBrackets.length > 0) {
+    if (formData.chargeForChildren && formData.ageBrackets.length > 0) {
       const childrenCount = 2; // Exemplo: 2 crianças
-      const bracket = data.ageBrackets[0]; // Primeira faixa
-      
+      const bracket = formData.ageBrackets[0]; // Primeira faixa
+
       if (bracket) {
-        if (data.childrenChargeType === 'per_night') {
+        if (formData.childrenChargeType === 'per_night') {
           total += bracket.fee * childrenCount;
         } else {
           total += bracket.fee * childrenCount;
         }
       }
     }
-    
+
     return {
       basePrice,
       total,
@@ -151,12 +180,12 @@ export function FinancialDerivedPricingStep({
 
   const preview = calculatePreview();
 
-  // ============================================================================
-  // RENDER
-  // ============================================================================
+  if (loadingProperty) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>;
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Header Info */}
       <Alert>
         <Users className="h-4 w-4" />
@@ -196,13 +225,13 @@ export function FinancialDerivedPricingStep({
               </p>
             </div>
             <Switch
-              checked={data.pricesVaryByGuests}
+              checked={formData.pricesVaryByGuests}
               onCheckedChange={(checked) => handleFieldChange('pricesVaryByGuests', checked)}
             />
           </div>
 
           {/* Configurações (somente se ativado) */}
-          {data.pricesVaryByGuests && (
+          {formData.pricesVaryByGuests && (
             <div className="space-y-4 pt-2">
               <Separator />
 
@@ -218,7 +247,7 @@ export function FinancialDerivedPricingStep({
                   type="number"
                   min="1"
                   max="20"
-                  value={data.maxGuestsIncluded}
+                  value={formData.maxGuestsIncluded}
                   onChange={(e) =>
                     handleFieldChange('maxGuestsIncluded', parseInt(e.target.value) || 1)
                   }
@@ -232,18 +261,17 @@ export function FinancialDerivedPricingStep({
               {/* Tipo de Cobrança */}
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Tipo de Cobrança</Label>
-                
+
                 <div className="inline-flex rounded-lg border border-border bg-muted/50 p-1">
                   <Button
                     type="button"
                     size="sm"
-                    variant={data.extraGuestFeeType === 'fixed' ? 'default' : 'ghost'}
+                    variant={formData.extraGuestFeeType === 'fixed' ? 'default' : 'ghost'}
                     className={`
                       px-4 py-1 text-xs transition-all
-                      ${
-                        data.extraGuestFeeType === 'fixed'
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
+                      ${formData.extraGuestFeeType === 'fixed'
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
                       }
                     `}
                     onClick={() => handleFieldChange('extraGuestFeeType', 'fixed')}
@@ -254,13 +282,12 @@ export function FinancialDerivedPricingStep({
                   <Button
                     type="button"
                     size="sm"
-                    variant={data.extraGuestFeeType === 'percentage' ? 'default' : 'ghost'}
+                    variant={formData.extraGuestFeeType === 'percentage' ? 'default' : 'ghost'}
                     className={`
                       px-4 py-1 text-xs transition-all
-                      ${
-                        data.extraGuestFeeType === 'percentage'
-                          ? 'bg-green-600 text-white hover:bg-green-700'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
+                      ${formData.extraGuestFeeType === 'percentage'
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
                       }
                     `}
                     onClick={() => handleFieldChange('extraGuestFeeType', 'percentage')}
@@ -274,19 +301,19 @@ export function FinancialDerivedPricingStep({
               {/* Valor Adicional */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">
-                  {data.extraGuestFeeType === 'percentage'
+                  {formData.extraGuestFeeType === 'percentage'
                     ? 'Porcentagem adicional por pessoa extra'
                     : 'Valor adicional por pessoa extra'}
                 </Label>
                 <div className="flex items-center gap-2">
-                  {data.extraGuestFeeType === 'percentage' ? (
+                  {formData.extraGuestFeeType === 'percentage' ? (
                     <div className="flex items-center border rounded-lg overflow-hidden max-w-xs">
                       <Input
                         type="number"
                         min="0"
                         max="100"
                         step="0.1"
-                        value={data.extraGuestFeeValue || ''}
+                        value={formData.extraGuestFeeValue || ''}
                         onChange={(e) =>
                           handleFieldChange('extraGuestFeeValue', parseFloat(e.target.value) || 0)
                         }
@@ -306,7 +333,7 @@ export function FinancialDerivedPricingStep({
                         type="number"
                         min="0"
                         step="0.01"
-                        value={data.extraGuestFeeValue || ''}
+                        value={formData.extraGuestFeeValue || ''}
                         onChange={(e) =>
                           handleFieldChange('extraGuestFeeValue', parseFloat(e.target.value) || 0)
                         }
@@ -317,7 +344,7 @@ export function FinancialDerivedPricingStep({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {data.extraGuestFeeType === 'percentage'
+                  {formData.extraGuestFeeType === 'percentage'
                     ? 'Percentual sobre o preço base, por noite'
                     : 'Valor cobrado por pessoa extra, por noite'}
                 </p>
@@ -353,13 +380,13 @@ export function FinancialDerivedPricingStep({
               </p>
             </div>
             <Switch
-              checked={data.chargeForChildren}
+              checked={formData.chargeForChildren}
               onCheckedChange={(checked) => handleFieldChange('chargeForChildren', checked)}
             />
           </div>
 
           {/* Configurações (somente se ativado) */}
-          {data.chargeForChildren && (
+          {formData.chargeForChildren && (
             <div className="space-y-4 pt-2">
               <Separator />
 
@@ -367,7 +394,7 @@ export function FinancialDerivedPricingStep({
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Tipo de Cobrança</Label>
                 <Tabs
-                  value={data.childrenChargeType}
+                  value={formData.childrenChargeType}
                   onValueChange={(value) =>
                     handleFieldChange('childrenChargeType', value as 'per_night' | 'one_time')
                   }
@@ -399,7 +426,7 @@ export function FinancialDerivedPricingStep({
                   </Button>
                 </div>
 
-                {data.ageBrackets.length === 0 && (
+                {formData.ageBrackets.length === 0 && (
                   <Alert>
                     <Info className="h-4 w-4" />
                     <AlertDescription className="text-xs">
@@ -411,7 +438,7 @@ export function FinancialDerivedPricingStep({
 
                 {/* Lista de Faixas */}
                 <div className="space-y-3">
-                  {data.ageBrackets.map((bracket, index) => (
+                  {formData.ageBrackets.map((bracket, index) => (
                     <div
                       key={bracket.id}
                       className="p-4 border rounded-lg bg-muted/20 space-y-3"
@@ -420,7 +447,7 @@ export function FinancialDerivedPricingStep({
                         <Badge variant="secondary" className="text-xs">
                           Faixa {index + 1}
                         </Badge>
-                        {data.ageBrackets.length > 1 && (
+                        {formData.ageBrackets.length > 1 && (
                           <Button
                             type="button"
                             size="sm"
@@ -476,7 +503,7 @@ export function FinancialDerivedPricingStep({
                         <div className="space-y-1">
                           <Label className="text-xs">
                             Valor (R$)
-                            {data.childrenChargeType === 'per_night' && '/noite'}
+                            {formData.childrenChargeType === 'per_night' && '/noite'}
                           </Label>
                           <Input
                             type="number"
@@ -499,7 +526,7 @@ export function FinancialDerivedPricingStep({
                       <p className="text-xs text-muted-foreground">
                         Crianças de {bracket.minAge} a {bracket.maxAge} anos: R${' '}
                         {bracket.fee.toFixed(2)}
-                        {data.childrenChargeType === 'per_night' ? ' por noite' : ' taxa única'}
+                        {formData.childrenChargeType === 'per_night' ? ' por noite' : ' taxa única'}
                       </p>
                     </div>
                   ))}
@@ -533,24 +560,24 @@ export function FinancialDerivedPricingStep({
               <span className="font-medium">R$ {preview.basePrice.toFixed(2)}</span>
             </div>
 
-            {data.pricesVaryByGuests && data.extraGuestFeeValue > 0 && (
+            {formData.pricesVaryByGuests && formData.extraGuestFeeValue > 0 && (
               <div className="flex items-center justify-between text-sm text-blue-600">
                 <span>Hóspedes Extras</span>
                 <span>
                   +R${' '}
                   {(
-                    preview.extras - (data.chargeForChildren ? preview.extras / 2 : 0)
+                    preview.extras - (formData.chargeForChildren ? preview.extras / 2 : 0)
                   ).toFixed(2)}
                 </span>
               </div>
             )}
 
-            {data.chargeForChildren && data.ageBrackets.length > 0 && (
+            {formData.chargeForChildren && formData.ageBrackets.length > 0 && (
               <div className="flex items-center justify-between text-sm text-purple-600">
                 <span>Crianças</span>
                 <span>
                   +R${' '}
-                  {(data.chargeForChildren ? preview.extras / 2 : 0).toFixed(2)}
+                  {(formData.chargeForChildren ? preview.extras / 2 : 0).toFixed(2)}
                 </span>
               </div>
             )}
@@ -581,6 +608,18 @@ export function FinancialDerivedPricingStep({
           (bebês grátis), 3-12 anos (50% do valor), 13+ anos (valor integral).
         </AlertDescription>
       </Alert>
+
+      {/* ACTION BUTTONS */}
+      <div className="fixed bottom-0 left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-between items-center z-10">
+        <div className="text-sm text-muted-foreground">
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={isSaving} onClick={goToPreviousStep}>Voltar</Button>
+          <Button onClick={handleSave} disabled={isSaving || loadingProperty}>
+            {isSaving ? 'Salvando...' : 'Salvar e Avançar'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

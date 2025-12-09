@@ -76,9 +76,10 @@ import { ContentPhotosStep } from "./wizard-steps/ContentPhotosStep";
 // import { useAutoSave, useRestoreDraft, useClearDraft } from '../hooks/useAutoSave';
 // import { AutoSaveIndicator } from './AutoSaveIndicator';
 import { useRestoreDraft, useClearDraft } from "../hooks/useAutoSave";
+import { usePropertyStepSync } from "../hooks/usePropertyStepSync"; // 🆕 v1.0.104.1 - Sync centralizado
 import { propertiesApi } from "../utils/api"; // 🆕 Para salvar rascunho no backend
 
-// ✅ LÓGICA DE SALVAMENTO POR PASSO (v1.0.103.XXX)
+// ✅ LÓGICA DE SALVAMENTO POR PASSO (v1.0.104.X)
 // IMPORTANTE: Salvar em cada passo para não perder dados se página atualizar
 // - Modo CRIAÇÃO: Salva no localStorage como rascunho (não tem property.id ainda)
 // - Modo EDIÇÃO: Salva no backend a cada passo (já tem property.id)
@@ -476,8 +477,11 @@ export function PropertyEditWizard({
   const [draftPropertyId, setDraftPropertyId] = useState<string | null>(
     property?.id || null
   );
-  const isInitialRenderRef = useRef(true);
-  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 🆕 v1.0.104.2 - Refs removidas: isInitialRenderRef, autoSaveTimeoutRef
+  // Cada step usa usePropertyStepSync para seu próprio debounce/upload
+  // Step 01 sync ref (cleanup apenas)
+  const step01SaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 🆕 SISTEMA DE RASCUNHO - Atualizar draftPropertyId quando property mudar
   useEffect(() => {
@@ -490,10 +494,11 @@ export function PropertyEditWizard({
   const { updateProperty, cancelEditing } = usePropertyActions();
 
   // ✅ RESTAURAR RASCUNHO SE EXISTIR (modo criação)
-  // 🆕 CORREÇÃO: Só restaurar rascunho do localStorage se for EDIÇÃO (tem property.id)
-  // Se for CRIAÇÃO (id === "new" ou sem property), NÃO restaurar rascunho do localStorage
-  // Rascunhos devem ser editados apenas quando usuário clica em "Continuar" na lista
-  const draftData = property?.id ? useRestoreDraft(property.id) : null;
+  // 🆕 CORREÇÃO: Restaurar rascunho do backend se temos draftPropertyId (mesmo sem property.id)
+  // Se for CRIAÇÃO (sem property.id), tentar restaurar via draftPropertyId
+  // Se for EDIÇÃO (com property.id), restaurar via property.id
+  // Restaurar rascunho mesmo sem ID (usa chave 'draft' como fallback)
+  const draftData = useRestoreDraft(draftPropertyId || property?.id);
 
   // Função helper para criar dados iniciais vazios
   const createEmptyFormData = () => ({
@@ -539,7 +544,11 @@ export function PropertyEditWizard({
     contentRooms: {
       rooms: [],
     },
-    // Step 4: Amenidades
+    // Step 4: Fotos e Tour Visual
+    contentPhotos: {
+      coverPhotoId: undefined,
+    },
+    // Step 5: Amenidades
     contentAmenities: {
       propertyAmenities: [],
       inheritLocationAmenities: true,
@@ -613,6 +622,7 @@ export function PropertyEditWizard({
         contentRooms: {
           rooms: wd.contentRooms?.rooms || property.rooms || [],
         },
+        contentPhotos: wd.contentPhotos || property.contentPhotos || {},
         contentAmenities: {
           propertyAmenities:
             wd.contentAmenities?.propertyAmenities || property.amenities || property.propertyAmenities || [],
@@ -638,6 +648,103 @@ export function PropertyEditWizard({
 
   // ✅ PROTEÇÃO: Garantir que formData sempre tenha estrutura válida (apenas no mount)
   // REMOVIDO: useEffect que poderia causar loops - formData já é inicializado corretamente
+
+  // 🆕 v1.0.104.3 - RESTAURAR RASCUNHO DO BACKEND/LOCALSTORAGE
+  // Quando há draftData (rascunho salvo), restaurá-lo em formData
+  // IMPORTANTE: Isto permite que dados persistam após F5 refresh
+  useEffect(() => {
+    if (draftData && !property?.wizardData) {
+      // Só restaurar se NÃO há dados fresh do backend (property.wizardData)
+      console.log("🔄 [Wizard] Restaurando rascunho do backend/localStorage:", draftData);
+      setFormData(prev => ({
+        ...prev,
+        ...draftData
+      }));
+      
+      // Restaurar completedSteps também se existirem
+      if (draftData.completedSteps && Array.isArray(draftData.completedSteps)) {
+        console.log("✅ [Wizard] Restaurando completedSteps do rascunho:", draftData.completedSteps);
+        setCompletedSteps(new Set(draftData.completedSteps));
+      }
+    }
+  }, [draftData]); // Restaurar quando draftData mudar
+
+  // 🆕 INDIVIDUALIZAÇÃO STEP 01: Atualizar formData quando property for carregado
+  // Problema: property é carregado assincronamente, então formData precisa ser atualizado
+  useEffect(() => {
+    if (property?.id && property?.wizardData) {
+      // Parse wizardData se for string
+      let wizardData = property.wizardData;
+      if (typeof wizardData === 'string') {
+        try {
+          console.log("📦 [Wizard] Parseando wizardData de string para objeto...");
+          wizardData = JSON.parse(wizardData);
+        } catch (e) {
+          console.error("❌ [Wizard] Erro ao parsear wizardData:", e);
+          wizardData = {};
+        }
+      }
+      
+      const wd = wizardData || {};
+      const ct = wd.contentType || {};
+      
+      console.log("🔄 [Wizard] Atualizando formData com dados do property carregado...");
+      console.log("📊 [Wizard] wizardData:", wd);
+      console.log("📊 [Wizard] contentType:", ct);
+      console.log("📊 [Wizard] completedSteps do property:", property.completedSteps);
+      
+      // 🆕 INDIVIDUALIZAÇÃO STEP 01: Restaurar completedSteps do backend
+      if (property.completedSteps && Array.isArray(property.completedSteps)) {
+        console.log("✅ [Wizard] Restaurando completedSteps do backend:", property.completedSteps);
+        setCompletedSteps(new Set(property.completedSteps));
+      }
+      
+      setFormData((prev) => {
+        // Merge: manter dados existentes, atualizar com dados do property
+        return {
+          ...prev,
+          id: property.id,
+          contentType: {
+            propertyTypeId: ct.propertyTypeId || prev.contentType?.propertyTypeId || undefined,
+            accommodationTypeId: ct.accommodationTypeId || prev.contentType?.accommodationTypeId || undefined,
+            subtipo: ct.subtipo || prev.contentType?.subtipo || undefined,
+            modalidades: ct.modalidades || prev.contentType?.modalidades || [],
+            registrationNumber: ct.registrationNumber || prev.contentType?.registrationNumber || "",
+            propertyType: ct.propertyType || prev.contentType?.propertyType || "individual",
+            internalName: ct.internalName || prev.contentType?.internalName || property.internalName || property.name || "",
+            financialData: ct.financialData || prev.contentType?.financialData || undefined,
+          },
+          // Manter outros steps intactos
+          contentLocation: prev.contentLocation || {
+            mode: "new" as "new" | "existing",
+            selectedLocationId: wd.contentLocation?.selectedLocationId || property.locationId || undefined,
+            locationName: wd.contentLocation?.locationName || property.locationName || undefined,
+            locationAmenities: wd.contentLocation?.locationAmenities || property.locationAmenities || [],
+            address: {
+              country: wd.contentLocation?.address?.country || property.address?.country || "BR",
+              state: wd.contentLocation?.address?.state || property.address?.state || "",
+              stateCode: wd.contentLocation?.address?.stateCode || property.address?.stateCode || "",
+              zipCode: wd.contentLocation?.address?.zipCode || property.address?.zipCode || "",
+              city: wd.contentLocation?.address?.city || property.address?.city || "",
+              neighborhood: wd.contentLocation?.address?.neighborhood || property.address?.neighborhood || "",
+              street: wd.contentLocation?.address?.street || property.address?.street || "",
+              number: wd.contentLocation?.address?.number || property.address?.number || "",
+              complement: wd.contentLocation?.address?.complement || property.address?.complement || "",
+              latitude: wd.contentLocation?.address?.latitude || property.address?.latitude || undefined,
+              longitude: wd.contentLocation?.address?.longitude || property.address?.longitude || undefined,
+            },
+            showBuildingNumber: wd.contentLocation?.showBuildingNumber || "global",
+            photos: wd.contentLocation?.photos || property.locationPhotos || [],
+            hasExpressCheckInOut: wd.contentLocation?.hasExpressCheckInOut || property.hasExpressCheckInOut || false,
+            hasParking: wd.contentLocation?.hasParking || property.hasParking || false,
+            hasCableInternet: wd.contentLocation?.hasCableInternet || property.hasCableInternet || false,
+            hasWiFi: wd.contentLocation?.hasWiFi || property.hasWiFi || false,
+            has24hReception: wd.contentLocation?.has24hReception || property.has24hReception || false,
+          },
+        };
+      });
+    }
+  }, [property?.id, property?.wizardData, property?.completedSteps]); // ✅ Atualizar quando property for carregado
 
   // 🆕 CORREÇÃO: Só restaurar rascunho se for EDIÇÃO (tem property.id)
   // Se for CRIAÇÃO (sem property.id), NÃO restaurar - sempre começar do zero
@@ -752,7 +859,7 @@ export function PropertyEditWizard({
     };
     // Remover getRelevantSteps das dependências (é função local)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // ✅ Sem dependências - função usa formData e completedSteps do closure
+  }, [formData, completedSteps]); // ✅ Adicionar formData e completedSteps às dependências para evitar stale closure
 
   // 🆕 Função helper para normalizar dados do wizard para rascunho
   // Não usar useCallback para evitar dependências circulares
@@ -842,6 +949,98 @@ export function PropertyEditWizard({
       modalities: modalities,
     };
   }; // ✅ Função normal (não useCallback) - evita loops
+
+  // 🆕 INDIVIDUALIZAÇÃO STEP 01 - Salvar APENAS dados do Step 01
+  const saveStep01 = useCallback(async (step01Data: any) => {
+    try {
+      console.log("🚀 [Step01] saveStep01 CHAMADO COM DADOS:", step01Data);
+      console.log("💾 [Step01] Salvando Step 01 individualmente...", step01Data);
+      
+      // ✅ CORREÇÃO CRÍTICA: Usar property.id como fallback se draftPropertyId não existir
+      // Isso garante que em modo edição, sempre atualizamos a propriedade existente
+      const targetId = draftPropertyId || property?.id;
+      console.log("🎯 [Step01] targetId:", targetId, "draftPropertyId:", draftPropertyId, "property.id:", property?.id);
+      
+      // Verificar se Step 01 tem dados mínimos para ser considerado completo
+      const hasMinimalData = step01Data.internalName || 
+                            step01Data.propertyTypeId || 
+                            step01Data.accommodationTypeId;
+      
+      // Se não tem ID nenhum, criar rascunho mínimo primeiro
+      if (!targetId) {
+        console.log("🆕 [Step01] Criando rascunho mínimo para Step 01...");
+        const minimalDraft = {
+          status: "draft",
+          wizardData: { 
+            contentType: step01Data // Apenas dados do Step 01
+          },
+          completionPercentage: hasMinimalData ? 7 : 0, // ~7% para Step 01 de 14 steps
+          completedSteps: hasMinimalData ? ["content-type"] : [],
+        };
+        
+        const response = await propertiesApi.create(minimalDraft);
+        if (response.success && response.data?.id) {
+          const newId = response.data.id;
+          setDraftPropertyId(newId);
+          console.log("✅ [Step01] Rascunho criado com ID:", newId);
+          // Marcar step como completo no state local também
+          if (hasMinimalData) {
+            setCompletedSteps((prev) => new Set(prev).add("content-type"));
+          }
+          toast.success("Rascunho salvo automaticamente");
+          return newId;
+        } else {
+          throw new Error(response.error || "Erro ao criar rascunho");
+        }
+      }
+
+      // ✅ CORREÇÃO: Se já tem ID (modo edição ou rascunho existente), atualizar APENAS o contentType
+      console.log("🔄 [Step01] Atualizando Step 01 na propriedade existente:", targetId);
+      
+      // Buscar completed_steps atual para não perder outros steps
+      const currentProperty = property || (targetId ? await propertiesApi.get(targetId).then(r => r.data) : null);
+      const currentCompletedSteps = Array.isArray(currentProperty?.completedSteps) 
+        ? currentProperty.completedSteps 
+        : (currentProperty?.completedSteps instanceof Set 
+            ? Array.from(currentProperty.completedSteps) 
+            : []);
+      const shouldMarkComplete = hasMinimalData && !currentCompletedSteps.includes("content-type");
+      
+      const updateData: any = {
+        wizardData: {
+          contentType: step01Data, // Apenas dados do Step 01
+        },
+      };
+      
+      // Se tem dados mínimos e step não está completo, marcar como completo
+      if (shouldMarkComplete) {
+        updateData.completedSteps = [...currentCompletedSteps, "content-type"];
+        // Calcular completionPercentage aproximado
+        const totalSteps = 14; // Total de steps do wizard
+        const newPercentage = Math.round((updateData.completedSteps.length / totalSteps) * 100);
+        updateData.completionPercentage = newPercentage;
+        console.log("✅ [Step01] Marcando step como completo:", updateData.completedSteps);
+        // Marcar no state local também
+        setCompletedSteps((prev) => new Set(prev).add("content-type"));
+      }
+
+      const response = await propertiesApi.update(targetId, updateData);
+      if (response.success) {
+        console.log("✅ [Step01] Step 01 salvo individualmente na propriedade:", targetId);
+        if (shouldMarkComplete) {
+          console.log("✅ [Step01] Step 01 marcado como completo");
+        }
+        // Toast silencioso para não incomodar usuário
+        return true;
+      } else {
+        throw new Error(response.error || "Erro ao salvar Step 01");
+      }
+    } catch (error) {
+      console.error("❌ [Step01] Erro ao salvar Step 01:", error);
+      // Não mostrar toast de erro para não incomodar - já tem fallback no localStorage
+      return false;
+    }
+  }, [draftPropertyId, property]);
 
   // 🆕 SISTEMA DE RASCUNHO - Salvar rascunho no backend
   const saveDraftToBackend = useCallback(async () => {
@@ -1025,9 +1224,9 @@ export function PropertyEditWizard({
       toast.error("Erro ao salvar rascunho. Tente novamente.");
       throw error;
     }
-  }, [draftPropertyId]); // ✅ Apenas draftPropertyId - função usa formData e completedSteps do closure
+  }, [draftPropertyId, formData, completedSteps, calculateDraftProgress]); // ✅ Adicionar TODAS as dependências para evitar stale closure
 
-  // Hook para salvar rascunho no localStorage (backup - não usar mais)
+  // Hook para salvar rascunho no localStorage (backup apenas)
   const saveDraft = useCallback(() => {
     try {
       const draftId = draftPropertyId || property?.id || "draft";
@@ -1044,48 +1243,35 @@ export function PropertyEditWizard({
     }
   }, [formData, draftPropertyId, property?.id]);
 
-  // Auto-save de rascunho (modo criação) com debounce suave
+  // Persistir rascunho local quando ainda não existe ID no backend
   useEffect(() => {
-    // Se já tem ID (modo edição), não precisa auto-save local
-    if (property?.id) {
-      return;
+    if (!draftPropertyId && !property?.id && formData) {
+      saveDraft();
     }
+  }, [formData, draftPropertyId, property?.id, saveDraft]);
 
-    // Ignorar primeiro render para evitar salvar imediatamente ao montar
-    if (isInitialRenderRef.current) {
-      isInitialRenderRef.current = false;
-      return;
-    }
-
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current);
-    }
-
-    autoSaveTimeoutRef.current = setTimeout(async () => {
-      try {
-        const newId = await saveDraftToBackend();
-        if (!draftPropertyId && newId) {
-          setDraftPropertyId(newId);
-        }
-        await saveDraft();
-      } catch (error) {
-        console.warn("⚠️ [Wizard] Auto-save de rascunho falhou:", error);
-      }
-    }, 1200);
-
+  // 🆕 v1.0.104.1 - Auto-save removido. Cada step usa usePropertyStepSync
+  // Não há mais competição de salvamentos. A sincronização é por step.
+  useEffect(() => {
     return () => {
+      // Cleanup apenas
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
       }
+      if (step01SaveTimeoutRef.current) {
+        clearTimeout(step01SaveTimeoutRef.current);
+      }
     };
-  }, [
-    property?.id,
-    draftPropertyId,
-    saveDraftToBackend,
-    saveDraft,
-    formData,
-    completedSteps,
-  ]);
+  }, []);
+  
+  // 🆕 INDIVIDUALIZAÇÃO STEP 01: Cleanup do timeout ao desmontar
+  useEffect(() => {
+    return () => {
+      if (step01SaveTimeoutRef.current) {
+        clearTimeout(step01SaveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Hook para limpar draft
   const clearDraft = useClearDraft();
@@ -1258,199 +1444,21 @@ export function PropertyEditWizard({
     const block = getCurrentBlock();
     const step = getCurrentStep();
 
-    console.log("💾 [Wizard] Salvando E avançando...");
+    console.log("➡️ [Wizard] v1.0.104.3 - Avançando para próximo step (salvamento via hook)");
 
     try {
       setIsSavingInternal(true);
 
-      // ============================================================================
-      // ✅ LÓGICA DE SALVAMENTO POR PASSO
-      // ============================================================================
-      //
-      // IMPORTANTE: Salvar em cada passo para não perder dados se página atualizar
-      //
-      // RACIOCÍNIO POR TRÁS:
-      // - Se usuário preenche 10 passos e página atualiza no passo 11, perde tudo
-      // - Solução: Salvar rascunho a cada passo (localStorage em criação, backend em edição)
-      // - Último passo: Criar/atualizar definitivamente no backend
-      //
-      // ============================================================================
-
-      // 🆕 SISTEMA DE RASCUNHO: Salvar no backend a cada step
-      if (property?.id || draftPropertyId) {
-        // Modo EDIÇÃO ou CRIAÇÃO COM RASCUNHO: Salvar no backend a cada passo
-        const propertyId = property?.id || draftPropertyId!;
-
-        console.log("💾 [Wizard] Atualizando rascunho no backend:", {
-          propertyId,
-          hasPropertyId: !!property?.id,
-          hasDraftPropertyId: !!draftPropertyId,
-          step: getCurrentStepNumber(),
-        });
-
-        // Calcular progresso
-        const { percentage, completedStepsArray } = calculateDraftProgress();
-
-        console.log("📊 [Wizard] Progresso calculado:", {
-          percentage,
-          completedSteps: completedStepsArray.length,
-          totalSteps: getTotalSteps(),
-        });
-
-        // Preparar dados com progresso
-        const dataWithProgress = {
-          ...formData,
-          wizardData: formData, // Dados completos do wizard
-          completionPercentage: percentage,
-          completedSteps: completedStepsArray,
-          status: "draft", // Manter como rascunho até finalizar
-        };
-
-        console.log("📤 [Wizard] Enviando dados para atualizar:", {
-          propertyId,
-          status: dataWithProgress.status,
-          completionPercentage: dataWithProgress.completionPercentage,
-          completedStepsCount: dataWithProgress.completedSteps.length,
-        });
-
-        await updateProperty(propertyId, dataWithProgress, {
-          redirectToList: false, // ✅ NÃO redirecionar ao salvar step intermediário
-          customSuccessMessage: `Step ${getCurrentStepNumber()} salvo com sucesso!`,
-          onSuccess: () => {
-            console.log(
-              "✅ [Wizard] Rascunho atualizado com sucesso no backend"
-            );
-            clearDraft(); // Limpar rascunho do localStorage se existir
-          },
-        });
-      } else {
-        // 🆕 Modo CRIAÇÃO (primeiro step): Criar rascunho no backend
-        console.log(
-          "💾 [Wizard] Modo criação - criando rascunho no backend (primeiro step)"
-        );
-
-        try {
-          console.log("🔄 [Wizard] Chamando saveDraftToBackend()...");
-          const newDraftId = await saveDraftToBackend();
-          console.log("✅ [Wizard] Rascunho criado no backend:", newDraftId);
-
-          if (!newDraftId) {
-            throw new Error("Rascunho criado mas não retornou ID");
-          }
-
-          // 🆕 IMPORTANTE: Atualizar draftPropertyId para próximos steps
-          setDraftPropertyId(newDraftId);
-          console.log(
-            "🔄 [Wizard] draftPropertyId atualizado para:",
-            newDraftId
-          );
-
-          // Salvar também no localStorage como backup
-          saveDraft();
-
-          // 🆕 Toast de sucesso
-          toast.success("Rascunho salvo com sucesso!");
-        } catch (error: any) {
-          console.error("❌ [Wizard] ERRO DETALHADO ao criar rascunho:", {
-            error,
-            message: error?.message,
-            stack: error?.stack,
-            formData: {
-              hasContentType: !!formData?.contentType,
-              modalities: formData?.contentType?.modalidades,
-              hasLocation: !!formData?.contentLocation,
-            },
-          });
-          console.error(
-            "❌ [Wizard] Erro ao criar rascunho no backend:",
-            error
-          );
-
-          // 🆕 Tentar novamente após 1 segundo (pode ser problema temporário de rede)
-          setTimeout(async () => {
-            try {
-              console.log("🔄 [Wizard] Tentando criar rascunho novamente...");
-              const retryDraftId = await saveDraftToBackend();
-              console.log(
-                "✅ [Wizard] Rascunho criado no backend (retry):",
-                retryDraftId
-              );
-              toast.success("Rascunho salvo com sucesso!");
-            } catch (retryError) {
-              console.error(
-                "❌ [Wizard] Erro ao criar rascunho (retry):",
-                retryError
-              );
-              // Não mostrar erro ao usuário - já salvou no localStorage como backup
-            }
-          }, 1000);
-
-          // Fallback: tentar com dados mais simples se falhar
-          try {
-            console.log(
-              "🔄 [Wizard] Tentando criar rascunho com dados simplificados..."
-            );
-            const simpleDraft = {
-              name:
-                formData.contentType?.internalName || "Rascunho de Propriedade",
-              code:
-                formData.contentType?.code ||
-                `DRAFT-${Date.now().toString(36).toUpperCase()}`,
-              type:
-                formData.contentType?.propertyTypeId ||
-                formData.contentType?.accommodationTypeId ||
-                "loc_casa",
-              address: formData.contentLocation?.address || {
-                city: "Rio de Janeiro",
-                state: "RJ",
-                country: "BR",
-              },
-              status: "draft",
-              wizardData: formData,
-              completionPercentage: 0,
-              completedSteps: [],
-              maxGuests: 2,
-              bedrooms: 1,
-              beds: 1,
-              bathrooms: 1,
-              basePrice: 0,
-              currency: "BRL",
-            };
-
-            const retryResponse = await propertiesApi.create(simpleDraft);
-            if (retryResponse.success && retryResponse.data?.id) {
-              const newDraftId = retryResponse.data.id;
-              setDraftPropertyId(newDraftId);
-              console.log(
-                "✅ [Wizard] Rascunho criado no backend (retry):",
-                newDraftId
-              );
-              toast.success("Rascunho salvo com sucesso!");
-              // Salvar também no localStorage como backup
-              saveDraft();
-              return;
-            } else {
-              throw new Error(retryResponse.error || "Erro ao criar rascunho");
-            }
-          } catch (retryError: any) {
-            console.error("❌ [Wizard] Erro no retry também:", retryError);
-            // Último fallback: salvar no localStorage
-            saveDraft();
-            toast.error(
-              `Erro ao salvar rascunho: ${error?.message || retryError?.message || "Erro desconhecido"
-              }. Verifique sua conexão.`
-            );
-          }
-        }
-      }
-
-      // 2. Marcar step atual como completo
+      // 🆕 v1.0.104.3 - Salvamento é 100% handled por usePropertyStepSync
+      // Não fazer duplicate save aqui, deixar o hook cuidar de debounce/upload/retry
+      
+      // 1. Marcar step atual como completo
       setCompletedSteps((prev) => new Set(prev).add(step.id));
 
-      // 3. Aguardar um momento antes de avançar (evita conflito DOM)
+      // 2. Aguardar um momento antes de avançar (evita conflito DOM)
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // 4. Avançar para próximo step RELEVANTE
+      // 3. Avançar para próximo step RELEVANTE
       // ✅ PROTEÇÃO: Garantir que formData existe
       if (!formData || typeof formData !== "object") {
         console.error("❌ [Wizard] formData inválido em handleSaveAndNext");
@@ -1494,7 +1502,7 @@ export function PropertyEditWizard({
         // Não redireciona aqui, handleSave já faz isso
       }
     } catch (error) {
-      console.error("❌ Erro ao salvar e avançar:", error);
+      console.error("❌ Erro ao avançar:", error);
     } finally {
       setIsSavingInternal(false);
     }
@@ -1602,9 +1610,19 @@ export function PropertyEditWizard({
     }
   };
 
-  const handleStepClick = (blockId: string, stepIndex: number) => {
-    // ✅ NÃO salvar no backend - apenas mudar de step!
-    // Auto-save salva localmente (rascunho)
+  const handleStepClick = async (blockId: string, stepIndex: number) => {
+    // 🆕 INDIVIDUALIZAÇÃO STEP 01: Salvar Step 01 antes de navegar
+    const currentStep = getCurrentStep();
+    if (currentStep.id === "content-type" && formData?.contentType) {
+      console.log("💾 [Step01] Salvando Step 01 antes de navegar para outro step...");
+      // Cancelar debounce pendente
+      if (step01SaveTimeoutRef.current) {
+        clearTimeout(step01SaveTimeoutRef.current);
+        step01SaveTimeoutRef.current = null;
+      }
+      // Salvar imediatamente
+      await saveStep01(formData.contentType);
+    }
 
     // 🆕 v1.0.103.XXX - Verificar se passo é relevante antes de navegar
     const block = WIZARD_STRUCTURE.find((b) => b.id === blockId);
@@ -1915,6 +1933,17 @@ export function PropertyEditWizard({
       if (step.id === "content-type") {
         console.log("🎨 [Wizard] Renderizando ContentTypeStep");
         console.log("📊 [Wizard] formData.contentType:", formData.contentType);
+        
+        // 🆕 v1.0.104.1 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'contentType',
+          stepData: formData.contentType,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id), // Só sincronizar se tiver ID
+        });
+        
         try {
           // Garantir que data sempre tenha estrutura válida
           const contentTypeData = formData.contentType || {
@@ -1927,16 +1956,34 @@ export function PropertyEditWizard({
           };
 
           return (
-            <ContentTypeStep
-              data={contentTypeData}
-              onChange={(data) => {
-                console.log("🔄 [Wizard] ContentTypeStep onChange:", data);
-                setFormData({
-                  ...formData,
-                  contentType: data,
-                });
-              }}
-            />
+            <div>
+              <ContentTypeStep
+                data={contentTypeData}
+                onChange={(data) => {
+                  console.log("🔄 [Wizard] ContentTypeStep onChange:", data);
+                  
+                  // Atualizar formData local
+                  setFormData({
+                    ...formData,
+                    contentType: data,
+                  });
+                  
+                  // ✅ O hook se encarrega do salvamento automático
+                  // Não há debounce manual aqui
+                }}
+              />
+              
+              {/* 🆕 Status indicator */}
+              {syncStatus.status === 'saving' && (
+                <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+              )}
+              {syncStatus.status === 'saved' && (
+                <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+              )}
+              {syncStatus.status === 'error' && (
+                <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+              )}
+            </div>
           );
         } catch (error: any) {
           console.error(
@@ -1950,119 +1997,234 @@ export function PropertyEditWizard({
 
       // Step 2: Localização (content-location)
       if (step.id === "content-location") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'contentLocation',
+          stepData: formData.contentLocation,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         // 🆕 Passar modalidades para filtrar campos
         const modalidades = (formData?.contentType?.modalidades ||
           formData?.contentType?.categoria ||
           []) as string[];
 
         return (
-          <ContentLocationStep
-            data={
-              formData.contentLocation || {
-                mode: "new",
-                address: {
-                  country: "BR",
-                  state: "",
-                  stateCode: "",
-                  city: "",
-                  neighborhood: "",
-                  street: "",
-                  number: "",
-                  zipCode: "",
-                },
-                showBuildingNumber: "global",
-                photos: [],
+          <div>
+            <ContentLocationStep
+              data={
+                formData.contentLocation || {
+                  mode: "new",
+                  address: {
+                    country: "BR",
+                    state: "",
+                    stateCode: "",
+                    city: "",
+                    neighborhood: "",
+                    street: "",
+                    number: "",
+                    zipCode: "",
+                  },
+                  showBuildingNumber: "global",
+                  photos: [],
+                }
               }
-            }
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                contentLocation: data,
-              });
-            }}
-            modalidades={modalidades}
-            propertyId={property?.id}
-          />
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  contentLocation: data,
+                });
+              }}
+              modalidades={modalidades}
+              propertyId={property?.id}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
       if (step.id === "content-rooms") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'contentRooms',
+          stepData: formData.contentRooms,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         return (
-          <ContentRoomsStep
-            data={formData.contentRooms}
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                contentRooms: data,
-              });
-            }}
-            propertyId={property?.id}
-          />
+          <div>
+            <ContentRoomsStep
+              data={formData.contentRooms}
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  contentRooms: data,
+                });
+              }}
+              propertyId={property?.id}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 
       // Step 4: Amenidades do Local (content-location-amenities) - READ ONLY
       if (step.id === "content-location-amenities") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'contentLocationAmenities',
+          stepData: formData.contentLocationAmenities,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         // 🆕 Passar modalidades para filtrar campos específicos
         const modalidades = (formData?.contentType?.modalidades ||
           formData?.contentType?.categoria ||
           []) as string[];
         return (
-          <ContentLocationAmenitiesStep
-            propertyType={formData.contentType?.propertyType || "individual"}
-            data={formData.contentLocationAmenities}
-            modalidades={modalidades}
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                contentLocationAmenities: data,
-              });
-            }}
-          />
+          <div>
+            <ContentLocationAmenitiesStep
+              propertyType={formData.contentType?.propertyType || "individual"}
+              data={formData.contentLocationAmenities}
+              modalidades={modalidades}
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  contentLocationAmenities: data,
+                });
+              }}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 
       // Step 5: Amenidades da Acomodação (content-property-amenities) - EDITÁVEL
       if (step.id === "content-property-amenities") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'contentAmenities',
+          stepData: formData.contentAmenities,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         return (
-          <ContentAmenitiesStep
-            value={{
-              listingAmenities:
-                formData.contentAmenities?.listingAmenities || [],
-            }}
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                contentAmenities: data,
-              });
-            }}
-          />
+          <div>
+            <ContentAmenitiesStep
+              value={{
+                listingAmenities:
+                  formData.contentAmenities?.listingAmenities || [],
+              }}
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  contentAmenities: data,
+                });
+              }}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 
       // Step 6: Fotos e Mídia (content-photos) -> Agora é "Tour Visual" (Step 4)
       if (step.id === "content-photos") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'contentPhotos',
+          stepData: formData.contentPhotos,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         return (
-          <ContentPhotosStep
-            data={formData.contentPhotos || { photos: [] }}
-            rooms={formData.contentRooms?.rooms || []}
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                contentPhotos: data,
-              });
-            }}
-            // 🆕 v1.0.104.1 - Permitir exclusão de fotos (atualiza rooms)
-            onRoomsUpdate={(updatedRooms) => {
-              setFormData({
-                ...formData,
-                contentRooms: {
-                  ...(formData.contentRooms || {}),
-                  rooms: updatedRooms
-                }
-              });
-            }}
-            propertyId={property?.id}
-          />
+          <div>
+            <ContentPhotosStep
+              data={formData.contentPhotos || { photos: [] }}
+              rooms={formData.contentRooms?.rooms || []}
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  contentPhotos: data,
+                });
+              }}
+              // 🆕 v1.0.104.1 - Permitir exclusão de fotos (atualiza rooms)
+              onRoomsUpdate={(updatedRooms) => {
+                setFormData({
+                  ...formData,
+                  contentRooms: {
+                    ...(formData.contentRooms || {}),
+                    rooms: updatedRooms
+                  }
+                });
+              }}
+              propertyId={property?.id}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 
@@ -2092,203 +2254,359 @@ export function PropertyEditWizard({
 
       // Step 6: Descrição (content-description)
       if (step.id === "content-description") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'contentDescription',
+          stepData: formData.contentDescription,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         // TODO: Buscar configuredCustomFields das settings (kv_store ou API)
         const configuredCustomFields = []; // Virá das configurações globais
 
         return (
-          <ContentDescriptionStep
-            value={formData.contentDescription}
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                contentDescription: data,
-              });
-            }}
-            configuredCustomFields={configuredCustomFields}
-          />
+          <div>
+            <ContentDescriptionStep
+              value={formData.contentDescription}
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  contentDescription: data,
+                });
+              }}
+              configuredCustomFields={configuredCustomFields}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 
       // Step 1: Regras de Hospedagem (settings-rules)
       if (step.id === "settings-rules") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'settingsRules',
+          stepData: formData.settingsRules,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         return (
-          <SettingsRulesStep
-            data={formData.settingsRules || {}}
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                settingsRules: data,
-              });
-            }}
-          />
+          <div>
+            <SettingsRulesStep
+              data={formData.settingsRules || {}}
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  settingsRules: data,
+                });
+              }}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 
       // FINANCIAL STEP 1: Configuração de Relacionamento (financial-contract)
       if (step.id === "financial-contract") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'financialContract',
+          stepData: formData.financialContract,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         return (
-          <FinancialContractStep
-            data={
-              formData.financialContract || {
-                isSublet: false,
-                isExclusive: false,
-                blockCalendarAfterEnd: false,
-                commissionModel: "global",
-                considerChannelFees: false,
-                deductChannelFees: false,
-                allowExclusiveTransfer: false,
-                electricityChargeMode: "global",
-                showReservationsInOwnerCalendar: "global",
-                ownerPreReservationEmail: "global",
-                agentPreReservationEmail: "global",
-                ownerConfirmedReservationEmail: "global",
-                agentConfirmedReservationEmail: "global",
-                cancellationEmail: "global",
-                deletedReservationEmail: "global",
-                reserveLinkBeforeCheckout: "global",
+          <div>
+            <FinancialContractStep
+              data={
+                formData.financialContract || {
+                  isSublet: false,
+                  isExclusive: false,
+                  blockCalendarAfterEnd: false,
+                  commissionModel: "global",
+                  considerChannelFees: false,
+                  deductChannelFees: false,
+                  allowExclusiveTransfer: false,
+                  electricityChargeMode: "global",
+                  showReservationsInOwnerCalendar: "global",
+                  ownerPreReservationEmail: "global",
+                  agentPreReservationEmail: "global",
+                  ownerConfirmedReservationEmail: "global",
+                  agentConfirmedReservationEmail: "global",
+                  cancellationEmail: "global",
+                  deletedReservationEmail: "global",
+                  reserveLinkBeforeCheckout: "global",
+                }
               }
-            }
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                financialContract: data,
-              });
-            }}
-            owners={[]} // TODO: Buscar do backend
-            managers={[]} // TODO: Buscar do backend
-          />
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  financialContract: data,
+                });
+              }}
+              owners={[]} // TODO: Buscar do backend
+              managers={[]} // TODO: Buscar do backend
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 
       // FINANCIAL STEP 2: Preços Locação e Venda (financial-residential-pricing)
       if (step.id === "financial-residential-pricing") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'financialResidentialPricing',
+          stepData: formData.financialResidentialPricing,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         // 🆕 Passar modalidades para filtrar seções
         const modalidades = (formData?.contentType?.modalidades ||
           formData?.contentType?.categoria ||
           []) as string[];
         return (
-          <FinancialResidentialPricingStep
-            data={
-              formData.financialResidentialPricing || {
-                priceType: "rental",
-                acceptsFinancing: false,
-                acceptsTrade: false,
-                exclusiveSale: false,
+          <div>
+            <FinancialResidentialPricingStep
+              data={
+                formData.financialResidentialPricing || {
+                  priceType: "rental",
+                  acceptsFinancing: false,
+                  acceptsTrade: false,
+                  exclusiveSale: false,
+                }
               }
-            }
-            categories={modalidades}
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                financialResidentialPricing: data,
-              });
-            }}
-            categories={
-              formData.contentType?.modalidades ||
-              formData.contentType?.categoria ||
-              []
-            }
-          />
+              categories={modalidades}
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  financialResidentialPricing: data,
+                });
+              }}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 
       // FINANCIAL STEP 3: Configuração de preço temporada (financial-fees)
       if (step.id === "financial-fees") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'financialSeasonalPricing',
+          stepData: formData.financialSeasonalPricing,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         return (
-          <FinancialSeasonalPricingStep
-            data={
-              formData.financialSeasonalPricing || {
-                configMode: "global",
-                region: "global",
-                currency: "BRL",
-                discountPolicy: "global",
-                longStayDiscount: 0,
-                weeklyDiscount: 0,
-                monthlyDiscount: 0,
-                depositMode: "global",
-                depositAmount: 0,
-                depositCurrency: "BRL",
-                dynamicPricingMode: "global",
-                enableDynamicPricing: false,
-                feesMode: "global",
-                cleaningFee: 0,
-                cleaningFeePaidBy: "guest",
-                petFee: 0,
-                petFeePaidBy: "guest",
-                extraServicesFee: 0,
-                extraServicesFeePaidBy: "guest",
+          <div>
+            <FinancialSeasonalPricingStep
+              data={
+                formData.financialSeasonalPricing || {
+                  configMode: "global",
+                  region: "global",
+                  currency: "BRL",
+                  discountPolicy: "global",
+                  longStayDiscount: 0,
+                  weeklyDiscount: 0,
+                  monthlyDiscount: 0,
+                  depositMode: "global",
+                  depositAmount: 0,
+                  depositCurrency: "BRL",
+                  dynamicPricingMode: "global",
+                  enableDynamicPricing: false,
+                  feesMode: "global",
+                  cleaningFee: 0,
+                  cleaningFeePaidBy: "guest",
+                  petFee: 0,
+                  petFeePaidBy: "guest",
+                  extraServicesFee: 0,
+                  extraServicesFeePaidBy: "guest",
+                }
               }
-            }
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                financialSeasonalPricing: data,
-              });
-            }}
-          />
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  financialSeasonalPricing: data,
+                });
+              }}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 
       // FINANCIAL STEP 4: Precificação Individual de Temporada (financial-pricing)
       if (step.id === "financial-pricing") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'financialIndividualPricing',
+          stepData: formData.financialIndividualPricing,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         return (
-          <FinancialIndividualPricingStep
-            data={
-              formData.financialIndividualPricing || {
-                pricingMode: "global",
-                basePricePerNight: 0,
-                currency: "BRL",
-                enableStayDiscounts: false,
-                weeklyDiscount: 0,
-                monthlyDiscount: 0,
-                enableSeasonalPricing: false,
-                seasonalPeriods: [],
-                enableWeekdayPricing: false,
-                weekdayPricing: {
-                  monday: 0,
-                  tuesday: 0,
-                  wednesday: 0,
-                  thursday: 0,
-                  friday: 0,
-                  saturday: 0,
-                  sunday: 0,
-                },
-                enableSpecialDates: false,
-                specialDates: [],
+          <div>
+            <FinancialIndividualPricingStep
+              data={
+                formData.financialIndividualPricing || {
+                  pricingMode: "global",
+                  basePricePerNight: 0,
+                  currency: "BRL",
+                  enableStayDiscounts: false,
+                  weeklyDiscount: 0,
+                  monthlyDiscount: 0,
+                  enableSeasonalPricing: false,
+                  seasonalPeriods: [],
+                  enableWeekdayPricing: false,
+                  weekdayPricing: {
+                    monday: 0,
+                    tuesday: 0,
+                    wednesday: 0,
+                    thursday: 0,
+                    friday: 0,
+                    saturday: 0,
+                    sunday: 0,
+                  },
+                  enableSpecialDates: false,
+                  specialDates: [],
+                }
               }
-            }
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                financialIndividualPricing: data,
-              });
-            }}
-          />
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  financialIndividualPricing: data,
+                });
+              }}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 
       // FINANCIAL STEP 5: Preços Derivados (financial-derived-pricing)
       if (step.id === "financial-derived-pricing") {
+        // 🆕 v1.0.104.3 - Usar hook de sync centralizado
+        const syncStatus = usePropertyStepSync({
+          propertyId: draftPropertyId || property?.id || '',
+          stepKey: 'financialDerivedPricing',
+          stepData: formData.financialDerivedPricing,
+          completedSteps: Array.from(completedSteps),
+          completionPercentage: calculateDraftProgress().percentage,
+          enabled: !!(draftPropertyId || property?.id),
+        });
+        
         return (
-          <FinancialDerivedPricingStep
-            data={
-              formData.financialDerivedPricing || {
-                pricesVaryByGuests: false,
-                maxGuestsIncluded: 2,
-                extraGuestFeeType: "fixed",
-                extraGuestFeeValue: 0,
-                chargeForChildren: false,
-                childrenChargeType: "per_night",
-                ageBrackets: [],
+          <div>
+            <FinancialDerivedPricingStep
+              data={
+                formData.financialDerivedPricing || {
+                  pricesVaryByGuests: false,
+                  maxGuestsIncluded: 2,
+                  extraGuestFeeType: "fixed",
+                  extraGuestFeeValue: 0,
+                  chargeForChildren: false,
+                  childrenChargeType: "per_night",
+                  ageBrackets: [],
+                }
               }
-            }
-            onChange={(data) => {
-              setFormData({
-                ...formData,
-                financialDerivedPricing: data,
-              });
-            }}
-          />
+              onChange={(data) => {
+                setFormData({
+                  ...formData,
+                  financialDerivedPricing: data,
+                });
+              }}
+            />
+            
+            {/* 🆕 Status indicator */}
+            {syncStatus.status === 'saving' && (
+              <div className="text-xs text-blue-600 mt-2">💾 Salvando...</div>
+            )}
+            {syncStatus.status === 'saved' && (
+              <div className="text-xs text-green-600 mt-2">✅ Salvo com sucesso</div>
+            )}
+            {syncStatus.status === 'error' && (
+              <div className="text-xs text-red-600 mt-2">❌ Erro: {syncStatus.error}</div>
+            )}
+          </div>
         );
       }
 

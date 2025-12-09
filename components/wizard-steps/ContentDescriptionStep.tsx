@@ -1,23 +1,16 @@
 /**
  * RENDIZY - Content Description Step (Step 6)
+ * Refatorado para arquitetura URL-Driven (Phase 2)
  * 
- * Sistema completo de descrição com:
- * - 6 campos fixos obrigatórios (sem emojis - Airbnb policy)
- * - Sistema multi-idioma (PT, EN, ES)
- * - Tradução automática (opcional)
- * - Campos personalizados configurados pelo admin nas Settings
- * 
- * @version 1.0.103.12
- * @date 2025-10-29
+ * @version 1.0.104.0
+ * @date 2025-12-06
  */
 
 import { useState, useEffect } from 'react';
 import {
   FileText,
-  Globe,
   Sparkles,
   AlertCircle,
-  Check,
   Languages,
   ChevronDown,
   ChevronUp,
@@ -35,6 +28,8 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { toast } from 'sonner';
+import { useWizardNavigation } from '../../hooks/useWizardNavigation';
+import { usePropertyData } from '../../hooks/usePropertyData';
 
 // ============================================================================
 // TYPES
@@ -44,16 +39,8 @@ type Language = 'pt' | 'en' | 'es';
 
 interface FixedField {
   id: string;
-  label: {
-    pt: string;
-    en: string;
-    es: string;
-  };
-  placeholder: {
-    pt: string;
-    en: string;
-    es: string;
-  };
+  label: { pt: string; en: string; es: string; };
+  placeholder: { pt: string; en: string; es: string; };
   maxChars: number;
   required: boolean;
   allowEmojis: false;
@@ -62,11 +49,7 @@ interface FixedField {
 interface ConfiguredCustomField {
   id: string;
   label: string;
-  placeholder: {
-    pt: string;
-    en: string;
-    es: string;
-  };
+  placeholder: { pt: string; en: string; es: string; };
   required: boolean;
   order: number;
 }
@@ -77,25 +60,6 @@ interface CustomFieldValue {
   es: string;
 }
 
-interface ContentDescriptionStepProps {
-  value: {
-    title?: string; // 🆕 Título do anúncio (máximo 50 caracteres)
-    fixedFields?: {
-      [key: string]: {
-        pt: string;
-        en: string;
-        es: string;
-      };
-    };
-    customFieldsValues?: {
-      [fieldId: string]: CustomFieldValue;
-    };
-    autoTranslate?: boolean;
-  };
-  onChange: (data: any) => void;
-  configuredCustomFields?: ConfiguredCustomField[];
-}
-
 // ============================================================================
 // FIXED FIELDS CONFIGURATION
 // ============================================================================
@@ -103,11 +67,7 @@ interface ContentDescriptionStepProps {
 const FIXED_FIELDS: FixedField[] = [
   {
     id: 'generalNotes',
-    label: {
-      pt: 'Notas gerais',
-      en: 'General notes',
-      es: 'Notas generales'
-    },
+    label: { pt: 'Notas gerais', en: 'General notes', es: 'Notas generales' },
     placeholder: {
       pt: 'Informe detalhes adicionais que seus hóspedes devem saber sobre o seu espaço.',
       en: 'Inform additional details that your guests should know about your space.',
@@ -119,11 +79,7 @@ const FIXED_FIELDS: FixedField[] = [
   },
   {
     id: 'aboutSpace',
-    label: {
-      pt: 'Sobre o espaço',
-      en: 'About the space',
-      es: 'Sobre el espacio'
-    },
+    label: { pt: 'Sobre o espaço', en: 'About the space', es: 'Sobre el espacio' },
     placeholder: {
       pt: 'O que torna seu espaço especial?\nO que contribuirá para que seus hóspedes se sintam confortáveis em sua acomodação?',
       en: 'What makes your space special?\nWhat will help your guests feel comfortable in your accommodation?',
@@ -135,11 +91,7 @@ const FIXED_FIELDS: FixedField[] = [
   },
   {
     id: 'aboutAccess',
-    label: {
-      pt: 'Sobre o acesso ao espaço',
-      en: 'About access to the space',
-      es: 'Sobre el acceso al espacio'
-    },
+    label: { pt: 'Sobre o acesso ao espaço', en: 'About access to the space', es: 'Sobre el acceso al espacio' },
     placeholder: {
       pt: 'Seus hóspedes terão acesso liberado a todas as dependências da acomodação?\nSe for o caso, coloque também informações referentes à restrição do condomínio.',
       en: 'Will your guests have free access to all areas of the accommodation?\nIf applicable, also include information about condominium restrictions.',
@@ -151,11 +103,7 @@ const FIXED_FIELDS: FixedField[] = [
   },
   {
     id: 'hostInteraction',
-    label: {
-      pt: 'Sobre interação com anfitrião',
-      en: 'About host interaction',
-      es: 'Sobre interacción con anfitrión'
-    },
+    label: { pt: 'Sobre interação com anfitrião', en: 'About host interaction', es: 'Sobre interacción con anfitrión' },
     placeholder: {
       pt: 'Como será a interação com o anfitrião durante a estada?\nHaverá contato em algum momento?',
       en: 'How will the interaction with the host be during the stay?\nWill there be contact at any time?',
@@ -167,11 +115,7 @@ const FIXED_FIELDS: FixedField[] = [
   },
   {
     id: 'neighborhoodDescription',
-    label: {
-      pt: 'Descrição do bairro',
-      en: 'Neighborhood description',
-      es: 'Descripción del barrio'
-    },
+    label: { pt: 'Descrição do bairro', en: 'Neighborhood description', es: 'Descripción del barrio' },
     placeholder: {
       pt: 'Como é o bairro ou os arredores do seu anúncio?\nColoque sugestões sobre o que os hóspedes podem fazer por arredores do local.',
       en: 'What is the neighborhood or surroundings of your listing like?\nProvide suggestions about what guests can do in the area.',
@@ -183,11 +127,7 @@ const FIXED_FIELDS: FixedField[] = [
   },
   {
     id: 'transportInfo',
-    label: {
-      pt: 'Informações sobre locomoção',
-      en: 'Transportation information',
-      es: 'Información sobre locomoción'
-    },
+    label: { pt: 'Informações sobre locomoção', en: 'Transportation information', es: 'Información sobre locomoción' },
     placeholder: {
       pt: 'Como chegar na propriedade?\nHá opções de transporte público? Estacionamento incluso no local ou nos arredores?\nQual a distância do seu anúncio em relação ao aeroporto ou às principais rodovias mais próximas?',
       en: 'How to get to the property?\nAre there public transportation options? Parking included on-site or nearby?\nWhat is the distance from your listing to the airport or nearest main highways?',
@@ -203,22 +143,13 @@ const FIXED_FIELDS: FixedField[] = [
 // HELPER FUNCTIONS
 // ============================================================================
 
-function containsEmoji(text: string): boolean {
-  const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
-  return emojiRegex.test(text);
-}
-
 function removeEmojis(text: string): string {
   return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
 }
 
 async function autoTranslate(text: string, from: Language, to: Language): Promise<string> {
   if (!text.trim()) return '';
-
-  toast.info('Tradução automática disponível em breve!', {
-    description: 'Integração com Google Translate será implementada.'
-  });
-
+  toast.info('Tradução automática disponível em breve!');
   return `[${to.toUpperCase()}] ${text}`;
 }
 
@@ -226,38 +157,40 @@ async function autoTranslate(text: string, from: Language, to: Language): Promis
 // MAIN COMPONENT
 // ============================================================================
 
-export default function ContentDescriptionStep({
-  value = {},
-  onChange,
-  configuredCustomFields = []
-}: ContentDescriptionStepProps) {
+export default function ContentDescriptionStep() {
+  const { propertyId, goToNextStep, goToPreviousStep } = useWizardNavigation();
+  const { property, loading: loadingProperty, saveProperty } = usePropertyData(propertyId);
+  const [isSaving, setIsSaving] = useState(false);
+
   const [currentLanguage, setCurrentLanguage] = useState<Language>('pt');
-  const [autoTranslate, setAutoTranslate] = useState(value.autoTranslate || false);
+  const [autoTranslateEnabled, setAutoTranslateEnabled] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['fixed']));
+  const configuredCustomFields: ConfiguredCustomField[] = []; // TODO: Fetch from settings if available
 
   // 🆕 Título do anúncio
-  const [title, setTitle] = useState<string>(value.title || "");
+  const [title, setTitle] = useState<string>("");
 
   const [fixedFields, setFixedFields] = useState<{
     [key: string]: { pt: string; en: string; es: string };
-  }>(value.fixedFields || {});
+  }>({});
 
   const [customFieldsValues, setCustomFieldsValues] = useState<{
     [fieldId: string]: CustomFieldValue;
-  }>(value.customFieldsValues || {});
+  }>({});
 
   // ============================================================================
-  // UPDATE PARENT
+  // INIT DATA
   // ============================================================================
 
   useEffect(() => {
-    onChange({
-      title, // 🆕 Incluir título
-      fixedFields,
-      customFieldsValues,
-      autoTranslate
-    });
-  }, [title, fixedFields, customFieldsValues, autoTranslate]);
+    if (property && property.wizardData?.contentDescription) {
+      const data = property.wizardData.contentDescription;
+      setTitle(data.title || "");
+      setFixedFields(data.fixedFields || {});
+      setCustomFieldsValues(data.customFieldsValues || {});
+      setAutoTranslateEnabled(data.autoTranslate || false);
+    }
+  }, [property]);
 
   // ============================================================================
   // HANDLERS
@@ -335,6 +268,29 @@ export default function ContentDescriptionStep({
     });
   };
 
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        wizardData: {
+          contentDescription: {
+            title,
+            fixedFields,
+            customFieldsValues,
+            autoTranslate: autoTranslateEnabled
+          }
+        }
+      };
+
+      const success = await saveProperty(payload);
+      if (success) {
+        goToNextStep();
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // ============================================================================
   // STATS
   // ============================================================================
@@ -351,8 +307,12 @@ export default function ContentDescriptionStep({
   // RENDER
   // ============================================================================
 
+  if (loadingProperty) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>;
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       <div>
         <h2 className="text-2xl font-bold mb-2">Descrição e Conteúdo</h2>
         <p className="text-muted-foreground">
@@ -445,7 +405,7 @@ export default function ContentDescriptionStep({
                 </div>
               </div>
             </div>
-            <Switch checked={autoTranslate} onCheckedChange={setAutoTranslate} />
+            <Switch checked={autoTranslateEnabled} onCheckedChange={setAutoTranslateEnabled} />
           </div>
         </CardContent>
       </Card>
@@ -487,7 +447,7 @@ export default function ContentDescriptionStep({
                     {field.label.pt}
                     {field.required && <span className="text-red-500 ml-1">*</span>}
                   </Label>
-                  {autoTranslate && (
+                  {autoTranslateEnabled && (
                     <Button variant="outline" size="sm" onClick={() => handleAutoTranslateField(field.id, 'fixed')}>
                       <Sparkles className="h-3 w-3 mr-1" />
                       Traduzir
@@ -564,7 +524,7 @@ export default function ContentDescriptionStep({
                     <div className="flex items-center gap-2">
                       <Smile className="h-3 w-3 text-green-600" />
                       <span className="text-xs text-green-600">Emojis permitidos</span>
-                      {autoTranslate && (
+                      {autoTranslateEnabled && (
                         <Button variant="outline" size="sm" onClick={() => handleAutoTranslateField(field.id, 'custom')}>
                           <Sparkles className="h-3 w-3 mr-1" />
                           Traduzir
@@ -629,7 +589,7 @@ export default function ContentDescriptionStep({
                 <div>✓ {fixedFieldsCompleted} de {FIXED_FIELDS.length} campos fixos preenchidos</div>
                 <div>✓ {customFieldsCompleted} de {configuredCustomFields.length} campos personalizados preenchidos</div>
                 <div>✓ Conteúdo disponível em 3 idiomas (PT, EN, ES)</div>
-                {autoTranslate && (
+                {autoTranslateEnabled && (
                   <div className="flex items-center gap-1">
                     <Sparkles className="h-3 w-3" />
                     <span>Tradução automática habilitada</span>
@@ -640,6 +600,18 @@ export default function ContentDescriptionStep({
           </div>
         </CardContent>
       </Card>
+
+      {/* ACTION BUTTONS */}
+      <div className="fixed bottom-0 left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-between items-center z-10">
+        <div className="text-sm text-muted-foreground">
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={isSaving} onClick={goToPreviousStep}>Voltar</Button>
+          <Button onClick={handleSave} disabled={isSaving || loadingProperty}>
+            {isSaving ? 'Salvando...' : 'Salvar e Avançar'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
