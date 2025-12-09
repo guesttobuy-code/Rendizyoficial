@@ -152,7 +152,7 @@ interface ClientSiteWrapperProps {
  *   
  *   return (
  *     <ClientSiteWrapper organizationId={orgId}>
- *       <ImportedSite /> {/* Site criado em v0.dev, Bolt, etc */}
+ *       <ImportedSite /> // Site criado em v0.dev, Bolt, etc
  *     </ClientSiteWrapper>
  *   );
  * }
