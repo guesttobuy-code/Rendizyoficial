@@ -152,10 +152,11 @@ interface ClientSiteWrapperProps {
  *   
  *   return (
  *     <ClientSiteWrapper organizationId={orgId}>
- *       <ImportedSite /> {/* Site criado em v0.dev, Bolt, etc */}
+ *       <ImportedSite />
  *     </ClientSiteWrapper>
  *   );
  * }
+ * // ImportedSite: Site criado em v0.dev, Bolt, etc
  * ```
  */
 export function ClientSiteWrapper({ organizationId, children }: ClientSiteWrapperProps) {
