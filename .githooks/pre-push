@@ -1,0 +1,7 @@
+#!/usr/bin/env pwsh
+# Simple pre-push hook: block pushes unless allowed explicitly
+if (-not ($env:GIT_ALLOW_PUSH -eq 'true' -or Test-Path -Path '.allow_push')) {
+    Write-Host "Push blocked: set environment variable GIT_ALLOW_PUSH=true or create an empty file named .allow_push in the repository root to allow pushes." -ForegroundColor Yellow
+    exit 1
+}
+exit 0

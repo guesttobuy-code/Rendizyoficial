@@ -1207,7 +1207,7 @@ function App() {
                   </ProtectedRoute>
                 } />
 
-                <Route path="/properties/:id/edit" element={
+                <Route path="/properties/:id/edit/*" element={
                   <ProtectedRoute>
                     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
                       <MainSidebar

@@ -6,9 +6,11 @@
   "description": "Sistema de Gestão de Imóveis de Temporada - Modal Overflow Fix",
   "scripts": {
     "dev": "vite --host",
+    "dev:browser": "start http://localhost:5173 && vite --host",
     "dev:local": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "logs:help": "pwsh -NoProfile -File scripts/show-log-commands.ps1",
     "deploy:vercel": "vercel --prod",
     "deploy:netlify": "netlify deploy --prod --dir=dist",
     "test:build": "npm run build && npm run preview",

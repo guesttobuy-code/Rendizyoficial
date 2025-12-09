@@ -41,6 +41,31 @@ export function PropertyWizardPage() {
 
         if (response.success && response.data) {
           console.log("✅ Propriedade carregada:", response.data);
+          
+          // 🆕 INDIVIDUALIZAÇÃO STEP 01: Parse wizardData se for string
+          if (typeof response.data.wizardData === 'string') {
+            try {
+              console.log("📦 [PropertyWizardPage] Parseando wizardData de string para objeto...");
+              response.data.wizardData = JSON.parse(response.data.wizardData);
+              console.log("✅ [PropertyWizardPage] wizardData parseado:", response.data.wizardData);
+            } catch (e) {
+              console.error("❌ [PropertyWizardPage] Erro ao parsear wizardData:", e);
+              response.data.wizardData = {};
+            }
+          }
+          
+          // 🆕 INDIVIDUALIZAÇÃO STEP 01: Parse completedSteps se for string
+          if (response.data.completedSteps && typeof response.data.completedSteps === 'string') {
+            try {
+              console.log("📦 [PropertyWizardPage] Parseando completedSteps de string para array...");
+              response.data.completedSteps = JSON.parse(response.data.completedSteps);
+              console.log("✅ [PropertyWizardPage] completedSteps parseado:", response.data.completedSteps);
+            } catch (e) {
+              console.error("❌ [PropertyWizardPage] Erro ao parsear completedSteps:", e);
+              response.data.completedSteps = [];
+            }
+          }
+          
           setProperty(response.data);
           setError(null);
         } else {

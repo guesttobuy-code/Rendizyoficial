@@ -94,6 +94,8 @@ export interface Location {
 export interface Property {
   id: string;
   name: string;
+  internal_name?: string; // 🆕 Persistence Fix
+  internalName?: string;  // 🆕 Persistence Fix
   code: string;
   type: string;
   status: string;
@@ -145,6 +147,7 @@ export interface Property {
   updatedAt: string;
   ownerId: string;
   isActive: boolean;
+  wizardData?: any; // 🆕 Persistence Fix
 }
 
 export interface Reservation {

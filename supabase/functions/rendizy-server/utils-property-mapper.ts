@@ -136,7 +136,20 @@ export function propertyToSql(property: Property, organizationId: string): any {
 
     // 🆕 Sistema de Rascunho
     status: property.status || "active", // 'draft', 'active', 'inactive', 'maintenance'
-    wizard_data: property.wizardData || null, // Dados completos do wizard em JSONB
+    wizard_data: (() => {
+      // ✅ FIX v1.0.104.5 - SANITIZAR WIZARD DATA para evitar erros de JSONB
+      // Remover valores undefined, functions, circular refs
+      if (!property.wizardData) return null;
+      try {
+        // Converter para JSON e de volta para remover valores não-serializáveis
+        const cleaned = JSON.parse(JSON.stringify(property.wizardData));
+        return cleaned;
+      } catch (err) {
+        console.error("❌ [propertyToSql] Erro ao serializar wizardData:", err);
+        // Se não conseguir serializar, tentar salvar um objeto vazio
+        return {};
+      }
+    })(), // Dados completos do wizard em JSONB
     completion_percentage: property.completionPercentage || 0, // 0-100
     completed_steps: property.completedSteps || [], // Array de step IDs completados
 
@@ -240,7 +253,19 @@ export function sqlToProperty(row: any): Property {
     // 🆕 Sistema de Rascunho
     wizardData: row.wizard_data || undefined,
     completionPercentage: row.completion_percentage || 0,
-    completedSteps: row.completed_steps || [],
+    // ✅ Parse completed_steps se for string (JSONB pode retornar como string)
+    completedSteps: (() => {
+      const steps = row.completed_steps || [];
+      if (typeof steps === 'string') {
+        try {
+          return JSON.parse(steps);
+        } catch (e) {
+          console.warn("⚠️ [sqlToProperty] Erro ao parsear completed_steps:", e);
+          return [];
+        }
+      }
+      return Array.isArray(steps) ? steps : [];
+    })(),
     // 🆕 IMPORTANTE: Garantir que status seja retornado corretamente
     status: row.status || "active", // Se não tiver status, assumir 'active'
 

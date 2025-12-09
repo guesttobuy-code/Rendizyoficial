@@ -2,13 +2,10 @@
  * RENDIZY - Wizard Step: Cômodos e Distribuição
  * 
  * Step 3 do Wizard de Edição de Propriedades
- * - Tipos de camas baseados em Airbnb/Booking
- * - Sistema de fotos por cômodo com tags
- * - Seleção em lote + tags múltiplas
- * - Drag & drop para reordenar fotos
+ * Refatorado para arquitetura URL-Driven (Phase 2)
  * 
- * @version 1.0.103.10
- * @date 2025-10-29
+ * @version 1.0.104.0
+ * @date 2025-12-06
  */
 
 import { useState, useEffect } from 'react';
@@ -24,9 +21,11 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 import { toast } from 'sonner';
 import { uploadRoomPhoto, deleteRoomPhoto } from '../../utils/roomsApi';
+import { useWizardNavigation } from '../../hooks/useWizardNavigation';
+import { usePropertyData } from '../../hooks/usePropertyData';
 
 // ============================================================================
-// CONSTANTS - TIPOS DE CAMAS (AIRBNB/BOOKING)
+// CONSTANTS
 // ============================================================================
 
 const BED_TYPES = [
@@ -39,10 +38,6 @@ const BED_TYPES = [
   { id: 'futon-casal', name: 'Colchão (Futon Casal)', icon: '🛋️', capacity: 2 },
   { id: 'sofa-cama-casal', name: 'Sofá-cama (p/ Casal)', icon: '🛋️', capacity: 2 },
 ];
-
-// ============================================================================
-// CONSTANTS - TIPOS DE CÔMODO
-// ============================================================================
 
 const ROOM_TYPES = [
   { id: 'suite', name: 'Suíte', icon: '🛏️', category: 'bedroom', hasBathroom: true },
@@ -58,10 +53,6 @@ const ROOM_TYPES = [
   { id: 'subarea', name: 'Subárea', icon: '🏗️', category: 'other' },
   { id: 'outras', name: 'Outras Dependências', icon: '🚪', category: 'other' },
 ];
-
-// ============================================================================
-// CONSTANTS - NOMES PERSONALIZADOS PARA "OUTRAS DEPENDÊNCIAS"
-// ============================================================================
 
 const CUSTOM_SPACE_NAMES = [
   'Academia',
@@ -124,10 +115,6 @@ const CUSTOM_SPACE_NAMES = [
   'Outro (especificar)',
 ].sort();
 
-// ============================================================================
-// CONSTANTS - TAGS DE FOTOS (BASEADO NA 3ª IMAGEM)
-// ============================================================================
-
 const PHOTO_TAGS = [
   'Academia / Espaço Fitness',
   'ADAM',
@@ -157,7 +144,8 @@ interface BedCount {
 interface Photo {
   id: string;
   url: string;
-  tags: string[]; // Tags de categorização apenas (sem capa)
+  path?: string; // Add path for deletion
+  tags: string[];
   order: number;
 }
 
@@ -165,7 +153,7 @@ interface Room {
   id: string;
   type: string;
   typeName: string;
-  customName?: string; // Nome personalizado para "Outras Dependências"
+  customName?: string;
   isShared: boolean;
   beds: BedCount;
   photos: Photo[];
@@ -175,22 +163,38 @@ interface FormData {
   rooms: Room[];
 }
 
-interface ContentRoomsStepProps {
-  data: FormData;
-  onChange: (data: FormData) => void;
-  propertyId?: string; // ID da propriedade para upload de fotos
-}
-
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsStepProps) {
+export function ContentRoomsStep() {
+  const { propertyId, goToNextStep, goToPreviousStep } = useWizardNavigation();
+  const { property, loading: loadingProperty, saveProperty } = usePropertyData(propertyId);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [data, setData] = useState<FormData>({ rooms: [] });
+
   const [selectedRoomIndex, setSelectedRoomIndex] = useState<number>(0);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [showTagsModal, setShowTagsModal] = useState(false);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
+
+  // ============================================================================
+  // INIT DATA
+  // ============================================================================
+
+  useEffect(() => {
+    if (property && property.wizardData?.contentRooms) {
+      // Ensure rooms is an array
+      const rooms = Array.isArray(property.wizardData.contentRooms.rooms)
+        ? property.wizardData.contentRooms.rooms
+        : [];
+      setData({ rooms });
+      // Only set selected room index if it's the first load or if index is out of bounds?
+      // Actually, keeping the default 0 is fine if rooms exist.
+    }
+  }, [property]);
 
   // ============================================================================
   // ROOM MANAGEMENT
@@ -206,16 +210,16 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
       photos: [],
     };
 
-    onChange({
-      rooms: [...data.rooms, newRoom],
-    });
+    setData(prev => ({
+      rooms: [...prev.rooms, newRoom]
+    }));
 
     setSelectedRoomIndex(data.rooms.length);
   };
 
   const removeRoom = (index: number) => {
     const newRooms = data.rooms.filter((_, i) => i !== index);
-    onChange({ rooms: newRooms });
+    setData({ rooms: newRooms });
 
     if (selectedRoomIndex >= newRooms.length) {
       setSelectedRoomIndex(Math.max(0, newRooms.length - 1));
@@ -223,9 +227,11 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
   };
 
   const updateRoom = (index: number, updates: Partial<Room>) => {
-    const newRooms = [...data.rooms];
-    newRooms[index] = { ...newRooms[index], ...updates };
-    onChange({ rooms: newRooms });
+    setData(prev => {
+      const newRooms = [...prev.rooms];
+      newRooms[index] = { ...newRooms[index], ...updates };
+      return { rooms: newRooms };
+    });
   };
 
   // ============================================================================
@@ -234,6 +240,8 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
 
   const updateBedCount = (roomIndex: number, bedTypeId: string, delta: number) => {
     const room = data.rooms[roomIndex];
+    if (!room) return;
+
     const currentCount = room.beds[bedTypeId] || 0;
     const newCount = Math.max(0, currentCount + delta);
 
@@ -257,7 +265,7 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
 
     const room = data.rooms[selectedRoomIndex];
 
-    // Se não temos propertyId, usar preview local
+    // Se não temos propertyId, usar preview local (fallback limitado)
     if (!propertyId) {
       const newPhotos: Photo[] = [];
       Array.from(files).forEach((file, index) => {
@@ -283,7 +291,7 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        
+
         toast.loading(`Fazendo upload da foto ${i + 1}/${files.length}...`, {
           id: 'photo-upload',
         });
@@ -370,7 +378,9 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
     const room = data.rooms[selectedRoomIndex];
     const photo = room.photos.find((p) => p.id === photoId);
 
-    // Se tem path, deletar do storage
+    // Se tem path, deletar do storage e atualizar backend se necessário?
+    // Aqui apenas removemos da lista. A persistencia real acontece no "Salvar".
+    // Mas o arquivo deve ser deletado do storage agora para não virar lixo.
     if (photo?.path && propertyId) {
       try {
         await deleteRoomPhoto(photo.path);
@@ -386,8 +396,6 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
 
     updateRoom(selectedRoomIndex, { photos: updatedPhotos });
   };
-
-
 
   // ============================================================================
   // DRAG & DROP
@@ -424,6 +432,28 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
   };
 
   // ============================================================================
+  // PERSISTENCE
+  // ============================================================================
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Persistir exatamente como está no estado
+      const payload = {
+        wizardData: {
+          contentRooms: data // { rooms: [...] }
+        }
+      };
+      const success = await saveProperty(payload);
+      if (success) {
+        goToNextStep();
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ============================================================================
   // SUMMARY CALCULATION
   // ============================================================================
 
@@ -450,8 +480,12 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
   // RENDER
   // ============================================================================
 
+  if (loadingProperty) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>;
+  }
+
   return (
-    <div className="h-full flex flex-col gap-4">
+    <div className="h-full flex flex-col gap-4 pb-20">
       {/* RESUMO VISUAL */}
       {data.rooms.length > 0 && (
         <Card>
@@ -512,11 +546,10 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                 {data.rooms.map((room, index) => (
                   <div
                     key={room.id}
-                    className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedRoomIndex === index
+                    className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${selectedRoomIndex === index
                         ? 'bg-primary text-primary-foreground border-primary'
                         : 'hover:bg-muted'
-                    }`}
+                      }`}
                     onClick={() => setSelectedRoomIndex(index)}
                   >
                     <span className="text-lg">
@@ -524,8 +557,8 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                     </span>
                     <div className="flex-1 flex flex-col gap-0.5">
                       <span className="text-sm truncate">
-                        {room.type === 'outras' && room.customName 
-                          ? room.customName 
+                        {room.type === 'outras' && room.customName
+                          ? room.customName
                           : (room.typeName || `Cômodo ${index + 1}`)}
                       </span>
                       {room.type === 'outras' && room.customName && (
@@ -771,11 +804,10 @@ export function ContentRoomsStep({ data, onChange, propertyId }: ContentRoomsSte
                         onDragStart={() => handleDragStart(photo.id)}
                         onDragOver={(e) => handleDragOver(e, photo.id)}
                         onDragEnd={handleDragEnd}
-                        className={`relative group rounded-lg overflow-hidden border-2 cursor-move ${
-                          selectedPhotos.includes(photo.id)
+                        className={`relative group rounded-lg overflow-hidden border-2 cursor-move ${selectedPhotos.includes(photo.id)
                             ? 'border-primary ring-2 ring-primary'
                             : 'border-transparent'
-                        }`}
+                          }`}
                       >
                         {/* Checkbox de seleção */}
                         <div className="absolute top-2 left-2 z-10">
@@ -903,7 +935,6 @@ function TagsSelector({
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) => {
       const newTags = prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag];
-      console.log('Tags selecionadas (ContentRoomsStep):', newTags);
       return newTags;
     });
   };
@@ -921,9 +952,8 @@ function TagsSelector({
           filteredTags.map((tag) => (
             <div
               key={tag}
-              className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-muted ${
-                selectedTags.includes(tag) ? 'bg-primary/10 border-primary' : ''
-              }`}
+              className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-muted ${selectedTags.includes(tag) ? 'bg-primary/10 border-primary' : ''
+                }`}
               onClick={() => toggleTag(tag)}
             >
               <Checkbox checked={selectedTags.includes(tag)} />

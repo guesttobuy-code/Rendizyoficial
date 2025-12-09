@@ -183,16 +183,21 @@ export async function listProperties(c: Context) {
     logInfo(`Found ${properties.length} properties (${drafts.length} drafts)`);
 
     // Buscar todos os locations para enriquecer os dados (ainda do KV Store por enquanto)
-    const locations = await kv.getByPrefix<any>("location:");
-    const locationsMap = new Map(locations.map((loc) => [loc.id, loc]));
+    try {
+      const locations = await kv.getByPrefix<any>("location:");
+      const locationsMap = new Map(locations.map((loc) => [loc.id, loc]));
 
-    // Enriquecer propriedades com dados do location
-    for (const property of properties) {
-      if (property.locationId && locationsMap.has(property.locationId)) {
-        const location = locationsMap.get(property.locationId);
-        property.locationName = location.name;
-        property.locationAmenities = location.amenities || [];
+      // Enriquecer propriedades com dados do location
+      for (const property of properties) {
+        if (property.locationId && locationsMap.has(property.locationId)) {
+          const location = locationsMap.get(property.locationId);
+          property.locationName = location.name;
+          property.locationAmenities = location.amenities || [];
+        }
       }
+    } catch (kvError) {
+      console.warn("⚠️ [listProperties] Warning: Failed to enrich locations from KV", kvError);
+      // Non-fatal error, continue returning properties without location details
     }
 
     // ✅ Aplicar filtros adicionais que não podem ser feitos na query SQL (tags, busca, folder)
@@ -426,7 +431,8 @@ async function createDraftPropertyMinimal(c: Context, body: any) {
     // Tentar adicionar wizard_data, completion_percentage, completed_steps
     // Se der erro, continuar sem elas (rascunho básico ainda funciona)
     if (body.wizardData || body) {
-      minimalDraft.wizard_data = body.wizardData || body;
+      // ✅ JSON STRINGIFY: Ensure it's a valid JSON string for JSONB column
+      minimalDraft.wizard_data = JSON.stringify(body.wizardData || body);
     }
 
     if (body.completionPercentage !== undefined) {
@@ -659,7 +665,8 @@ export async function createProperty(c: Context) {
         id, // Manter ID original
         // 🆕 FIX: Garantir que wizardData seja atualizado com o corpo da requisição
         // Se não houver wizardData explícito, usar o próprio corpo (rascunho)
-        wizardData: body.wizardData || body,
+        // ✅ JSON STRINGIFY: Ensure it's a valid JSON string for JSONB column on UPDATE too
+        wizardData: JSON.stringify(body.wizardData || body),
       };
 
       // Obter organization_id
@@ -1300,12 +1307,31 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
   let code =
     wizardData.contentType?.code || wizardData.code || existing?.code || null;
 
-  let type =
+  let rawType =
     wizardData.contentType?.propertyTypeId ||
     wizardData.contentType?.accommodationTypeId || // Fallback para accommodationTypeId
     wizardData.type ||
     existing?.type ||
     null;
+
+  // ✅ CORREÇÃO 500 ERROR: Sanitizar type para não enviar IDs gerados (ex: location_casa_...) para coluna SQL
+  // A coluna 'type' do banco espera valores curtos/enums (ex: 'individual', 'unit')
+  let type = rawType;
+  if (
+    type &&
+    (typeof type === "string" &&
+      (type.startsWith("location_") ||
+        type.startsWith("accommodation_") ||
+        type.startsWith("acc_") ||
+        type.length > 20))
+  ) {
+    console.log(
+      "⚠️ [NORMALIZAÇÃO] Type sanitizado de:",
+      type,
+      "para: 'individual'"
+    );
+    type = "individual"; // Fallback seguro
+  }
 
   // ✅ BOAS PRÁTICAS v1.0.103.1000 - Gerar name e code se não existirem
   // Gerar nome a partir do tipo de acomodação se não existir
@@ -1426,7 +1452,8 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
   }
 
   // Foto de capa: Prioridade para ID explícito do Wizard > primeira foto isCover > primeira foto
-  let coverPhoto = existing?.coverPhoto || null;
+  // ✅ FIX: Incluir wizardData.coverPhoto na inicialização
+  let coverPhoto = wizardData.coverPhoto || existing?.coverPhoto || null;
 
   // 🆕 v1.0.104.0 - Suporte ao novo passo "Tour Visual" que define ID da capa
   const explicitCoverId = wizardData.contentPhotos?.coverPhotoId;
@@ -1558,15 +1585,27 @@ function normalizeWizardData(wizardData: any, existing?: Property): any {
   console.log("   - locationAmenities:", locationAmenities.length);
   console.log("   - listingAmenities:", listingAmenities.length);
 
+  // ✅ BLOCO DUPLICADO REMOVIDO (coverPhoto já foi calculado acima)
+
+  // ✅ MELHORIA: Ordenar fotos para que a capa seja a primeira (para cards do frontend)
+  if (photos.length > 0) {
+    photos.sort((a: any, b: any) => {
+      // Se a é cover, vai pra frente (-1)
+      if (a.isCover) return -1;
+      // Se b é cover, a vai pra trás (1)
+      if (b.isCover) return 1;
+      return 0;
+    });
+  }
+
   // Retornar objeto normalizado
   return {
-
     // ✅ CAMPOS RAIZ (para leitura simples nos cards)
     name,
     code,
     type,
     photos,
-    coverPhoto,
+    coverPhoto, // ✅ Inserido aqui
     locationAmenities,
     listingAmenities,
     amenities: allAmenities, // Campo legado compatível
@@ -1644,7 +1683,58 @@ export async function updateProperty(c: Context) {
     const existing = sqlToProperty(existingRow);
 
     // 🆕 v1.0.103.315 - NORMALIZAR DADOS DO WIZARD
-    const normalized = normalizeWizardData(body.wizardData || body, existing);
+    const rawWizardData = body.wizardData || body;
+    const normalized = normalizeWizardData(rawWizardData, existing);
+
+    // ✅ CORREÇÃO CRÍTICA DE PERSISTÊNCIA: Garantir que o blob JSON completo seja salvo
+    // O `normalizeWizardData` retorna os campos achatados, mas o `propertyToSql`
+    // precisa da propriedade `wizardData` explicitamente para salvar na coluna `wizard_data`.
+    // ✅ FIX v1.0.104.3 - MERGE DE DADOS DO WIZARD (Evitar perda de dados)
+    // Mesclar dados existentes com a atualização para não perder outros passos
+    const existingWizardData = existing.wizardData || {};
+    // Se rawWizardData for o próprio corpo (sem wizardData explícito), cuidado para não sujar o JSON
+    // Mas para o Wizard 2.0, geralmente vem em body.wizardData
+    const isExplicitWizardUpdate = !!body.wizardData;
+
+    // ✅ FIX v1.0.104.3 - DEEP MERGE DE DADOS DO WIZARD
+    // MERGE PROFUNDO para evitar perda de dados em atualizações parciais
+    // Ex: Se enviar apenas { contentType: { internalName: "X" } }, 
+    // não deve apagar { contentType: { propertyTypeId: "Y" } }
+
+    // Função helper local para deep merge simples
+    const deepMerge = (target: any, source: any): any => {
+      const result = { ...target };
+      for (const key in source) {
+        if (source.hasOwnProperty(key)) {
+          if (
+            source[key] &&
+            typeof source[key] === 'object' &&
+            !Array.isArray(source[key]) &&
+            target[key] &&
+            typeof target[key] === 'object' &&
+            !Array.isArray(target[key])
+          ) {
+            result[key] = deepMerge(target[key], source[key]);
+          } else {
+            result[key] = source[key];
+          }
+        }
+      }
+      return result;
+    };
+
+    let mergedWizardData = rawWizardData; // Initialize mergedWizardData
+
+    if (typeof existingWizardData === 'object') {
+      mergedWizardData = deepMerge(existingWizardData, rawWizardData);
+    } else {
+      mergedWizardData = rawWizardData;
+    }
+
+    // Garantir que arrays sejam substituídos (comportamento desejado para arrays)
+    // Mas objetos aninhados (como contentType) sejam mesclados.
+
+    normalized.wizardData = mergedWizardData;
 
     console.log("📝 [UPDATE] Dados normalizados prontos para salvar:", {
       id,
@@ -1794,11 +1884,18 @@ export async function updateProperty(c: Context) {
       ...(normalized.settingsRules && {
         settingsRules: normalized.settingsRules,
       }),
-      ...(normalized.completedSteps && {
+      // 🆕 INDIVIDUALIZAÇÃO STEP 01: completedSteps pode vir direto do body ou do normalized
+      ...(body.completedSteps && {
+        completedSteps: body.completedSteps,
+      }),
+      ...(normalized.completedSteps && !body.completedSteps && {
         completedSteps: normalized.completedSteps,
       }),
       // 🆕 SISTEMA DE RASCUNHO: Persistir wizardData e porcentagem
-      ...(normalized.completionPercentage !== undefined && {
+      ...(body.completionPercentage !== undefined && {
+        completionPercentage: body.completionPercentage,
+      }),
+      ...(normalized.completionPercentage !== undefined && body.completionPercentage === undefined && {
         completionPercentage: normalized.completionPercentage,
       }),
       ...(normalized.wizardData && {
@@ -2036,6 +2133,35 @@ export async function updateProperty(c: Context) {
       updatedAt: getCurrentDateTime(),
     };
 
+    // 🔒 Garantir que wizardData seja mesclado (deep merge) e não sobrescreva passos anteriores
+    const mergeWizardData = (current: any, incoming: any): any => {
+      if (incoming === undefined || incoming === null) return current ?? {};
+      if (current === undefined || current === null) return incoming;
+      if (Array.isArray(current) || Array.isArray(incoming)) return incoming;
+      if (typeof current !== "object" || typeof incoming !== "object") return incoming;
+
+      const result: Record<string, any> = { ...current };
+      for (const key of Object.keys(incoming)) {
+        result[key] = mergeWizardData((current as any)[key], incoming[key]);
+      }
+      return result;
+    };
+
+    const existingWizardData = (existing as any)?.wizardData ?? existingRow?.wizard_data ?? {};
+    const incomingWizardData = (updated as any).wizardData ?? {};
+    (updated as any).wizardData = mergeWizardData(existingWizardData, incomingWizardData);
+
+    // Unir completedSteps para não perder progresso salvo
+    const existingCompleted = Array.isArray((existing as any).completedSteps)
+      ? (existing as any).completedSteps
+      : [];
+    const incomingCompleted = Array.isArray((updated as any).completedSteps)
+      ? (updated as any).completedSteps
+      : [];
+    (updated as any).completedSteps = Array.from(
+      new Set([...existingCompleted, ...incomingCompleted])
+    );
+
     // ✅ MIGRAÇÃO: Salvar no SQL ao invés de KV Store
     // ✅ REFATORADO v1.0.103.500 - Usar helper híbrido para obter organization_id (UUID)
     let organizationId = existingRow.organization_id; // Usar da propriedade existente como padrão
@@ -2045,6 +2171,14 @@ export async function updateProperty(c: Context) {
 
     // Converter para formato SQL
     const sqlData = propertyToSql(updated, organizationId);
+
+    // Log dos dados que serão salvos (para diagnóstico)
+    console.log("📝 [UPDATE SQL] Dados a salvar:", {
+      id: sqlData.id,
+      name: sqlData.name,
+      wizardDataKeys: sqlData.wizard_data ? Object.keys(sqlData.wizard_data).slice(0, 5) : null,
+      wizardDataSize: sqlData.wizard_data ? JSON.stringify(sqlData.wizard_data).length : 0,
+    });
 
     // Remover campos que não devem ser atualizados (id, organization_id, created_at)
     delete sqlData.id;
@@ -2067,9 +2201,17 @@ export async function updateProperty(c: Context) {
 
     if (updateError) {
       console.error("❌ [updateProperty] SQL error updating:", updateError);
+      console.error("❌ [updateProperty] Erro details:", JSON.stringify({
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+      }));
       return c.json(
         errorResponse("Erro ao atualizar propriedade", {
           details: updateError.message,
+          code: updateError.code,
+          hint: updateError.hint,
         }),
         500
       );

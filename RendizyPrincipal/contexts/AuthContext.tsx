@@ -11,6 +11,7 @@ import {
   login as loginService,
   logout as logoutService,
 } from '../services/authService';
+import { setSupabaseToken } from '../utils/supabase/client';
 
 type AuthUser = {
   id?: string;
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setToken(stored);
+    setSupabaseToken(stored); // Sincronizar token com Supabase
     const me = await getCurrentUser();
     if (me.success && me.user) {
       setUser(me.user);
@@ -93,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (result.success && (result.token || result.accessToken)) {
       const newToken = result.token || result.accessToken || null;
       setToken(newToken);
+      setSupabaseToken(newToken!); // Sincronizar token com Supabase
       setIsAuthenticated(true);
       setUser(result.user ?? { id: 'local-user', username });
       setOrganization(null);
